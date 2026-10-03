@@ -33,7 +33,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-gui = []
+# The desktop app. Pinned exactly: the window is tested and screenshotted
+# against this Qt, and PyInstaller bundles whatever is installed.
+gui = ["PySide6==6.11.2"]
 dev = [
     "pytest>=8",
     "jsonschema>=4.20",

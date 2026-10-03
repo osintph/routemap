@@ -1,5 +1,5 @@
-# Unit tests and parser fixtures on every platform the app ships for.
-# The desktop build, smoke test and signing workflows arrive with the app.
+# Unit tests, parser fixtures and the offscreen GUI smoke test on every
+# platform the app ships for. Build, sign and release workflows arrive later.
 name: tests
 
 on:
@@ -19,12 +19,17 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, macos-15-intel, windows-latest]
         python: ["3.11", "3.12", "3.13"]
+    env:
+      QT_QPA_PLATFORM: offscreen
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python }}
+      - name: Qt runtime libraries (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq libegl1 libgl1 libxkbcommon0 libfontconfig1 libdbus-1-3
       - name: Install
-        run: python -m pip install -e ".[dev]"
+        run: python -m pip install -e ".[dev,gui]"
       - name: Tests
         run: python -m pytest

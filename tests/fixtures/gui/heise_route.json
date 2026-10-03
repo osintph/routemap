@@ -1,0 +1,704 @@
+{
+ "note": "routemap.engine analysis of tests/fixtures/routemap/heise_traceroute.txt from Manila with live sources, captured 2026-10-03 for the GUI mockup and smoke tests.",
+ "trace_text": "traceroute to heise.de (193.99.144.80), 30 hops max, 60 byte packets\n 1  router (192.0.2.1)  4.112 ms  3.741 ms  3.698 ms\n 2  192.168.1.1 (192.168.1.1)  5.432 ms  5.802 ms  3.333 ms\n 3  198.51.100.1 (198.51.100.1)  8.820 ms  8.442 ms  8.051 ms\n 4  122.2.187.146.static.pldt.net (122.2.187.146)  8.323 ms  8.015 ms  6.227 ms\n 5  210.213.130.143.static.pldt.net (210.213.130.143)  9.218 ms  10.291 ms  9.905 ms\n 6  hnk-b4-link.ip.twelve99.net (62.115.209.158)  55.214 ms * *\n 7  sng-b6-link.ip.twelve99.net (62.115.112.222)  58.331 ms  58.812 ms  59.004 ms\n 8  mei-b6-link.ip.twelve99.net (62.115.140.54)  195.442 ms  195.881 ms  196.122 ms\n 9  prs-bb2-link.ip.twelve99.net (62.115.136.234)  239.118 ms  239.664 ms  240.002 ms\n10  ffm-bb2-link.ip.twelve99.net (62.115.122.139)  228.447 ms  228.902 ms  229.331 ms\n11  ffm-b16-link.ip.twelve99.net (62.115.132.229)  211.332 ms  211.884 ms *\n12  plusline-ic-323934.ip.twelve99-cust.net (62.115.153.153)  257.119 ms  257.664 ms  258.001 ms\n13  te2-2.c301.f.de.plusline.net (82.98.102.1)  258.221 ms  258.774 ms  259.118 ms\n14  82.98.103.3 (82.98.103.3)  258.443 ms  258.919 ms  259.337 ms\n15  212.19.61.13 (212.19.61.13)  256.118 ms  256.662 ms  257.004 ms\n16  heise.de (193.99.144.80)  255.337 ms  255.881 ms  256.223 ms\n",
+ "route": {
+  "parser": "traceroute",
+  "parser_label": "Unix traceroute",
+  "target": "193.99.144.80",
+  "warnings": [],
+  "hoiho_ruleset_date": "2024-08",
+  "origin": {
+   "lat": 14.6,
+   "lon": 121.0,
+   "label": "Manila, NCR, PH",
+   "source": "supplied"
+  },
+  "hops": [
+   {
+    "hop": 1,
+    "addresses": [
+     "192.0.2.1"
+    ],
+    "address": "192.0.2.1",
+    "hostnames": [
+     "router"
+    ],
+    "hostname": "router",
+    "min_rtt_ms": 3.698,
+    "avg_rtt_ms": 3.85,
+    "sent": 3,
+    "lost": 0,
+    "loss_pct": 0.0,
+    "codes": [],
+    "source": "local",
+    "lat": 14.6,
+    "lon": 121.0,
+    "place": "local / ISP internal",
+    "cc": null,
+    "distance_km": null,
+    "rtt_budget_km": null,
+    "annotations": [
+     "local / ISP internal"
+    ],
+    "reason": "private, CGNAT or reserved address, not geolocated",
+    "candidates": []
+   },
+   {
+    "hop": 2,
+    "addresses": [
+     "192.168.1.1"
+    ],
+    "address": "192.168.1.1",
+    "hostnames": [],
+    "hostname": null,
+    "min_rtt_ms": 3.333,
+    "avg_rtt_ms": 4.856,
+    "sent": 3,
+    "lost": 0,
+    "loss_pct": 0.0,
+    "codes": [],
+    "source": "local",
+    "lat": 14.6,
+    "lon": 121.0,
+    "place": "local / ISP internal",
+    "cc": null,
+    "distance_km": null,
+    "rtt_budget_km": null,
+    "annotations": [
+     "local / ISP internal"
+    ],
+    "reason": "private, CGNAT or reserved address, not geolocated",
+    "candidates": []
+   },
+   {
+    "hop": 3,
+    "addresses": [
+     "198.51.100.1"
+    ],
+    "address": "198.51.100.1",
+    "hostnames": [],
+    "hostname": null,
+    "min_rtt_ms": 8.051,
+    "avg_rtt_ms": 8.438,
+    "sent": 3,
+    "lost": 0,
+    "loss_pct": 0.0,
+    "codes": [],
+    "source": "local",
+    "lat": 14.6,
+    "lon": 121.0,
+    "place": "local / ISP internal",
+    "cc": null,
+    "distance_km": null,
+    "rtt_budget_km": null,
+    "annotations": [
+     "local / ISP internal"
+    ],
+    "reason": "private, CGNAT or reserved address, not geolocated",
+    "candidates": []
+   },
+   {
+    "hop": 4,
+    "addresses": [
+     "122.2.187.146"
+    ],
+    "address": "122.2.187.146",
+    "hostnames": [
+     "122.2.187.146.static.pldt.net"
+    ],
+    "hostname": "122.2.187.146.static.pldt.net",
+    "min_rtt_ms": 6.227,
+    "avg_rtt_ms": 7.522,
+    "sent": 3,
+    "lost": 0,
+    "loss_pct": 0.0,
+    "codes": [],
+    "source": "ip-db",
+    "lat": 14.5688,
+    "lon": 121.0827,
+    "place": "Pasig, PH",
+    "cc": "PH",
+    "distance_km": 9.6,
+    "rtt_budget_km": 922.7,
+    "annotations": [],
+    "reason": null,
+    "candidates": [
+     {
+      "source": "hoiho",
+      "hostname": "122.2.187.146.static.pldt.net",
+      "accepted": false,
+      "why": "no Hoiho rule matched this hostname"
+     },
+     {
+      "source": "ip-db",
+      "address": "122.2.187.146",
+      "place": "Pasig, PH",
+      "lat": 14.5688,
+      "lon": 121.0827,
+      "distance_km": 9.6,
+      "rtt_budget_km": 922.7,
+      "accepted": true
+     }
+    ]
+   },
+   {
+    "hop": 5,
+    "addresses": [
+     "210.213.130.143"
+    ],
+    "address": "210.213.130.143",
+    "hostnames": [
+     "210.213.130.143.static.pldt.net"
+    ],
+    "hostname": "210.213.130.143.static.pldt.net",
+    "min_rtt_ms": 9.218,
+    "avg_rtt_ms": 9.805,
+    "sent": 3,
+    "lost": 0,
+    "loss_pct": 0.0,
+    "codes": [],
+    "source": "ip-db",
+    "lat": 8.5709,
+    "lon": 123.324,
+    "place": "Dipolog City, PH",
+    "cc": "PH",
+    "distance_km": 716.6,
+    "rtt_budget_km": 1221.8,
+    "annotations": [],
+    "reason": null,
+    "candidates": [
+     {
+      "source": "hoiho",
+      "hostname": "210.213.130.143.static.pldt.net",
+      "accepted": false,
+      "why": "no Hoiho rule matched this hostname"
+     },
+     {
+      "source": "ip-db",
+      "address": "210.213.130.143",
+      "place": "Dipolog City, PH",
+      "lat": 8.5709,
+      "lon": 123.324,
+      "distance_km": 716.6,
+      "rtt_budget_km": 1221.8,
+      "accepted": true
+     }
+    ]
+   },
+   {
+    "hop": 6,
+    "addresses": [
+     "62.115.209.158"
+    ],
+    "address": "62.115.209.158",
+    "hostnames": [
+     "hnk-b4-link.ip.twelve99.net"
+    ],
+    "hostname": "hnk-b4-link.ip.twelve99.net",
+    "min_rtt_ms": 55.214,
+    "avg_rtt_ms": 55.214,
+    "sent": 3,
+    "lost": 2,
+    "loss_pct": 66.7,
+    "codes": [],
+    "source": "site-code",
+    "lat": 22.28,
+    "lon": 114.17,
+    "place": "Hong Kong, HK",
+    "cc": "HK",
+    "distance_km": 1116.8,
+    "rtt_budget_km": 5821.4,
+    "annotations": [
+     "ICMP rate limiting, not real loss"
+    ],
+    "reason": null,
+    "candidates": [
+     {
+      "source": "hoiho",
+      "hostname": "hnk-b4-link.ip.twelve99.net",
+      "accepted": false,
+      "why": "no Hoiho rule matched this hostname"
+     },
+     {
+      "source": "site-code",
+      "hostname": "hnk-b4-link.ip.twelve99.net",
+      "place": "Hong Kong, HK",
+      "lat": 22.28,
+      "lon": 114.17,
+      "distance_km": 1116.8,
+      "rtt_budget_km": 5821.4,
+      "accepted": true,
+      "carrier": "Arelion (AS1299, Twelve99)",
+      "code": "hnk",
+      "source_ref": "arelion-lg"
+     }
+    ],
+    "carrier": "Arelion (AS1299, Twelve99)",
+    "site_code": "hnk",
+    "source_ref": "arelion-lg",
+    "annotation_details": [
+     "ICMP rate limiting, not real loss: 67% loss here but only 0% at a later hop, so the packets were getting through"
+    ]
+   },
+   {
+    "hop": 7,
+    "addresses": [
+     "62.115.112.222"
+    ],
+    "address": "62.115.112.222",
+    "hostnames": [
+     "sng-b6-link.ip.twelve99.net"
+    ],
+    "hostname": "sng-b6-link.ip.twelve99.net",
+    "min_rtt_ms": 58.331,
+    "avg_rtt_ms": 58.716,
+    "sent": 3,
+    "lost": 0,
+    "loss_pct": 0.0,
+    "codes": [],
+    "source": "site-code",
+    "lat": 1.29,
+    "lon": 103.85,
+    "place": "Singapore, SG",
+    "cc": "SG",
+    "distance_km": 2395.8,
+    "rtt_budget_km": 6133.1,
+    "annotations": [],
+    "reason": null,
+    "candidates": [
+     {
+      "source": "hoiho",
+      "hostname": "sng-b6-link.ip.twelve99.net",
+      "accepted": false,
+      "why": "no Hoiho rule matched this hostname"
+     },
+     {
+      "source": "site-code",
+      "hostname": "sng-b6-link.ip.twelve99.net",
+      "place": "Singapore, SG",
+      "lat": 1.29,
+      "lon": 103.85,
+      "distance_km": 2395.8,
+      "rtt_budget_km": 6133.1,
+      "accepted": true,
+      "carrier": "Arelion (AS1299, Twelve99)",
+      "code": "sng",
+      "source_ref": "arelion-lg"
+     }
+    ],
+    "carrier": "Arelion (AS1299, Twelve99)",
+    "site_code": "sng",
+    "source_ref": "arelion-lg"
+   },
+   {
+    "hop": 8,
+    "addresses": [
+     "62.115.140.54"
+    ],
+    "address": "62.115.140.54",
+    "hostnames": [
+     "mei-b6-link.ip.twelve99.net"
+    ],
+    "hostname": "mei-b6-link.ip.twelve99.net",
+    "min_rtt_ms": 195.442,
+    "avg_rtt_ms": 195.815,
+    "sent": 3,
+    "lost": 0,
+    "loss_pct": 0.0,
+    "codes": [],
+    "source": "site-code",
+    "lat": 43.3,
+    "lon": 5.38,
+    "place": "Marseille, FR",
+    "cc": "FR",
+    "distance_km": 10848.8,
+    "rtt_budget_km": 19844.2,
+    "annotations": [],
+    "reason": null,
+    "candidates": [
+     {
+      "source": "hoiho",
+      "hostname": "mei-b6-link.ip.twelve99.net",
+      "accepted": false,
+      "why": "no Hoiho rule matched this hostname"
+     },
+     {
+      "source": "site-code",
+      "hostname": "mei-b6-link.ip.twelve99.net",
+      "place": "Marseille, FR",
+      "lat": 43.3,
+      "lon": 5.38,
+      "distance_km": 10848.8,
+      "rtt_budget_km": 19844.2,
+      "accepted": true,
+      "carrier": "Arelion (AS1299, Twelve99)",
+      "code": "mei",
+      "source_ref": "arelion-lg"
+     }
+    ],
+    "carrier": "Arelion (AS1299, Twelve99)",
+    "site_code": "mei",
+    "source_ref": "arelion-lg"
+   },
+   {
+    "hop": 9,
+    "addresses": [
+     "62.115.136.234"
+    ],
+    "address": "62.115.136.234",
+    "hostnames": [
+     "prs-bb2-link.ip.twelve99.net"
+    ],
+    "hostname": "prs-bb2-link.ip.twelve99.net",
+    "min_rtt_ms": 239.118,
+    "avg_rtt_ms": 239.595,
+    "sent": 3,
+    "lost": 0,
+    "loss_pct": 0.0,
+    "codes": [],
+    "source": "site-code",
+    "lat": 48.85,
+    "lon": 2.35,
+    "place": "Paris, FR",
+    "cc": "FR",
+    "distance_km": 10745.1,
+    "rtt_budget_km": 24211.8,
+    "annotations": [],
+    "reason": null,
+    "candidates": [
+     {
+      "source": "hoiho",
+      "hostname": "prs-bb2-link.ip.twelve99.net",
+      "accepted": false,
+      "why": "no Hoiho rule matched this hostname"
+     },
+     {
+      "source": "site-code",
+      "hostname": "prs-bb2-link.ip.twelve99.net",
+      "place": "Paris, FR",
+      "lat": 48.85,
+      "lon": 2.35,
+      "distance_km": 10745.1,
+      "rtt_budget_km": 24211.8,
+      "accepted": true,
+      "carrier": "Arelion (AS1299, Twelve99)",
+      "code": "prs",
+      "source_ref": "arelion-lg"
+     }
+    ],
+    "carrier": "Arelion (AS1299, Twelve99)",
+    "site_code": "prs",
+    "source_ref": "arelion-lg"
+   },
+   {
+    "hop": 10,
+    "addresses": [
+     "62.115.122.139"
+    ],
+    "address": "62.115.122.139",
+    "hostnames": [
+     "ffm-bb2-link.ip.twelve99.net"
+    ],
+    "hostname": "ffm-bb2-link.ip.twelve99.net",
+    "min_rtt_ms": 228.447,
+    "avg_rtt_ms": 228.893,
+    "sent": 3,
+    "lost": 0,
+    "loss_pct": 0.0,
+    "codes": [],
+    "source": "site-code",
+    "lat": 50.12,
+    "lon": 8.68,
+    "place": "Frankfurt, DE",
+    "cc": "DE",
+    "distance_km": 10276.6,
+    "rtt_budget_km": 23144.7,
+    "annotations": [],
+    "reason": null,
+    "candidates": [
+     {
+      "source": "hoiho",
+      "hostname": "ffm-bb2-link.ip.twelve99.net",
+      "accepted": false,
+      "why": "no Hoiho rule matched this hostname"
+     },
+     {
+      "source": "site-code",
+      "hostname": "ffm-bb2-link.ip.twelve99.net",
+      "place": "Frankfurt, DE",
+      "lat": 50.12,
+      "lon": 8.68,
+      "distance_km": 10276.6,
+      "rtt_budget_km": 23144.7,
+      "accepted": true,
+      "carrier": "Arelion (AS1299, Twelve99)",
+      "code": "ffm",
+      "source_ref": "arelion-lg"
+     }
+    ],
+    "carrier": "Arelion (AS1299, Twelve99)",
+    "site_code": "ffm",
+    "source_ref": "arelion-lg"
+   },
+   {
+    "hop": 11,
+    "addresses": [
+     "62.115.132.229"
+    ],
+    "address": "62.115.132.229",
+    "hostnames": [
+     "ffm-b16-link.ip.twelve99.net"
+    ],
+    "hostname": "ffm-b16-link.ip.twelve99.net",
+    "min_rtt_ms": 211.332,
+    "avg_rtt_ms": 211.608,
+    "sent": 3,
+    "lost": 1,
+    "loss_pct": 33.3,
+    "codes": [],
+    "source": "site-code",
+    "lat": 50.12,
+    "lon": 8.68,
+    "place": "Frankfurt, DE",
+    "cc": "DE",
+    "distance_km": 10276.6,
+    "rtt_budget_km": 21433.2,
+    "annotations": [
+     "ICMP rate limiting, not real loss"
+    ],
+    "reason": null,
+    "candidates": [
+     {
+      "source": "hoiho",
+      "hostname": "ffm-b16-link.ip.twelve99.net",
+      "accepted": false,
+      "why": "no Hoiho rule matched this hostname"
+     },
+     {
+      "source": "site-code",
+      "hostname": "ffm-b16-link.ip.twelve99.net",
+      "place": "Frankfurt, DE",
+      "lat": 50.12,
+      "lon": 8.68,
+      "distance_km": 10276.6,
+      "rtt_budget_km": 21433.2,
+      "accepted": true,
+      "carrier": "Arelion (AS1299, Twelve99)",
+      "code": "ffm",
+      "source_ref": "arelion-lg"
+     }
+    ],
+    "carrier": "Arelion (AS1299, Twelve99)",
+    "site_code": "ffm",
+    "source_ref": "arelion-lg",
+    "annotation_details": [
+     "ICMP rate limiting, not real loss: 33% loss here but only 0% at a later hop, so the packets were getting through"
+    ]
+   },
+   {
+    "hop": 12,
+    "addresses": [
+     "62.115.153.153"
+    ],
+    "address": "62.115.153.153",
+    "hostnames": [
+     "plusline-ic-323934.ip.twelve99-cust.net"
+    ],
+    "hostname": "plusline-ic-323934.ip.twelve99-cust.net",
+    "min_rtt_ms": 257.119,
+    "avg_rtt_ms": 257.595,
+    "sent": 3,
+    "lost": 0,
+    "loss_pct": 0.0,
+    "codes": [],
+    "source": "ip-db",
+    "lat": 48.8582,
+    "lon": 2.3387,
+    "place": "FR",
+    "cc": "FR",
+    "distance_km": 10745.3,
+    "rtt_budget_km": 26011.9,
+    "annotations": [],
+    "reason": null,
+    "candidates": [
+     {
+      "source": "hoiho",
+      "hostname": "plusline-ic-323934.ip.twelve99-cust.net",
+      "accepted": false,
+      "why": "no Hoiho rule matched this hostname"
+     },
+     {
+      "source": "ip-db",
+      "address": "62.115.153.153",
+      "place": "FR",
+      "lat": 48.8582,
+      "lon": 2.3387,
+      "distance_km": 10745.3,
+      "rtt_budget_km": 26011.9,
+      "accepted": true
+     }
+    ]
+   },
+   {
+    "hop": 13,
+    "addresses": [
+     "82.98.102.1"
+    ],
+    "address": "82.98.102.1",
+    "hostnames": [
+     "te2-2.c301.f.de.plusline.net"
+    ],
+    "hostname": "te2-2.c301.f.de.plusline.net",
+    "min_rtt_ms": 258.221,
+    "avg_rtt_ms": 258.704,
+    "sent": 3,
+    "lost": 0,
+    "loss_pct": 0.0,
+    "codes": [],
+    "source": "ip-db",
+    "lat": 48.767,
+    "lon": 9.1827,
+    "place": "Stuttgart, DE",
+    "cc": "DE",
+    "distance_km": 10310.2,
+    "rtt_budget_km": 26122.1,
+    "annotations": [],
+    "reason": null,
+    "candidates": [
+     {
+      "source": "hoiho",
+      "hostname": "te2-2.c301.f.de.plusline.net",
+      "accepted": false,
+      "why": "no Hoiho rule matched this hostname"
+     },
+     {
+      "source": "ip-db",
+      "address": "82.98.102.1",
+      "place": "Stuttgart, DE",
+      "lat": 48.767,
+      "lon": 9.1827,
+      "distance_km": 10310.2,
+      "rtt_budget_km": 26122.1,
+      "accepted": true
+     }
+    ]
+   },
+   {
+    "hop": 14,
+    "addresses": [
+     "82.98.103.3"
+    ],
+    "address": "82.98.103.3",
+    "hostnames": [],
+    "hostname": null,
+    "min_rtt_ms": 258.443,
+    "avg_rtt_ms": 258.9,
+    "sent": 3,
+    "lost": 0,
+    "loss_pct": 0.0,
+    "codes": [],
+    "source": "ip-db",
+    "lat": 48.767,
+    "lon": 9.1827,
+    "place": "Stuttgart, DE",
+    "cc": "DE",
+    "distance_km": 10310.2,
+    "rtt_budget_km": 26144.3,
+    "annotations": [],
+    "reason": null,
+    "candidates": [
+     {
+      "source": "ip-db",
+      "address": "82.98.103.3",
+      "place": "Stuttgart, DE",
+      "lat": 48.767,
+      "lon": 9.1827,
+      "distance_km": 10310.2,
+      "rtt_budget_km": 26144.3,
+      "accepted": true
+     }
+    ]
+   },
+   {
+    "hop": 15,
+    "addresses": [
+     "212.19.61.13"
+    ],
+    "address": "212.19.61.13",
+    "hostnames": [],
+    "hostname": null,
+    "min_rtt_ms": 256.118,
+    "avg_rtt_ms": 256.595,
+    "sent": 3,
+    "lost": 0,
+    "loss_pct": 0.0,
+    "codes": [],
+    "source": "ip-db",
+    "lat": 48.641,
+    "lon": 11.7833,
+    "place": "Mainburg, DE",
+    "cc": "DE",
+    "distance_km": 10143.1,
+    "rtt_budget_km": 25911.8,
+    "annotations": [],
+    "reason": null,
+    "candidates": [
+     {
+      "source": "ip-db",
+      "address": "212.19.61.13",
+      "place": "Mainburg, DE",
+      "lat": 48.641,
+      "lon": 11.7833,
+      "distance_km": 10143.1,
+      "rtt_budget_km": 25911.8,
+      "accepted": true
+     }
+    ]
+   },
+   {
+    "hop": 16,
+    "addresses": [
+     "193.99.144.80"
+    ],
+    "address": "193.99.144.80",
+    "hostnames": [
+     "heise.de"
+    ],
+    "hostname": "heise.de",
+    "min_rtt_ms": 255.337,
+    "avg_rtt_ms": 255.814,
+    "sent": 3,
+    "lost": 0,
+    "loss_pct": 0.0,
+    "codes": [],
+    "source": "ip-db",
+    "lat": 51.2993,
+    "lon": 9.491,
+    "place": "DE",
+    "cc": "DE",
+    "distance_km": 10167.6,
+    "rtt_budget_km": 25833.7,
+    "annotations": [],
+    "reason": null,
+    "candidates": [
+     {
+      "source": "hoiho",
+      "hostname": "heise.de",
+      "accepted": false,
+      "why": "no Hoiho rule matched this hostname"
+     },
+     {
+      "source": "ip-db",
+      "address": "193.99.144.80",
+      "place": "DE",
+      "lat": 51.2993,
+      "lon": 9.491,
+      "distance_km": 10167.6,
+      "rtt_budget_km": 25833.7,
+      "accepted": true
+     }
+    ]
+   }
+  ]
+ }
+}

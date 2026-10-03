@@ -1,0 +1,194 @@
+"""
+The hop table: one row per hop, sortable, copyable as tab-separated text.
+
+The hostname column shows the hostname that produced the placement, which on an
+ECMP hop is not necessarily the first one the hop answered from (FalconEye
+v3.35.3). Every other address and name is in the row's tooltip.
+"""
+from __future__ import annotations
+
+import html
+
+from PySide6.QtCore import QAbstractTableModel, QModelIndex, QSortFilterProxyModel, Qt
+from PySide6.QtGui import QColor, QGuiApplication, QIcon, QKeySequence, QPainter, QPixmap
+from PySide6.QtWidgets import QAbstractItemView, QHeaderView, QTableView
+
+from routemap.gui import theme
+
+# Ordered by what a reader needs first: where each hop is and how we know, then
+# the evidence. At a 1440-pixel window the first seven are always visible.
+COLUMNS = ["#", "Location", "Source", "Hostname", "IP address", "RTT min", "RTT avg", "Loss",
+           "Notes"]
+KEYS = ["hop", "place", "source", "hostname", "address", "min", "avg", "loss", "notes"]
+WIDTHS = [32, 132, 104, 196, 112, 76, 76, 50]
+NUMERIC = {"hop", "min", "avg", "loss"}
+
+# Short forms of the engine's annotation labels, for a narrow column. The full
+# label and its detail are in the tooltip.
+NOTE_SHORT = {
+    "local / ISP internal": "local",
+    "location impossible for RTT": "RTT rules out location",
+    "likely asymmetric return path": "asymmetric return",
+    "ICMP rate limiting, not real loss": "ICMP rate limiting",
+    "destination or path does not answer ICMP": "no ICMP reply",
+}
+
+
+def _dot(color: QColor) -> QIcon:
+    pixmap = QPixmap(12, 12)
+    pixmap.fill(Qt.transparent)
+    painter = QPainter(pixmap)
+    painter.setRenderHint(QPainter.Antialiasing)
+    painter.setPen(Qt.NoPen)
+    painter.setBrush(color)
+    painter.drawEllipse(1, 1, 10, 10)
+    painter.end()
+    return QIcon(pixmap)
+
+
+class HopModel(QAbstractTableModel):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.hops: list[dict] = []
+        self.icons: dict = {}
+
+    def set_hops(self, hops: list[dict]):
+        self.beginResetModel()
+        self.hops = list(hops)
+        palette = theme.current()
+        self.icons = {k: _dot(v) for k, v in palette.sources.items()}
+        self.endResetModel()
+
+    def rowCount(self, parent=QModelIndex()):
+        return 0 if parent.isValid() else len(self.hops)
+
+    def columnCount(self, parent=QModelIndex()):
+        return len(COLUMNS)
+
+    def headerData(self, section, orientation, role=Qt.DisplayRole):
+        if orientation == Qt.Horizontal and role == Qt.DisplayRole:
+            return COLUMNS[section]
+        return None
+
+    def text(self, hop: dict, column: int) -> str:
+        key = KEYS[column]
+        if key == "hop":
+            return str(hop["hop"])
+        if key == "address":
+            extra = len(hop.get("addresses") or []) - 1
+            return (hop.get("address") or "*") + (f" (+{extra})" if extra > 0 else "")
+        if key == "hostname":
+            extra = len(hop.get("hostnames") or []) - 1
+            return (hop.get("hostname") or "") + (f" (+{extra})" if extra > 0 else "")
+        if key in ("min", "avg"):
+            value = hop.get("min_rtt_ms" if key == "min" else "avg_rtt_ms")
+            return "" if value is None else f"{value:.1f} ms"
+        if key == "loss":
+            loss = hop.get("loss_pct")
+            return "" if loss is None else f"{loss:.0f}%"
+        if key == "place":
+            return hop.get("place") or ("not placed" if hop.get("lat") is None else "")
+        if key == "source":
+            return theme.SOURCE_SHORT.get(hop.get("source"), hop.get("source") or "")
+        if key == "notes":
+            return ", ".join(NOTE_SHORT.get(a, a) for a in hop.get("annotations") or [])
+        return ""
+
+    def sort_key(self, hop: dict, column: int):
+        key = KEYS[column]
+        if key == "hop":
+            return hop["hop"]
+        if key in ("min", "avg"):
+            value = hop.get("min_rtt_ms" if key == "min" else "avg_rtt_ms")
+            return float("inf") if value is None else value
+        if key == "loss":
+            loss = hop.get("loss_pct")
+            return -1.0 if loss is None else loss
+        return self.text(hop, column).lower()
+
+    def tooltip(self, hop: dict) -> str:
+        lines = [f"<b>Hop {hop['hop']}</b>"]
+        if hop.get("addresses"):
+            lines.append("Addresses: " + html.escape(", ".join(hop["addresses"])))
+        if hop.get("hostnames"):
+            lines.append("Hostnames: " + html.escape(", ".join(hop["hostnames"])))
+        lines.append("Placed by: " + html.escape(theme.SOURCE_LABELS.get(hop.get("source"), "")))
+        if hop.get("distance_km") is not None and hop.get("rtt_budget_km") is not None:
+            lines.append(f"{hop['distance_km']:,.0f} km from origin; the fastest probe allows "
+                         f"{hop['rtt_budget_km']:,.0f} km")
+        if hop.get("match_strs"):
+            lines.append("Hostname rule matched: " + html.escape(", ".join(hop["match_strs"])))
+        if hop.get("carrier"):
+            lines.append(f"Site code {html.escape(hop.get('site_code') or '')} in "
+                         f"{html.escape(hop['carrier'])}'s published list")
+        if hop.get("reason") and hop.get("lat") is None:
+            lines.append("Not placed: " + html.escape(hop["reason"]))
+        for note in hop.get("annotation_details") or []:
+            lines.append(html.escape(note))
+        return "<br>".join(lines)
+
+    def data(self, index, role=Qt.DisplayRole):
+        if not index.isValid():
+            return None
+        hop, column = self.hops[index.row()], index.column()
+        if role == Qt.DisplayRole:
+            return self.text(hop, column)
+        if role == Qt.UserRole:
+            return self.sort_key(hop, column)
+        if role == Qt.DecorationRole and KEYS[column] == "source":
+            return self.icons.get(hop.get("source"))
+        if role == Qt.ToolTipRole:
+            return self.tooltip(hop)
+        if role == Qt.TextAlignmentRole and KEYS[column] in NUMERIC:
+            return int(Qt.AlignRight | Qt.AlignVCenter)
+        if role == Qt.ForegroundRole and hop.get("lat") is None:
+            return QColor(theme.current().overlay_muted)
+        return None
+
+
+class HopTable(QTableView):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.model_ = HopModel(self)
+        self.proxy = QSortFilterProxyModel(self)
+        self.proxy.setSourceModel(self.model_)
+        self.proxy.setSortRole(Qt.UserRole)
+        self.setModel(self.proxy)
+        self.setSortingEnabled(True)
+        self.sortByColumn(0, Qt.AscendingOrder)
+        self.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.setAlternatingRowColors(True)
+        self.setWordWrap(False)
+        self.setTextElideMode(Qt.ElideMiddle)
+        self.verticalHeader().hide()
+        self.verticalHeader().setDefaultSectionSize(24)
+        header = self.horizontalHeader()
+        header.setHighlightSections(False)
+        header.setStretchLastSection(True)
+        header.setSectionResizeMode(QHeaderView.Interactive)
+        for column, width in enumerate(WIDTHS):
+            self.setColumnWidth(column, width)
+
+    def set_hops(self, hops: list[dict]):
+        self.model_.set_hops(hops)
+        self.sortByColumn(self.horizontalHeader().sortIndicatorSection(),
+                          self.horizontalHeader().sortIndicatorOrder())
+
+    def keyPressEvent(self, event):
+        if event.matches(QKeySequence.Copy):
+            self.copy_selection()
+            return
+        super().keyPressEvent(event)
+
+    def copy_selection(self) -> str:
+        """Selected rows (or all of them) as tab-separated text with a header."""
+        rows = sorted({i.row() for i in self.selectionModel().selectedIndexes()}) \
+            or list(range(self.proxy.rowCount()))
+        lines = ["\t".join(COLUMNS)]
+        for row in rows:
+            source_row = self.proxy.mapToSource(self.proxy.index(row, 0)).row()
+            hop = self.model_.hops[source_row]
+            lines.append("\t".join(self.model_.text(hop, c) for c in range(len(COLUMNS))))
+        text = "\n".join(lines) + "\n"
+        QGuiApplication.clipboard().setText(text)
+        return text

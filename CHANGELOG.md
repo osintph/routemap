@@ -26,6 +26,13 @@ Work toward 0.1.0, the first desktop release.
   supports cancel and a timeout.
 - Pluggable Hoiho answer caches: none, in memory, or one SQLite file.
 - `routemap parse FILE` on the command line.
+- The desktop window, as a static mockup for review: the offline Natural Earth
+  1:50m world map (public domain, about 114 KB bundled), route markers that
+  collapse same-city hops, unwrap across the antimeridian and move aside with
+  a leader line when they would overlap, the sortable hop table, unplaced hops
+  with reasons, live trace output, history, settings, export, paste and RIPE
+  Atlas dialogs, light and dark. `python -m routemap.gui.mockup` renders every
+  state from real recorded traces.
 
 ### Tagged
 
