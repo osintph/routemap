@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Route Map
+Comment=Hostname-first, physics-checked traceroute maps
+Exec=routemap %U
+Icon=routemap
+Categories=Network;Utility;
+Terminal=false

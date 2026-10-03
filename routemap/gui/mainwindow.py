@@ -29,6 +29,7 @@ class MainWindow(QMainWindow):
         self.setWindowTitle(DISPLAY_NAME)
         self.resize(1440, 900)
         self.setMinimumSize(QSize(900, 560))
+        self.closing = None
         self._build()
         self._menus()
         QGuiApplication.styleHints().colorSchemeChanged.connect(lambda *_: self._theme_changed())
@@ -120,7 +121,7 @@ class MainWindow(QMainWindow):
             file_menu.addSeparator() if action is None else file_menu.addAction(action)
 
         edit_menu = bar.addMenu("&Edit")
-        self.act_copy = QAction("Copy Hops", self, shortcut=QKeySequence.Copy)
+        self.act_copy = QAction("Copy Hop Table", self, shortcut=QKeySequence("Ctrl+Shift+C"))
         self.act_copy.triggered.connect(self.table.copy_selection)
         self.act_settings = QAction("Settings…", self, shortcut=QKeySequence("Ctrl+,"))
         self.act_settings.setMenuRole(QAction.PreferencesRole)
@@ -155,6 +156,11 @@ class MainWindow(QMainWindow):
         for action in (self.act_privacy, self.act_update, self.act_about):
             help_menu.addAction(action)
 
+    def closeEvent(self, event):
+        if callable(self.closing):
+            self.closing()
+        super().closeEvent(event)
+
     def _theme_changed(self):
         self.map.theme_changed()
         self.table.set_hops(self.table.model_.hops)
@@ -173,7 +179,9 @@ class MainWindow(QMainWindow):
             self.tool_label.setText("<span style='color:#c0392b'><b>No trace tool</b></span>")
             return
         if argv:
-            shown = " ".join(argv[:-1] if len(argv) > 1 else argv)
+            import os
+            parts = [os.path.basename(argv[0])] + list(argv[1:])
+            shown = " ".join(parts[:-1] if len(parts) > 1 else parts)
             self.tool_label.setText(f"<code>{shown}</code>")
 
     # ---------------------------------------------------------------- states ---
@@ -227,8 +235,7 @@ class MainWindow(QMainWindow):
         self.trace_button.setEnabled(True)
         self.busy.hide()
         self.sources.show()
-        for source in ("trace", "reverse-dns", "hoiho", "ip-db"):
-            self.sources.set_state(source, "done")
+        self.sources.finish()
         self.stack.setCurrentWidget(self.table)
         self.table.set_hops(hops)
         self.unplaced.set_hops(hops)

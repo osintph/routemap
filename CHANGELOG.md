@@ -6,9 +6,38 @@ uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-Work toward 0.1.0, the first desktop release.
+## [0.1.0-beta.1] - 2026-10-03
+
+The first desktop build, for trying on real machines. Not code-signed yet.
 
 ### Added
+
+- The desktop app on macOS (Apple silicon and Intel), Windows and Linux: trace
+  from this machine with the system's own tracert, traceroute or mtr, with the
+  tool's output streaming into the window, then the route on an offline world
+  map and in a sortable, copyable hop table, with unplaced hops and their reasons.
+- Paste or open a trace run elsewhere; open a JSON export again.
+- Exports: a 1600 x 900 PNG of the whole route with legend and provenance; a PDF
+  report with the facts of the trace, the map, the hop table, unplaced hops, how
+  locations were decided and the raw trace as an appendix; the JSON route model
+  with the trace text, tool and flags.
+- Origin from the public IP (city level, labelled approximate), or set in
+  Settings by city search (offline), coordinates or a click on the map.
+- Settings for the trace tool and flags (probe types that need administrator
+  rights are flagged, never escalated), each network source, the Hoiho cache
+  lifetime, RIPE Atlas and history. Everything is kept in one config folder.
+- Optional RIPE Atlas traces with your own key, after a one-time
+  acknowledgement that Atlas measurements are public.
+- History of the last 50 traces, off by a setting.
+- The command line: `routemap TARGET` with `--json`, `--png`, `--pdf` and
+  `--origin`; `routemap parse`, `routemap sites update`, `routemap cache clear`,
+  `routemap --check-update`.
+- Builds: a .dmg per Mac architecture (ad-hoc signed so it runs on Apple
+  silicon), a Windows .exe, a Linux AppImage and .tar.gz, each smoke-tested in
+  CI by opening the window offscreen, loading a trace and exporting all three
+  formats.
+
+### Earlier, toward this beta
 
 - The Route Map engine, extracted from FalconEye v3.35.3 into
   `routemap.engine`: the tracert, traceroute and mtr parsers, PTR resolution,

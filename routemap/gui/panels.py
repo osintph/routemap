@@ -162,13 +162,22 @@ class SourceStatus(QWidget):
         self.reset()
 
     def reset(self):
+        self.states = {}
         for key in self.labels:
             self.set_state(key, "waiting")
+
+    def finish(self):
+        """Anything still waiting or running when the result arrives is done;
+        a timeout, a failure or "off" stays visible."""
+        for key in self.labels:
+            if self.states.get(key) in (None, "waiting", "started"):
+                self.set_state(key, "done")
 
     def set_state(self, source: str, state: str, detail: str | None = None):
         if source not in self.labels:
             return
         label, name = self.labels[source]
+        self.states[source] = state
         mark = detail if (detail and state == "started") else self.MARKS.get(state, state)
         muted = theme.current().overlay_muted.name()
         color = {"done": theme.current().sources["site-code"].name(),

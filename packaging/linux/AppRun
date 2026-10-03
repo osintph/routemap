@@ -1,0 +1,4 @@
+#!/bin/sh
+# AppImage entry: run the bundled one-file binary with the caller's arguments.
+HERE="$(dirname "$(readlink -f "$0")")"
+exec "$HERE/usr/bin/routemap" "$@"
