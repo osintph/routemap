@@ -13,7 +13,7 @@ from PySide6.QtWidgets import (QButtonGroup, QCheckBox, QComboBox, QDialog, QDia
 
 from routemap.__about__ import DISPLAY_NAME
 from routemap.config import ORIGIN_AUTO, ORIGIN_CITY, ORIGIN_COORDS, ORIGIN_MAP, Settings
-from routemap.engine.runner import DEFAULT_FLAGS
+from routemap_engine.runner import DEFAULT_FLAGS
 
 
 def _note(text: str) -> QLabel:
@@ -164,7 +164,7 @@ class SettingsDialog(QDialog):
         self.origin_map.setChecked(True)
 
     def _search_cities(self, text: str):
-        from routemap.engine import cities
+        from routemap_engine import cities
 
         self.city_results.clear()
         self._city_rows = cities.search(text)
@@ -214,7 +214,7 @@ class SettingsDialog(QDialog):
         return page
 
     def _check_flags(self, *_):
-        from routemap.engine.runner import privileged_flags_in
+        from routemap_engine.runner import privileged_flags_in
 
         notes = []
         for name, edit in self.flags.items():
@@ -239,8 +239,10 @@ class SettingsDialog(QDialog):
         layout = QVBoxLayout(page)
         layout.addWidget(_note("Where hop locations come from, in the order they are tried. "
                                "Each line says what leaves this machine when it is on."))
+        from routemap import policy
         self.use_hoiho = QCheckBox("CAIDA Hoiho: router hostname rules")
-        self.use_hoiho.setChecked(s.use_hoiho)
+        self.use_hoiho.setChecked(s.use_hoiho and policy.HOIHO_ALLOWED)
+        self.use_hoiho.setEnabled(policy.HOIHO_ALLOWED)
         layout.addWidget(self.use_hoiho)
         layout.addWidget(_note("&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Sends: public router hostnames "
                                "from the trace, to api.hoiho.caida.org."))
@@ -249,8 +251,12 @@ class SettingsDialog(QDialog):
         site.setEnabled(False)
         layout.addWidget(site)
         layout.addWidget(_note("&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Offline, bundled. Sends nothing."))
+        from routemap import policy
         self.use_ipdb = QCheckBox("IP geolocation database (fallback)")
-        self.use_ipdb.setChecked(s.use_ip_db)
+        self.use_ipdb.setChecked(s.use_ip_db and policy.RIPESTAT_ALLOWED)
+        self.use_ipdb.setEnabled(policy.RIPESTAT_ALLOWED)
+        if not policy.RIPESTAT_ALLOWED:
+            self.use_ipdb.setToolTip(policy.RIPESTAT_OFF_NOTE)
         layout.addWidget(self.use_ipdb)
         layout.addWidget(_note("&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Sends: public hop addresses, to "
                                "RIPEstat (stat.ripe.net)."))
@@ -347,7 +353,7 @@ class SettingsDialog(QDialog):
             elif settings.origin_mode != ORIGIN_CITY:
                 problems.append("Choose a city from the list, or pick another kind of origin.")
         elif mode in (ORIGIN_COORDS, ORIGIN_MAP):
-            from routemap.engine import cities
+            from routemap_engine import cities
 
             lat, lon = round(self.lat.value(), 2), round(self.lon.value(), 2)
             near = cities.nearest(lat, lon)
@@ -515,7 +521,7 @@ class PasteTraceDialog(QDialog):
         return self.edit.toPlainText()
 
     def _detect(self):
-        from routemap.engine.parse import PARSER_LABELS, TraceParseError, parse_trace
+        from routemap_engine.parse import PARSER_LABELS, TraceParseError, parse_trace
 
         text = self.edit.toPlainText()
         if not text.strip():
@@ -554,7 +560,8 @@ request to GitHub for the latest release tag.</td></tr>
 <p>Private, CGNAT and reserved addresses are never looked up. There is no telemetry and no
 automatic update check.</p>
 <h3>What stays on this machine</h3>
-<p>In your config folder: settings, the Hoiho answer cache (30 days, clearable) and, if it is
+<p>In your config folder: settings, the Hoiho and IP database answer caches (30 days,
+clearable: router hostnames and public hop addresses with their locations) and, if it is
 on, the history of the last 50 traces (clearable). Exports go only to the file you choose.</p>
 """
 
@@ -568,6 +575,24 @@ class PrivacyDialog(QDialog):
         view = QTextBrowser()
         view.setHtml(PRIVACY_HTML)
         view.setOpenExternalLinks(True)
+        layout.addWidget(view)
+        buttons = QDialogButtonBox(QDialogButtonBox.Close)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+
+class NoticesDialog(QDialog):
+    """THIRD_PARTY_NOTICES.md and the licence texts that ship with the build."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        from routemap.gui.legal import notices_markdown
+        self.setWindowTitle("Third-Party Notices")
+        self.resize(720, 600)
+        layout = QVBoxLayout(self)
+        view = QTextBrowser()
+        view.setOpenExternalLinks(True)
+        view.setMarkdown(notices_markdown())
         layout.addWidget(view)
         buttons = QDialogButtonBox(QDialogButtonBox.Close)
         buttons.rejected.connect(self.reject)

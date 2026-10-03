@@ -10,11 +10,11 @@ A full rename also has to touch the literals that cannot import that module:
 |---|---|
 | `routemap/` (directory) | the import package; rename it and update imports with one `sed` |
 | `pyproject.toml` | `name`, `[project.scripts]`, the URLs, the hatch version path and wheel package |
-| `packaging/routemap.spec` | the bundle identifier (`info.osintph.routemap`); names come from `__about__` |
+| `packaging/build_nuitka.py` | output names (`routemap-app`, `routemap.exe`, `routemap-cli.exe`); display name from `__about__` |
 | `packaging/linux/routemap.desktop`, `AppRun` | `Name=`, `Exec=`, `Icon=`, the binary path |
 | `.github/workflows/build.yml` | artifact and file names, the dmg volume name |
 | `packaging/release-notes-unsigned.md`, `README.md`, `PRIVACY.md` | prose |
-| FalconEye `requirements.txt` | the pinned dependency URL |
+| `docs/download-host/`, `scripts/testers.sh` (welcome email), `packaging/download_index.py` | prose |
 
 `grep -rn -i "routemap\|route map" --exclude-dir=.git` after a rename should
 find only imports and the lines above.

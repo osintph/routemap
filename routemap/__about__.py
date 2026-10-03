@@ -17,7 +17,7 @@ DISPLAY_NAME = "Route Map"
 REPO_SLUG = "osintph/routemap"
 REPO_URL = f"https://github.com/{REPO_SLUG}"
 
-__version__ = "0.1.0b1"
+__version__ = "0.1.0b3"
 
 # Upstreams see this product token, so a complaint about our traffic reaches
 # the project rather than whoever happens to be running it.

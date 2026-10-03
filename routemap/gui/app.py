@@ -19,9 +19,9 @@ from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox
 
 from routemap import config, service
 from routemap.__about__ import DISPLAY_NAME, NAME, REPO_URL, __version__
-from routemap.engine import (InvalidTarget, Route, SqliteCache, TraceParseError, analyse, atlas,
+from routemap_engine import (InvalidTarget, Route, SqliteCache, TraceParseError, analyse, atlas,
                              available_tools, install_hint, validate_target, whereami)
-from routemap.engine.runner import TraceToolMissing, pick_tool
+from routemap_engine.runner import TraceToolMissing, pick_tool
 from routemap.gui import dialogs, mapview, report
 from routemap.gui.mainwindow import MainWindow
 from routemap.gui.workers import Task
@@ -57,6 +57,7 @@ class Controller(QObject):
         w.act_atlas.triggered.connect(self.atlas_trace)
         w.act_privacy.triggered.connect(lambda: dialogs.PrivacyDialog(w).exec())
         w.act_update.triggered.connect(self.check_update)
+        w.act_notices.triggered.connect(lambda: dialogs.NoticesDialog(w).exec())
         w.act_about.triggered.connect(self.about)
         w.history.opened.connect(self.open_history)
         w.history.cleared.connect(self.clear_history)
@@ -120,8 +121,14 @@ class Controller(QObject):
 
     # -------------------------------------------------------------- origin ---
     def lookup_origin(self):
-        def job(on_line, on_progress, cancel):
-            return asyncio.run(whereami.locate_me(user_agent=service.user_agent()))
+        from routemap import policy
+        if not policy.RIPESTAT_ALLOWED:
+            self._refresh_origin_status()
+            return
+
+        def job(on_line, on_progress, cancel, **_):
+            return asyncio.run(whereami.locate_me(user_agent=service.user_agent(),
+                                                  sourceapp=service.SOURCEAPP))
 
         task = Task(job, self)
         task.succeeded.connect(self._origin_found)
@@ -170,39 +177,26 @@ class Controller(QObject):
         settings = self.settings
         origin = self.origin
 
-        def job(on_line, on_progress, cancel):
-            result = service.run(target, settings, cancel=cancel, on_line=on_line)
-            if result.cancelled:
-                raise RuntimeError("Stopped.")
-            if not result.text.strip():
-                raise RuntimeError(f"{result.tool} printed nothing (exit code {result.returncode}).")
-            on_progress("trace", "done")
-            route = asyncio.run(analyse(result.text, origin[:2] if origin else None,
-                                        sources=service.sources_for(settings),
-                                        progress=lambda s, st, d: on_progress(s, st, d)))
-            return {"route": route, "text": result.text, "argv": result.argv,
-                    "timed_out": result.timed_out}
+        def job(on_line, on_progress, cancel, on_hop, **_):
+            return progressive_trace(target, settings, origin, on_line=on_line,
+                                     on_progress=on_progress, on_hop=on_hop, cancel=cancel)
 
-        from routemap.engine.runner import build_argv
+        from routemap_engine.runner import build_argv
         argv = build_argv(tool, tool, target, settings.flags_for(tool))
-        self.w.show_tracing(target, argv, [], "starting")
-        if not origin:
-            self.w.map.show_card(f"Tracing {target}", "Hops are placed when the trace finishes.")
-        else:
+        self.w.show_tracing(target, argv)
+        if origin:
             self.w.map.set_origin(*origin)
-            self.w.map.show_card(f"Tracing {target}", "Hops are placed when the trace finishes. "
-                                                      "The tool's own output is on the right as it arrives.")
         self._run(job, target=target, source=LOCAL)
 
     def _run(self, job, *, target: str, source: str):
         task = Task(job, self)
         task.line.connect(self._line)
         task.progress.connect(lambda s, st, d: self.w.sources.set_state(s, st, d or None))
+        task.hop.connect(lambda route: self._hop(route, target))
         task.succeeded.connect(lambda r: self._done(r, target, source))
         task.failed.connect(self._failed)
         self.task = task
-        self.w.trace_button.setText("Stop")
-        self.w.busy.show()
+        self.w.set_running(True)
         task.start()
 
     def _line(self, line: str):
@@ -210,7 +204,14 @@ class Controller(QObject):
         stripped = line.strip()
         number = stripped.split()[0].rstrip(".|-") if stripped else ""
         if number.isdigit():
-            self.w.sources.set_state("trace", "started", f"hop {number}")
+            self._hop_note = f"hop {number}"
+            self.w.sources.set_state("trace", "started", self._hop_note)
+
+    def _hop(self, route: dict, target: str):
+        """One more hop placed while the tool is still running: draw it now."""
+        if not self.busy():
+            return
+        self.w.update_live(route, target, getattr(self, "_hop_note", ""))
 
     def _done(self, result: dict, target: str, source: str):
         route: Route = result["route"]
@@ -220,8 +221,11 @@ class Controller(QObject):
                         "origin_how": result.get("origin_how") or (
                             self.origin_how if body["origin"]["source"] == "supplied" else "first-hop"),
                         "when": _dt.datetime.now().astimezone()}
-        self.w.show_result(body, target, result.get("argv"))
-        self.w.busy.hide()
+        self.w.show_result(body, target, result.get("argv"), trace_text=result["text"],
+                           keep_view=source == LOCAL)
+        if result.get("stopped"):
+            self.w.statusBar().showMessage(f"Stopped; the {len(body['hops'])} hops traced so "
+                                           "far are shown.", 10000)
         if result.get("timed_out"):
             self.w.statusBar().showMessage("The trace hit its time limit; the hops it reached "
                                            "are shown.", 10000)
@@ -232,12 +236,12 @@ class Controller(QObject):
         self.refresh_history()
 
     def _failed(self, message: str):
-        self.w.busy.hide()
-        self.w.trace_button.setText("Trace")
+        self.w.set_running(False)
+        self.w.set_state("")
         self.w.sources.hide()
         if self.current:
             c = self.current
-            self.w.show_result(c["route"], c["target"], c.get("argv"))
+            self.w.show_result(c["route"], c["target"], c.get("argv"), trace_text=c.get("trace_text"))
         else:
             self.show_idle()
         self.w.summary.setText(f"<span style='color:#c0392b'>{_html(message)}</span>")
@@ -281,7 +285,8 @@ class Controller(QObject):
                             "trace_text": trace.get("text") or "", "argv": trace.get("argv"),
                             "source": trace.get("source") or FILE,
                             "origin_how": document.get("origin_how"), "when": _dt.datetime.now().astimezone()}
-            self.w.show_result(route, self.current["target"], self.current["argv"])
+            self.w.show_result(route, self.current["target"], self.current["argv"],
+                               trace_text=self.current["trace_text"])
             return
         self.analyse_text(text, os.path.basename(path), FILE)
 
@@ -290,14 +295,14 @@ class Controller(QObject):
             return
         settings, origin = self.settings, self.origin
 
-        def job(on_line, on_progress, cancel):
+        def job(on_line, on_progress, cancel, **_):
             route = asyncio.run(analyse(text, origin[:2] if origin else None,
                                         sources=service.sources_for(settings),
                                         progress=lambda s, st, d: on_progress(s, st, d)))
             return {"route": route, "text": text, "argv": None}
 
         try:
-            from routemap.engine import parse_trace
+            from routemap_engine import parse_trace
             parsed = parse_trace(text)
         except TraceParseError as exc:
             self.error("Not a trace", str(exc))
@@ -308,6 +313,7 @@ class Controller(QObject):
         self.w.sources.show()
         self.w.sources.reset()
         self.w.sources.set_state("trace", "off" if source != LOCAL else "done")
+        self.w.set_state(f"Analysing <b>{_html(target)}</b>…")
         self._run(job, target=target, source=source)
 
     # -------------------------------------------------------------- export ---
@@ -392,6 +398,8 @@ class Controller(QObject):
     def _clear_cache(self, dialog):
         try:
             removed = SqliteCache(config.cache_path()).clear()
+            if os.path.exists(config.ip_cache_path()):
+                removed += SqliteCache(config.ip_cache_path()).clear()
         except Exception as exc:  # noqa: BLE001
             self.error("Clear cache", str(exc))
             return
@@ -425,7 +433,7 @@ class Controller(QObject):
                         "argv": e.get("argv"), "source": e.get("source", LOCAL),
                         "origin_how": e.get("origin_how"),
                         "when": _dt.datetime.fromtimestamp(e["when"]).astimezone()}
-        self.w.show_result(e["route"], e["target"], e.get("argv"))
+        self.w.show_result(e["route"], e["target"], e.get("argv"), trace_text=e.get("trace_text", ""))
 
     def clear_history(self):
         answer = QMessageBox.question(self.w, "Clear history",
@@ -452,13 +460,23 @@ class Controller(QObject):
             config.save_settings(s)
         origin = self.origin
 
-        def job(on_line, on_progress, cancel):
+        def job(on_line, on_progress, cancel, **_):
             async def go():
-                client = atlas.Atlas(s.atlas_key, user_agent=service.user_agent())
+                client = atlas.Atlas(s.atlas_key, user_agent=service.user_agent(),
+                                     description=f"{DISPLAY_NAME} traceroute")
                 on_line("Finding a RIPE Atlas probe on your network…")
-                me = await whereami.locate_me(user_agent=service.user_agent())
-                asn = await whereami.asn_of(me["ip"], user_agent=service.user_agent())
-                probe = await client.select_probe(asn, me.get("cc"), origin[:2] if origin else None)
+                from routemap import policy
+                from routemap_engine import cities as _cities
+                asn, cc = None, None
+                if policy.RIPESTAT_ALLOWED:
+                    me = await whereami.locate_me(user_agent=service.user_agent(),
+                                                  sourceapp=service.SOURCEAPP)
+                    asn = await whereami.asn_of(me["ip"], user_agent=service.user_agent(),
+                                                sourceapp=service.SOURCEAPP)
+                    cc = me.get("cc")
+                elif origin:
+                    cc = ((_cities.nearest(origin[0], origin[1]) or {}).get("cc"))
+                probe = await client.select_probe(asn, cc, origin[:2] if origin else None)
                 on_line(f"Probe #{probe['id']} (AS{probe.get('asn')}, {probe.get('country') or '?'})"
                         + (f", {probe['distance_km']:.0f} km from your origin"
                            if probe.get("distance_km") is not None else ""))
@@ -484,14 +502,12 @@ class Controller(QObject):
             return asyncio.run(go())
 
         self.w.show_tracing(target, ["RIPE Atlas", "traceroute", target], [], "scheduling")
-        self.w.map.show_card(f"Tracing {target} from RIPE Atlas",
-                             "The measurement runs on a probe near you and usually takes "
-                             "30 to 90 seconds.")
+        self.w.set_state(f"Tracing <b>{target}</b> from a RIPE Atlas probe (usually 30 to 90 s)")
         self._run(job, target=target, source=ATLAS)
 
     # ---------------------------------------------------------------- help ---
     def check_update(self):
-        def job(on_line, on_progress, cancel):
+        def job(on_line, on_progress, cancel, **_):
             return asyncio.run(service.latest_release())
 
         task = Task(job, self)
@@ -514,7 +530,11 @@ class Controller(QObject):
         QMessageBox.about(self.w, f"About {DISPLAY_NAME}", (
             f"<b>{DISPLAY_NAME}</b> {__version__}<br><br>"
             "Hostname-first, physics-checked traceroute maps. The trace runs on this machine.<br><br>"
-            f"<a href='{REPO_URL}'>{REPO_URL}</a><br>GNU Affero General Public License v3.0<br><br>"
+            f"Free software under the GNU AGPL-3.0: <a href='{REPO_URL}'>{REPO_URL}</a>. "
+            "Third-party components keep their own licences: Help \u203a Third-Party Notices."
+            "<br>Geolocation engine: "
+            f"<a href='https://github.com/osintph/routemap-engine'>routemap-engine</a> {_engine_version()} "
+            "(AGPL-3.0)<br><br>"
             "Hostname rules: CAIDA Hoiho. IP geolocation: RIPEstat (RIPE NCC). Cities: GeoNames, "
             "CC BY 4.0. Map: Natural Earth. Carrier sites: Arelion's looking glass. Built with Qt."))
 
@@ -529,7 +549,89 @@ class Controller(QObject):
             self.task.wait(3000)
 
 
+# --------------------------------------------------------- the live trace ---
+
+def progressive_trace(target: str, settings: config.Settings, origin, *, on_line, on_progress,
+                      on_hop, cancel) -> dict:
+    """Run the tool and place each hop as its line arrives. Blocking; worker thread.
+
+    Two threads cooperate: this one reads the tool's output (and must never wait
+    on the network, or the output would stall), and a placer thread with its own
+    event loop parses each line and places hops in order, one at a time, calling
+    *on_hop* with the route so far after each. When the tool exits, the placer
+    finishes what is queued and runs the final pass (ECMP and annotations).
+    Stopping keeps whatever was traced.
+    """
+    import copy
+    import threading
+
+    from routemap_engine.progressive import ProgressiveTrace, _signature
+
+    loop = asyncio.new_event_loop()
+    thread = threading.Thread(target=loop.run_forever, name="routemap-placer", daemon=True)
+    thread.start()
+    trace = ProgressiveTrace(origin[:2] if origin else None, service.sources_for(settings),
+                             progress=lambda s, st, d: on_progress(s, st, d))
+
+    async def make_queue():
+        return asyncio.Queue()
+
+    queue = asyncio.run_coroutine_threadsafe(make_queue(), loop).result()
+
+    async def placer():
+        while True:
+            number = await queue.get()
+            try:
+                if number is None:
+                    return
+                hop = trace.hops.get(number)
+                if hop is not None and trace.placed_sig.get(number) != _signature(hop):
+                    await trace.place(hop)
+                    on_hop(copy.deepcopy(trace.snapshot()))
+            except Exception as exc:  # noqa: BLE001 - one hop never stops the trace
+                on_progress("trace", "failed", f"hop {number}: {exc}")
+            finally:
+                queue.task_done()
+
+    asyncio.run_coroutine_threadsafe(placer(), loop)
+
+    def handle(line: str):          # on the placer's loop
+        for hop in trace.feed(line):
+            queue.put_nowait(hop.hop)
+
+    def line_seen(line: str):       # on this thread
+        on_line(line)
+        loop.call_soon_threadsafe(handle, line)
+
+    async def final():
+        await queue.join()
+        await queue.put(None)
+        return await trace.finish()
+
+    try:
+        result = service.run(target, settings, cancel=cancel, on_line=line_seen)
+        if not result.text.strip():
+            raise RuntimeError(f"{result.tool} printed nothing (exit code {result.returncode}).")
+        if result.cancelled and not trace.hops:
+            raise RuntimeError("Stopped before the first hop.")
+        on_progress("trace", "done")
+        route = asyncio.run_coroutine_threadsafe(final(), loop).result()
+    finally:
+        loop.call_soon_threadsafe(loop.stop)
+        thread.join(timeout=2)
+    return {"route": route, "text": result.text, "argv": result.argv,
+            "timed_out": result.timed_out, "stopped": result.cancelled}
+
+
 # ------------------------------------------------------------------ helpers ---
+
+def _engine_version() -> str:
+    try:
+        from routemap_engine.__about__ import __version__ as v
+        return v
+    except Exception:  # noqa: BLE001
+        return ""
+
 
 def _norm(tag: str) -> str:
     return tag.lstrip("v").replace("-beta.", "b").replace("-", "")

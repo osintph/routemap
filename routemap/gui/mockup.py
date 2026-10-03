@@ -23,7 +23,7 @@ from PySide6.QtGui import QGuiApplication, QPalette
 from PySide6.QtWidgets import QApplication, QLabel, QWidget
 
 from routemap.__about__ import DISPLAY_NAME, __version__
-from routemap.engine import runner
+from routemap_engine import runner
 from routemap.gui import dialogs, geometry, mapview, theme
 from routemap.gui.mainwindow import MainWindow
 
@@ -97,26 +97,29 @@ def state_no_tool(window: MainWindow):
 
 
 def state_tracing(window: MainWindow):
-    window.map.set_origin(*MANILA)
+    """Mid-trace: nine hops in, placed as they arrived; the output panel open."""
     source = "heise_tracert.txt" if _platform_tool() == "tracert" else "heise_traceroute.txt"
     text = (ROOT / "tests" / "fixtures" / "routemap" / source).read_text().splitlines()
     shown = [line for line in text if line.strip()][:10]
     window.show_tracing("heise.de", _argv("heise.de"), shown, "hop 9")
-    window.map.fit_route()
-    window.map.show_card("Tracing heise.de",
-                         "Hops are placed when the trace finishes. The tool's own output is on "
-                         "the right as it arrives.")
+    route = _fixture("heise_ecmp_route")["route"]
+    partial = dict(route, hops=[dict(h, annotations=[]) for h in route["hops"][:9]])
+    window.update_live(partial, "heise.de", "hop 9")
+    window.live.toggle.setChecked(True)
 
 
 def state_result(window: MainWindow):
-    window.show_result(_fixture("heise_ecmp_route")["route"], "heise.de", _argv("heise.de"))
+    data = _fixture("heise_ecmp_route")
+    window.show_result(data["route"], "heise.de", _argv("heise.de"), trace_text=data["trace_text"])
     window.history_dock.show()
-    window.table.selectRow(7)
+    window.table.select_hops([10, 11])
+    window.map.highlight([10, 11])
 
 
 def state_unplaced(window: MainWindow):
-    window.show_result(_fixture("amazon_route")["route"], "amazon.com", _argv("amazon.com"),
-                       expand_unplaced=True)
+    data = _fixture("amazon_route")
+    window.show_result(data["route"], "amazon.com", _argv("amazon.com"), expand_unplaced=True,
+                       trace_text=data["trace_text"])
 
 
 STATES = {

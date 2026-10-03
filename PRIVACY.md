@@ -25,8 +25,9 @@ In the config folder (macOS `~/Library/Application Support/routemap/`, Windows
 
 - `settings.json`: your settings, including the origin and your RIPE Atlas key
   if you entered one (readable only by your user where the OS allows).
-- `cache.sqlite3`: Hoiho answers for router hostnames. Clear it in Settings or
-  with `routemap cache clear`.
+- `cache.sqlite3`: Hoiho answers for router hostnames, and `ipgeo-cache.sqlite3`:
+  IP database answers for public hop addresses, each kept 30 days by default.
+  Clear both in Settings or with `routemap cache clear`.
 - `history.json`: the last 50 traces, only while history is on. Clear it in
   Settings or the History panel.
 - `site_codes.tsv`: only after `routemap sites update`.

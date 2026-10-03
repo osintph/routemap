@@ -77,31 +77,65 @@ class UnplacedPanel(QWidget):
 
 
 class LiveOutput(QWidget):
-    """The tool's own output, line by line, while the trace runs."""
+    """The tool's own output, line by line. Collapsed by default under the table."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(6)
-        self.heading = QLabel(self)
+        layout.setSpacing(4)
+        self.toggle = QToolButton(self)
+        self.toggle.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        self.toggle.setArrowType(Qt.RightArrow)
+        self.toggle.setCheckable(True)
+        self.toggle.setAutoRaise(True)
+        self.toggle.toggled.connect(self._expand)
+        layout.addWidget(self.toggle)
+        self.body = QWidget(self)
+        body = QVBoxLayout(self.body)
+        body.setContentsMargins(0, 0, 0, 0)
+        body.setSpacing(4)
+        layout.addWidget(self.body)
+        self.heading = QLabel(self.body)
         self.heading.setTextFormat(Qt.RichText)
-        self.text = QPlainTextEdit(self)
+        self.text = QPlainTextEdit(self.body)
+        self.text.setMinimumHeight(140)
+        self.text.setMaximumHeight(240)
         self.text.setReadOnly(True)
         self.text.setLineWrapMode(QPlainTextEdit.NoWrap)
         mono = QFontDatabase.systemFont(QFontDatabase.FixedFont)
         mono.setPointSizeF(max(10.0, mono.pointSizeF()))
         self.text.setFont(mono)
-        layout.addWidget(self.heading)
-        layout.addWidget(self.text, 1)
+        body.addWidget(self.heading)
+        body.addWidget(self.text, 1)
+        self.lines = 0
+        self.body.hide()
+        self._label()
+
+    def _expand(self, on: bool):
+        self.toggle.setArrowType(Qt.DownArrow if on else Qt.RightArrow)
+        self.body.setVisible(on)
+
+    def _label(self):
+        self.toggle.setText(f"Tool output ({self.lines} lines)" if self.lines else "Tool output")
 
     def start(self, argv: list[str]):
-        command = " ".join(argv)
-        self.heading.setText(f"<b>Running</b> <code>{html.escape(command)}</code>")
+        import os
+        parts = [os.path.basename(argv[0])] + list(argv[1:]) if argv else []
+        self.heading.setText(f"<code>{html.escape(' '.join(parts))}</code>")
         self.text.clear()
+        self.lines = 0
+        self._label()
+
+    def set_text(self, text: str, argv: list[str] | None = None):
+        self.start(argv or [])
+        for line in (text or "").splitlines():
+            self.append(line)
 
     def append(self, line: str):
         self.text.appendPlainText(line)
+        self.lines += 1
+        self._label()
 
 
 class HistoryPanel(QWidget):

@@ -48,13 +48,19 @@ def to_scene(lon: float, lat: float) -> QPointF:
 
 # ------------------------------------------------------------------ the route ---
 
+def is_country_only(hop: dict) -> bool:
+    return hop.get("precision") == "country"
+
+
 def route_groups(route: dict) -> list[dict]:
     """Placed hops as map points: unwrapped, grouped, gaps marked.
 
     Pure, so tests can check grouping and the antimeridian without a display.
-    Returns [{"hops": [hop, ...], "lat", "lon", "source", "gap_before",
-    "at_origin"}], in path order. The origin is not a group; a group that sits
-    exactly on it (the local hops) is flagged ``at_origin``.
+    Returns [{"hops", "lat", "lon", "source", "gap_before", "at_origin",
+    "country_only", "silent"}], in path order. Hops placed only to country level
+    never merge with city hops. Hops after the last placed one that did not
+    answer form one final "silent" group anchored on the last point, so a trace
+    that is still running (or ended in silence) shows them at once.
     """
     origin = route.get("origin") or {}
     prev_lon = origin.get("lon")
@@ -63,10 +69,13 @@ def route_groups(route: dict) -> list[dict]:
         origin_key = (round(origin["lat"], 3), round(origin["lon"], 3))
     groups: list[dict] = []
     gap = False
+    trailing: list[dict] = []
     for hop in route.get("hops") or []:
         if hop.get("lat") is None:
             gap = True
+            trailing.append(hop)
             continue
+        trailing = []
         lat, lon = float(hop["lat"]), float(hop["lon"])
         if prev_lon is not None:
             while lon - prev_lon > 180:
@@ -74,14 +83,26 @@ def route_groups(route: dict) -> list[dict]:
             while lon - prev_lon < -180:
                 lon += 360
         key = (round(lat, 3), round(lon, 3))
-        if groups and not gap and (round(groups[-1]["lat"], 3), round(groups[-1]["lon"], 3)) == key:
-            groups[-1]["hops"].append(hop)
+        country = is_country_only(hop)
+        last = groups[-1] if groups else None
+        if (last is not None and not gap and last["country_only"] == country
+                and (round(last["lat"], 3), round(last["lon"], 3)) == key):
+            last["hops"].append(hop)
         else:
-            groups.append({"hops": [hop], "lat": lat, "lon": lon,
-                           "source": hop.get("source"), "gap_before": gap and bool(groups),
-                           "at_origin": origin_key is not None and key == origin_key})
+            groups.append({"hops": [hop], "lat": lat, "lon": lon, "source": hop.get("source"),
+                           "gap_before": gap and bool(groups), "country_only": country,
+                           "silent": False,
+                           "at_origin": origin_key is not None and key == origin_key and not country})
         gap = False
         prev_lon = lon
+    if trailing:
+        anchor = groups[-1] if groups else None
+        lat = anchor["lat"] if anchor else origin.get("lat")
+        lon = anchor["lon"] if anchor else origin.get("lon")
+        if lat is not None:
+            groups.append({"hops": trailing, "lat": lat, "lon": lon, "source": "unresolved",
+                           "gap_before": True, "country_only": False, "silent": True,
+                           "at_origin": False})
     return groups
 
 
@@ -94,23 +115,55 @@ def _fmt_ms(value) -> str:
     return "-" if value is None else f"{value:.1f} ms"
 
 
+def place_label(hop: dict) -> str:
+    place = hop.get("place") or ("not placed" if hop.get("lat") is None else "")
+    return f"{place} (country only)" if is_country_only(hop) else place
+
+
+def source_label(hop: dict) -> str:
+    short = theme.SOURCE_SHORT.get(hop.get("source"), hop.get("source") or "")
+    return f"{short}, country only" if is_country_only(hop) else short
+
+
 def group_tooltip(group: dict, origin_label: str | None = None) -> str:
-    """Rich-text tooltip for one marker: every hop in it, and ECMP candidates."""
+    """The same fields as the hop table row, for every hop in the marker."""
+    from routemap.gui.hoptable import NOTE_SHORT
+
+    esc = html.escape
     rows = []
     if group.get("at_origin") and origin_label:
-        rows.append(f"<b>Origin:</b> {html.escape(origin_label)}")
+        rows.append(f"<p style='margin:0 0 4px 0'><b>Origin:</b> {esc(origin_label)}</p>")
+    if group.get("silent"):
+        answered = any(h.get("addresses") for h in group["hops"])
+        rows.append("<p style='margin:0 0 4px 0'><i>"
+                    + ("Not placed: some answered but no source could place them, and some "
+                       "have not replied." if answered else "No reply from these hops yet, or at all.")
+                    + "</i></p>")
     for hop in group["hops"]:
-        name = hop.get("hostname") or hop.get("address") or "no answer"
-        line = (f"<b>Hop {hop['hop']}</b> {html.escape(name)}"
-                f"<br>&nbsp;&nbsp;{html.escape(hop.get('place') or 'not placed')}"
-                f" &middot; {html.escape(theme.SOURCE_LABELS.get(hop.get('source'), ''))}"
-                f" &middot; min {_fmt_ms(hop.get('min_rtt_ms'))}")
-        if len(hop.get("addresses") or []) > 1 or len(hop.get("hostnames") or []) > 1:
-            line += ("<br>&nbsp;&nbsp;<i>Answered from more than one router (ECMP). "
-                     "Candidate locations:</i>"
-                     "<table cellspacing='0' cellpadding='1' style='margin-left:14px'>")
-            located = [c for c in hop.get("candidates") or [] if c.get("lat") is not None]
-            for c in located:
+        extra_ip = len(hop.get("addresses") or []) - 1
+        extra_name = len(hop.get("hostnames") or []) - 1
+        notes = ", ".join(NOTE_SHORT.get(a, a) for a in hop.get("annotations") or [])
+        loss = hop.get("loss_pct")
+        cells = [
+            ("Hop", str(hop["hop"])),
+            ("Location", place_label(hop)),
+            ("Hostname", (hop.get("hostname") or "-") + (f" (+{extra_name})" if extra_name > 0 else "")),
+            ("IP address", (hop.get("address") or "*") + (f" (+{extra_ip})" if extra_ip > 0 else "")),
+            ("RTT", f"min {_fmt_ms(hop.get('min_rtt_ms'))}, avg {_fmt_ms(hop.get('avg_rtt_ms'))}"),
+            ("Loss", "-" if loss is None else f"{loss:.0f}%"),
+            ("Source", source_label(hop)),
+        ]
+        if notes:
+            cells.append(("Notes", notes))
+        if hop.get("lat") is None and hop.get("reason"):
+            cells.append(("Why", hop["reason"]))
+        table = "".join(f"<tr><td style='color:#888;padding-right:10px'>{esc(k)}</td>"
+                        f"<td>{esc(v)}</td></tr>" for k, v in cells)
+        block = f"<table cellspacing='0' cellpadding='1'>{table}</table>"
+        if extra_ip > 0 or extra_name > 0:
+            block += ("<p style='margin:4px 0 0 0'><i>Answered from more than one router (ECMP). "
+                      "Candidate locations:</i></p><table cellspacing='0' cellpadding='1'>")
+            for c in [c for c in hop.get("candidates") or [] if c.get("lat") is not None]:
                 who = c.get("hostname") or c.get("address") or "?"
                 if c.get("accepted"):
                     verdict = "<b>used</b>"
@@ -118,21 +171,12 @@ def group_tooltip(group: dict, origin_label: str | None = None) -> str:
                     verdict = (f"ruled out: {c['distance_km']:,.0f} km away, the fastest probe "
                                f"allows {c['rtt_budget_km']:,.0f} km")
                 else:
-                    verdict = html.escape(c.get("why") or "not used")
-                line += (f"<tr><td>{html.escape(who)}&nbsp;&nbsp;</td>"
-                         f"<td>{html.escape(c.get('place') or '')}&nbsp;&nbsp;</td>"
-                         f"<td>{verdict}</td></tr>")
-            line += "</table>"
-            missed = [c for c in hop.get("candidates") or []
-                      if c.get("lat") is None and c.get("source") == "hoiho"]
-            if missed:
-                line += (f"&nbsp;&nbsp;<span style='color:#888'>CAIDA Hoiho had no rule for "
-                         f"{'either hostname' if len(missed) == 2 else str(len(missed)) + ' of them'}"
-                         f".</span>")
-        for note in hop.get("annotation_details") or []:
-            line += f"<br>&nbsp;&nbsp;<span style='color:#888'>{html.escape(note)}</span>"
-        rows.append(line)
-    return "<br>".join(rows)
+                    verdict = esc(c.get("why") or "not used")
+                block += (f"<tr><td>{esc(who)}&nbsp;&nbsp;</td><td>{esc(c.get('place') or '')}"
+                          f"&nbsp;&nbsp;</td><td>{verdict}</td></tr>")
+            block += "</table>"
+        rows.append(block)
+    return "<hr>".join(rows)
 
 
 # ------------------------------------------------------------------- items ---
@@ -159,7 +203,10 @@ class LeaderItem(QGraphicsItem):
         if m.offset.isNull():
             return
         painter.setRenderHint(QPainter.Antialiasing)
-        painter.setPen(QPen(m.palette.route, 1.2 * m.size))
+        pen = QPen(m.palette.route_gap if m.silent else m.palette.route, 1.2 * m.size)
+        if m.silent:
+            pen.setStyle(Qt.DashLine)
+        painter.setPen(pen)
         painter.drawLine(QPointF(0, 0), m.offset)
         painter.setPen(QPen(m.palette.marker_ring, 1.0))
         painter.setBrush(m.palette.origin if m.origin else m.color)
@@ -167,12 +214,23 @@ class LeaderItem(QGraphicsItem):
 
 
 class MarkerItem(QGraphicsObject):
-    """A numbered pill at constant screen size."""
+    """A numbered pill at constant screen size. Click selects its hops.
+
+    Filled: placed to a city. Hollow with a coloured outline: placed only to a
+    country (the point is a centroid). Hollow, grey and dashed: hops that have
+    not answered (yet), shown beside the last placed point.
+    """
+
+    clicked = Signal(list)
 
     def __init__(self, label: str, color: QColor, palette: theme.Palette, *,
                  origin: bool = False, caption: str | None = None, tooltip: str = "",
-                 size: float = 1.0):
+                 size: float = 1.0, hollow: bool = False, silent: bool = False,
+                 hops: list[int] | None = None):
         super().__init__()
+        self.hollow, self.silent = hollow, silent
+        self.hops = list(hops or [])
+        self.selected = False
         self.label, self.color, self.palette = label, color, palette
         self.origin, self.caption = origin, caption
         self.hovered = False
@@ -249,6 +307,18 @@ class MarkerItem(QGraphicsObject):
                 painter.setBrush(self.palette.origin)
                 painter.setPen(Qt.NoPen)
                 painter.drawEllipse(QPointF(0, 0), 3.5, 3.5)
+        elif self.hollow or self.silent:
+            outline = self.palette.route_gap if self.silent else self.color
+            pen = QPen(outline, 2.0 * self.size)
+            if self.silent:
+                pen.setStyle(Qt.DashLine)
+            painter.setPen(pen)
+            painter.setBrush(QBrush(self.palette.overlay_bg))
+            painter.drawRoundedRect(rect, h / 2, h / 2)
+            painter.setFont(self.font)
+            painter.setPen(outline if self.silent else self.color.darker(115)
+                           if not self.palette.dark else self.color)
+            painter.drawText(rect, Qt.AlignCenter, self.label)
         else:
             painter.setPen(ring)
             painter.setBrush(QBrush(self.color))
@@ -256,6 +326,12 @@ class MarkerItem(QGraphicsObject):
             painter.setFont(self.font)
             painter.setPen(self.palette.marker_text)
             painter.drawText(rect, Qt.AlignCenter, self.label)
+        if self.selected:
+            painter.setBrush(Qt.NoBrush)
+            painter.setPen(QPen(self.palette.route, 2.5 * self.size))
+            grow_px = 4 * self.size
+            painter.drawRoundedRect(rect.adjusted(-grow_px, -grow_px, grow_px, grow_px),
+                                    h / 2 + grow_px, h / 2 + grow_px)
         if self.caption:
             painter.setFont(self.caption_font)
             metrics = QFontMetricsF(self.caption_font)
@@ -266,6 +342,25 @@ class MarkerItem(QGraphicsObject):
             painter.drawRoundedRect(crect, 4, 4)
             painter.setPen(self.palette.overlay_fg)
             painter.drawText(crect, Qt.AlignCenter, self.caption)
+
+    def set_selected(self, on: bool):
+        if on != self.selected:
+            self.selected = on
+            self.setZValue((30 if on else (20 if self.origin else 10)))
+            self.update()
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton and self.hops:
+            event.accept()
+            return
+        super().mousePressEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        if event.button() == Qt.LeftButton and self.hops:
+            self.clicked.emit(self.hops)
+            event.accept()
+            return
+        super().mouseReleaseEvent(event)
 
     def hoverEnterEvent(self, event):
         self.hovered = True
@@ -335,13 +430,20 @@ def build_scene(palette: theme.Palette) -> QGraphicsScene:
 
 def draw_route(scene: QGraphicsScene, route: dict, palette: theme.Palette,
                destination_label: str | None = None, size: float = 1.0) -> tuple[QRectF, list]:
-    """Add the route to *scene*. Returns (the scene rect it covers, its markers)."""
-    markers: list[MarkerItem] = []
+    """Add the route to *scene*. Returns (the rect to fit, the items added).
+
+    The rect covers the origin and every city-level hop. Country-only hops and
+    silent hops do not stretch it: a country centroid is not a place the packet
+    is known to have been.
+    """
+    items: list = []
     origin = route.get("origin") or {}
     groups = route_groups(route)
-    points = []
+    fit_points, points = [], []
     if origin.get("lat") is not None:
-        points.append(to_scene(origin["lon"], origin["lat"]))
+        start = to_scene(origin["lon"], origin["lat"])
+        fit_points.append(start)
+        points.append(start)
 
     pen = QPen(palette.route, 2.0)
     pen.setCosmetic(True)
@@ -351,34 +453,44 @@ def draw_route(scene: QGraphicsScene, route: dict, palette: theme.Palette,
 
     prev = points[0] if points else None
     for group in groups:
+        if group["silent"]:
+            continue
         here = to_scene(group["lon"], group["lat"])
         if prev is not None and here != prev:
             path = QPainterPath(prev)
             path.lineTo(here)
             item = QGraphicsPathItem(path)
-            item.setPen(gap_pen if group["gap_before"] else pen)
+            item.setPen(gap_pen if (group["gap_before"] or group["country_only"]) else pen)
             item.setZValue(5)
             scene.addItem(item)
+            items.append(item)
         prev = here
         points.append(here)
+        if not group["country_only"]:
+            fit_points.append(here)
 
     origin_label = origin.get("label")
     origin_drawn = False
-    for index, group in enumerate(groups):
-        last = index == len(groups) - 1
+    markers: list[MarkerItem] = []
+    real = [g for g in groups if not g["silent"]]
+    for group in groups:
+        hops = [h["hop"] for h in group["hops"]]
         tip = group_tooltip(group, origin_label)
-        caption = None
+        label = hop_range(group["hops"])
         if group["at_origin"] and not origin_drawn:
-            marker = MarkerItem(hop_range(group["hops"]), palette.origin, palette, origin=True,
-                                caption=_short(origin_label), tooltip=tip, size=size)
+            marker = MarkerItem(label, palette.origin, palette, origin=True,
+                                caption=_short(origin_label), tooltip=tip, size=size, hops=hops)
             origin_drawn = True
         else:
-            if last and destination_label:
+            caption = None
+            if group["country_only"]:
+                caption = place_label(group["hops"][0])
+            elif real and group is real[-1] and destination_label:
                 caption = destination_label
             color = palette.sources.get(group["source"], palette.sources["unresolved"])
-            marker = MarkerItem(hop_range(group["hops"]), color, palette, caption=caption,
-                                tooltip=tip, size=size)
-        marker.order = group["hops"][0]["hop"]
+            marker = MarkerItem(label, color, palette, caption=caption, tooltip=tip, size=size,
+                                hollow=group["country_only"], silent=group["silent"], hops=hops)
+        marker.order = group["hops"][0]["hop"] + (1000 if group["silent"] else 0)
         marker.setPos(to_scene(group["lon"], group["lat"]))
         scene.addItem(marker)
         markers.append(marker)
@@ -389,12 +501,19 @@ def draw_route(scene: QGraphicsScene, route: dict, palette: theme.Palette,
         marker.setPos(to_scene(origin["lon"], origin["lat"]))
         scene.addItem(marker)
         markers.append(marker)
+    items.extend(markers)
 
-    if not points:
-        return QRectF(), markers
-    xs = [p.x() for p in points]
-    ys = [p.y() for p in points]
-    return QRectF(min(xs), min(ys), max(xs) - min(xs), max(ys) - min(ys)), markers
+    if not fit_points:
+        fit_points = points
+    if not fit_points:
+        return QRectF(), items
+    xs = [p.x() for p in fit_points]
+    ys = [p.y() for p in fit_points]
+    return QRectF(min(xs), min(ys), max(xs) - min(xs), max(ys) - min(ys)), items
+
+
+def markers_of(items: list) -> list:
+    return [i for i in items if isinstance(i, MarkerItem)]
 
 
 def _short(label: str | None) -> str | None:
@@ -415,6 +534,7 @@ def declutter(markers: list, to_device) -> None:
     property of the zoom level, not of the route.
     """
     placed: list[QRectF] = []
+    markers = markers_of(markers)
     ordered = sorted(markers, key=lambda m: (not m.origin, getattr(m, "order", 0)))
     anchors = {id(m): to_device(m.pos()) for m in ordered}
     for marker in ordered:
@@ -473,9 +593,17 @@ class _Overlay(QFrame):
 
 
 class MapView(QGraphicsView):
-    """The interactive map. ``set_route`` draws, the buttons fit and reset."""
+    """The interactive map.
+
+    The world is drawn once per theme; the route is a separate layer, replaced
+    as hops arrive, so a trace in progress redraws only its own markers. The
+    view keeps itself fitted to the hops placed so far until the user zooms or
+    pans, and from then on leaves the view alone (Fit hands control back).
+    """
 
     originPicked = Signal(float, float)
+    markerClicked = Signal(list)       # hop numbers in the clicked marker
+    backgroundClicked = Signal()
 
     def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
@@ -483,8 +611,12 @@ class MapView(QGraphicsView):
         self.origin_only: tuple | None = None
         self.destination: str | None = None
         self.route_rect = QRectF()
+        self.items_: list = []
         self.markers: list = []
+        self.selected_hops: set[int] = set()
         self.picking = False
+        self.user_moved = False
+        self._press_pos = None
         self.setRenderHints(QPainter.Antialiasing | QPainter.SmoothPixmapTransform)
         self.setDragMode(QGraphicsView.ScrollHandDrag)
         self.setTransformationAnchor(QGraphicsView.AnchorUnderMouse)
@@ -504,8 +636,8 @@ class MapView(QGraphicsView):
         box.setSpacing(2)
         self.btn_in = self._tool("+", "Zoom in", lambda: self.zoom(1.4))
         self.btn_out = self._tool("−", "Zoom out", lambda: self.zoom(1 / 1.4))
-        self.btn_fit = self._tool("Fit", "Fit the route", self.fit_route)
-        self.btn_world = self._tool("World", "Show the whole world", self.reset_view)
+        self.btn_fit = self._tool("Fit", "Fit the route, and keep following it", lambda: self.fit_route())
+        self.btn_world = self._tool("World", "Show the whole world", lambda: self.reset_view())
         for button in (self.btn_in, self.btn_out, self.btn_fit, self.btn_world):
             box.addWidget(button)
 
@@ -558,7 +690,7 @@ class MapView(QGraphicsView):
         for widget in (self.controls, self.legend, self.card, self.attribution):
             widget.setStyleSheet(css)
 
-    def _fill_legend(self, sources: list[str]):
+    def _fill_legend(self, sources: list[str], extra: list[str] | None = None):
         while self.legend_layout.count():
             item = self.legend_layout.takeAt(0)
             if item.widget():
@@ -578,6 +710,30 @@ class MapView(QGraphicsView):
             line.addWidget(QLabel(theme.SOURCE_LABELS[source]))
             line.addStretch(1)
             self.legend_layout.addWidget(row)
+        for kind in extra or []:
+            row = QWidget()
+            line = QHBoxLayout(row)
+            line.setContentsMargins(0, 0, 0, 0)
+            line.setSpacing(6)
+            dot = QLabel()
+            dot.setFixedSize(10, 10)
+            color = (self.palette_.sources["ip-db"] if kind == "country"
+                     else self.palette_.route_gap)
+            style = "dashed" if kind == "silent" else "solid"
+            dot.setStyleSheet(f"background: transparent; border: 2px {style} {color.name()};"
+                              " border-radius: 5px;")
+            line.addWidget(dot)
+            line.addWidget(QLabel("Country only (centroid)" if kind == "country"
+                                  else "Not placed (yet)"))
+            line.addStretch(1)
+            self.legend_layout.addWidget(row)
+        # Children added to a visible widget are only shown on the next event
+        # loop pass, so size the legend after showing them now, or it measures
+        # itself empty (found with a live trace redrawing it once per hop).
+        for i in range(self.legend_layout.count()):
+            widget = self.legend_layout.itemAt(i).widget()
+            if widget is not None:
+                widget.show()
         self.legend.adjustSize()
 
     def resizeEvent(self, event):
@@ -608,41 +764,81 @@ class MapView(QGraphicsView):
 
     # ---- content
     def _rebuild(self):
+        """The world for the current theme, then the route layer on top."""
         self.palette_ = theme.current()
         self.setScene(build_scene(self.palette_))
         self._style_overlays()
+        self.items_, self.markers = [], []
+        self._draw_route_layer()
+
+    def _clear_route_layer(self):
+        scene = self.scene()
+        for item in self.items_:
+            leader = getattr(item, "leader", None)
+            if leader is not None and leader.scene() is scene:
+                scene.removeItem(leader)
+            if item.scene() is scene:
+                scene.removeItem(item)
+        self.items_, self.markers = [], []
+
+    def _draw_route_layer(self):
+        self._clear_route_layer()
         self.route_rect = QRectF()
-        self.markers = []
         if self.route is not None:
-            self.route_rect, self.markers = draw_route(self.scene(), self.route, self.palette_,
-                                                       self.destination)
+            self.route_rect, self.items_ = draw_route(self.scene(), self.route, self.palette_,
+                                                      self.destination)
+            hops = self.route.get("hops") or []
             used = [s for s in ("hoiho", "site-code", "ip-db", "local")
-                    if any(h.get("source") == s for h in self.route.get("hops") or [])]
-            self._fill_legend(used)
+                    if any(h.get("source") == s for h in hops)]
+            extra = []
+            if any(is_country_only(h) for h in hops):
+                extra.append("country")
+            if any(g["silent"] for g in route_groups(self.route)):
+                extra.append("silent")
+            self._fill_legend(used, extra)
             self.legend.show()
         else:
             self.legend.hide()
             if self.origin_only is not None:
                 lat, lon, label = self.origin_only
                 fake = {"origin": {"lat": lat, "lon": lon, "label": label}, "hops": []}
-                self.route_rect, self.markers = draw_route(self.scene(), fake, self.palette_)
+                self.route_rect, self.items_ = draw_route(self.scene(), fake, self.palette_)
+        self.markers = markers_of(self.items_)
+        for marker in self.markers:
+            marker.clicked.connect(self.markerClicked)
+            marker.set_selected(bool(self.selected_hops & set(marker.hops)))
         self._place_overlays()
 
     def theme_changed(self):
         self._rebuild()
-        self.fit_route()
+        self.follow()
 
-    def set_route(self, route: dict | None, destination: str | None = None):
+    def set_route(self, route: dict | None, destination: str | None = None, *,
+                  keep_view: bool = False):
+        """Draw *route*. Fit to it unless *keep_view* or the user has moved the map."""
         self.route, self.destination = route, destination
         self.origin_only = None
-        self._rebuild()
-        self.fit_route()
+        self._draw_route_layer()
+        if keep_view:
+            self.follow()
+        else:
+            self.user_moved = False
+            self.fit_route()
+
+    def follow(self):
+        """Refit to the route so far, unless the user has taken over the view."""
+        if self.user_moved:
+            self._declutter()
+        else:
+            self.fit_route(user=False)
 
     def set_origin(self, lat: float, lon: float, label: str | None):
         self.route = None
         self.origin_only = (lat, lon, label)
-        self._rebuild()
-        self.reset_view()
+        self.selected_hops = set()
+        self._draw_route_layer()
+        self.user_moved = False
+        self.reset_view(user=False)
 
     def show_card(self, title: str, body: str):
         self.card_title.setText(title)
@@ -653,12 +849,31 @@ class MapView(QGraphicsView):
     def hide_card(self):
         self.card.hide()
 
+    # ---- selection
+    def highlight(self, hops: list[int], center: bool = False):
+        """Ring the markers holding *hops*; optionally centre the first of them."""
+        self.selected_hops = set(hops)
+        target = None
+        for marker in self.markers:
+            on = bool(self.selected_hops & set(marker.hops))
+            marker.set_selected(on)
+            if on and target is None:
+                target = marker
+        if center and target is not None:
+            # Centring is not the user taking over the view; Fit still follows.
+            moved = self.user_moved
+            self.centerOn(target.pos())
+            self.user_moved = moved
+            self._declutter()
+
     # ---- navigation
-    def zoom(self, factor: float):
+    def zoom(self, factor: float, user: bool = True):
         current = self.transform().m11()
         floor = self.viewport().height() / (180 * SCALE)
         target = max(floor, min(current * factor, 400.0))
         self.scale(target / current, target / current)
+        if user:
+            self.user_moved = True
         self._declutter()
 
     def wheelEvent(self, event):
@@ -666,17 +881,21 @@ class MapView(QGraphicsView):
         if steps:
             self.zoom(1.25 ** steps)
 
-    def fit_route(self):
+    def fit_route(self, user: bool = True):
+        if user:
+            self.user_moved = False
         if self.route_rect.isNull() and self.route is None:
-            self.reset_view()
+            self.reset_view(user=False)
             return
         aspect = max(0.2, self.viewport().width() / max(1, self.viewport().height()))
         self.fitInView(padded(self.route_rect, aspect), Qt.KeepAspectRatio)
         self._declutter()
 
-    def reset_view(self):
+    def reset_view(self, user: bool = True):
         """The world, filling the pane: height-led, so a tall pane shows a
         region rather than a thin strip; the map repeats sideways anyway."""
+        if user:
+            self.user_moved = True
         center_lon = 0.0
         if not self.route_rect.isNull() or self.origin_only:
             center_lon = self.route_rect.center().x() / SCALE
@@ -687,7 +906,7 @@ class MapView(QGraphicsView):
         self.fitInView(rect, Qt.KeepAspectRatio)
         self._declutter()
 
-    # ---- origin picking (Settings > Origin > pick on map)
+    # ---- mouse: origin picking, drag detection, background click
     def mousePressEvent(self, event):
         if self.picking and event.button() == Qt.LeftButton:
             point = self.mapToScene(event.position().toPoint())
@@ -695,7 +914,22 @@ class MapView(QGraphicsView):
             lat = max(-90.0, min(90.0, -point.y() / SCALE))
             self.originPicked.emit(round(lat, 2), round(lon, 2))
             return
+        self._press_pos = event.position().toPoint()
         super().mousePressEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        super().mouseReleaseEvent(event)
+        if self._press_pos is None:
+            return
+        moved = (event.position().toPoint() - self._press_pos).manhattanLength()
+        self._press_pos = None
+        if moved > 4:
+            self.user_moved = True
+            self._declutter()
+        elif self.itemAt(event.position().toPoint()) is None or not isinstance(
+                self.itemAt(event.position().toPoint()), MarkerItem):
+            if not any(m.isUnderMouse() for m in self.markers):
+                self.backgroundClicked.emit()
 
 
 # ------------------------------------------------------------------ export ---

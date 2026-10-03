@@ -6,6 +6,67 @@ uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- **Route Map is free and open source** under the GNU AGPL-3.0, and its
+  repository is public again. Contributions are welcome under a Contributor
+  Licence Agreement (CLA.md, CONTRIBUTING.md).
+- Releases are published on GitHub Releases with a GPG-signed `SHA256SUMS`.
+
+## [0.1.0-beta.3] - 2026-10-03
+
+### Fixed
+
+- Hops at the end of a trace that answered but could not be placed were
+  labelled "No reply". They are now "not placed", and the legend says
+  "Not placed (yet)" while a trace is running.
+- `routemap-cli.exe` on Windows wrote redirected output (to a file or a pipe)
+  in the ANSI code page, so separators and accented city names came out as
+  replacement characters. Redirected output is now UTF-8.
+
+### Changed
+
+- RIPEstat answers are cached on this computer for the same 30 days as Hoiho
+  answers (`ipgeo-cache.sqlite3`), so a route traced again does not ask
+  RIPEstat again. "Clear cache" clears both.
+- RIPEstat requests identify the app with `sourceapp=routemap-desktop`
+  (routemap-engine 0.2.1).
+
+## [0.1.0-beta.2] - 2026-10-03
+
+Fixes from beta 1 on real Windows 11 hardware, and a compiled build.
+
+### Changed since beta.1
+
+- **Windows: no console.** `routemap.exe` is now a windowed program: it never
+  opens a console or Windows Terminal tab, and closing a terminal it was started
+  from no longer closes the app. The command line is a separate
+  `routemap-cli.exe`.
+- **Hops appear as the trace runs.** Each hop is placed on the map and added to
+  the table the moment its line arrives (hostname first, the usual sources, the
+  RTT bound); hops that do not answer show at once as a dashed "no reply"
+  marker. When the tool finishes, only ECMP cleanup and the annotations are
+  added. The map keeps fitting the hops so far until you zoom or pan; **Fit**
+  hands it back.
+- **Nothing covers the map while tracing.** The tracing card is gone; state is
+  in the status bar, with a small indicator next to Stop.
+- **Right panel.** The hop table is on top and grows live; the tool's raw
+  output is in a collapsible panel below it, collapsed by default (View > Tool
+  Output).
+- **Selection follows both ways.** Click a marker to select its rows (all of
+  them for a collapsed marker such as "14-15"); click a row, or move with the
+  arrow keys, to highlight and centre its marker. Esc clears.
+- **Country-only placements are marked.** A hop the IP database could place
+  only to a country (for example `apa.customers.nextlayer.net`, "AT") is drawn
+  as a hollow marker labelled "AT (country only)", shows "ip-db, country only"
+  in the Source column, and no longer stretches Fit.
+- **Marker hover** shows the same fields as the table row: hop, location,
+  hostname, IP, RTT, loss, source and notes.
+- **Compiled build.** The app is compiled with Nuitka on every platform.
+- Help > Third-Party Notices lists every bundled component with its licence.
+- Beta builds were handed to testers through a download site with a login for
+  each tester, with a GPG-signed `SHA256SUMS`.
+
 ## [0.1.0-beta.1] - 2026-10-03
 
 The first desktop build, for trying on real machines. Not code-signed yet.

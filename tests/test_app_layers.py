@@ -11,7 +11,7 @@ import jsonschema
 import pytest
 
 from routemap import cli, config, service
-from routemap.engine import OFFLINE, analyse_sync, atlas, parse_trace, schema
+from routemap_engine import OFFLINE, analyse_sync, atlas, parse_trace, schema
 
 FIXTURES = pathlib.Path(__file__).resolve().parent / "fixtures" / "routemap"
 
@@ -137,3 +137,48 @@ def test_atlas_never_sends_the_origin():
     """Probe selection may rank by distance here; it must never filter by radius."""
     source = pathlib.Path(atlas.__file__).read_text(encoding="utf-8")
     assert "radius" not in source.split('"""', 2)[2]
+
+
+def test_turning_ripestat_off_removes_every_ripestat_call(monkeypatch):
+    """The RIPEstat switch: no IP database, no public-IP origin lookup."""
+    import asyncio
+
+    from routemap import policy
+    monkeypatch.setattr(policy, "RIPESTAT_ALLOWED", False)
+    sources = service.sources_for(config.load_settings())
+    assert sources.ip_db is None and sources.hoiho is not None and sources.ptr is not None
+    with pytest.raises(RuntimeError) as excinfo:
+        asyncio.run(service.resolve_origin(config.load_settings()))
+    assert "Settings" in str(excinfo.value)
+
+
+def test_turning_hoiho_off_leaves_site_codes_and_ptr():
+    from routemap import policy
+    original = policy.HOIHO_ALLOWED
+    try:
+        policy.HOIHO_ALLOWED = False
+        sources = service.sources_for(config.load_settings())
+        assert sources.hoiho is None and sources.ptr is not None
+    finally:
+        policy.HOIHO_ALLOWED = original
+
+
+def test_ip_database_answers_are_cached_and_sent_with_sourceapp(monkeypatch):
+    """Each address is asked once per cache lifetime, identified as this app."""
+    import asyncio
+
+    from routemap_engine import geo
+    calls = []
+
+    async def fake(addresses, *, user_agent, sourceapp, timeout=10.0):
+        calls.append((list(addresses), sourceapp))
+        return {a: {"lat": 1.29, "lon": 103.85, "city": "Singapore", "cc": "SG"}
+                for a in addresses if a != "62.115.9.9"}
+
+    monkeypatch.setattr(geo, "ip_geolocate", fake)
+    ip_db = service.sources_for(config.load_settings()).ip_db
+    first = asyncio.run(ip_db(["62.115.1.1", "62.115.9.9"]))
+    second = asyncio.run(ip_db(["62.115.1.1", "62.115.9.9"]))
+    assert first == second and "62.115.9.9" not in first
+    assert calls == [(["62.115.1.1", "62.115.9.9"], "routemap-desktop"),
+                     (["62.115.9.9"], "routemap-desktop")], "a cached answer was asked again, or a miss was cached"

@@ -12,6 +12,7 @@ What is in it, and nothing else:
     settings.json     the choices made in Settings, including the origin and the
                       RIPE Atlas key if one was entered
     cache.sqlite3     CAIDA Hoiho answers for router hostnames, 30 days by default
+    ipgeo-cache.sqlite3  IP database answers for public hop addresses, same lifetime
     history.json      the last 50 traces, only while history is switched on
     site_codes.tsv    only after "routemap sites update"; replaces the bundled table
 
@@ -30,7 +31,7 @@ from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
 
 from routemap.__about__ import NAME
-from routemap.engine.runner import DEFAULT_FLAGS
+from routemap_engine.runner import DEFAULT_FLAGS
 
 HISTORY_LIMIT = 50
 
@@ -185,6 +186,11 @@ def history_entry(route: dict, *, target: str, trace_text: str, argv: list[str] 
 
 def cache_path() -> Path:
     return config_dir() / "cache.sqlite3"
+
+
+def ip_cache_path() -> Path:
+    """IP database answers (hop address -> location), kept as long as Hoiho's."""
+    return config_dir() / "ipgeo-cache.sqlite3"
 
 
 def site_codes_path() -> Path:

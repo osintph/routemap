@@ -9,13 +9,14 @@ name = "routemap"
 dynamic = ["version"]
 description = "Hostname-first, physics-checked traceroute maps. Runs the trace on your own machine."
 readme = "README.md"
-license = "AGPL-3.0-only"
-license-files = ["LICENSE"]
+license = "AGPL-3.0-or-later"
+license-files = ["LICENSE", "NOTICE", "THIRD_PARTY_NOTICES.md"]
 requires-python = ">=3.11"
 authors = [{ name = "osintph", email = "sb@osintph.info" }]
 keywords = ["traceroute", "geolocation", "osint", "network", "map"]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
+    "License :: OSI Approved :: GNU Affero General Public License v3 or later (AGPLv3+)",
     "Environment :: X11 Applications :: Qt",
     "Intended Audience :: Information Technology",
     "Operating System :: MacOS",
@@ -24,12 +25,10 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "Topic :: System :: Networking",
 ]
-# The engine's own dependencies only. FalconEye installs exactly this, so it
-# must stay free of anything desktop-specific. Lower bounds, not pins: FalconEye
-# pins its own httpx and dnspython and this package must not fight it.
+# The engine is its own public package (AGPL-3.0). Pinned to the v0.2.1 commit
+# until that release is on PyPI; then routemap-engine==0.2.1.
 dependencies = [
-    "httpx>=0.27",
-    "dnspython>=2.4",
+    "routemap-engine @ git+https://github.com/osintph/routemap-engine.git@0bbc184db3889d4686a7e1de1b5641d44e0bca20",
 ]
 
 [project.optional-dependencies]
@@ -49,11 +48,14 @@ Changelog = "https://github.com/osintph/routemap/blob/main/CHANGELOG.md"
 [project.scripts]
 routemap = "routemap.cli:main"
 
+[tool.hatch.metadata]
+allow-direct-references = true
+
 [tool.hatch.version]
 path = "routemap/__about__.py"
 
 [tool.hatch.build.targets.sdist]
-include = ["routemap", "tests", "docs", "README.md", "CHANGELOG.md", "LICENSE", "PRIVACY.md"]
+include = ["routemap", "tests", "docs", "README.md", "CHANGELOG.md", "LICENSE", "PRIVACY.md", "THIRD_PARTY_NOTICES.md"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["routemap"]

@@ -13,7 +13,7 @@ import datetime as _dt
 from PySide6.QtCore import QMarginsF, QRectF, QSizeF, Qt
 from PySide6.QtGui import QColor, QFont, QFontDatabase, QFontMetricsF, QPageLayout, QPageSize, QPainter, QPdfWriter, QPen
 
-from routemap.__about__ import DISPLAY_NAME, REPO_URL, __version__
+from routemap.__about__ import DISPLAY_NAME, __version__
 from routemap.gui import geometry, mapview, theme
 from routemap.gui.hoptable import NOTE_SHORT
 
@@ -176,7 +176,8 @@ def write_pdf(path: str, route: dict, *, target: str, trace_text: str, tool_labe
     writer.setCreator(f"{DISPLAY_NAME} {__version__}")
     painter = QPainter(writer)
     painter.setRenderHint(QPainter.Antialiasing)
-    flow = _Flow(writer, painter, f"{DISPLAY_NAME} {__version__} · {REPO_URL}")
+    footer = f"{DISPLAY_NAME} {__version__}"
+    flow = _Flow(writer, painter, footer)
 
     hops = route.get("hops") or []
     placed = [h for h in hops if h.get("lat") is not None]
@@ -250,7 +251,9 @@ def write_pdf(path: str, route: dict, *, target: str, trace_text: str, tool_labe
     flow.heading("How locations were decided")
     flow.text(METHOD, 8.5, color=MUTED)
     flow.text("Map: Natural Earth (public domain). Cities: GeoNames, CC BY 4.0. Hostname "
-              "rules: CAIDA Hoiho. IP geolocation: RIPEstat (RIPE NCC).", 8, color=MUTED)
+              f"rules: The CAIDA UCSD Hoiho - {when.strftime('%Y-%m-%d')}, "
+              "https://catalog.caida.org/dataset/hoiho. IP geolocation: RIPEstat (RIPE NCC).",
+              8, color=MUTED)
 
     if include_trace and trace_text.strip():
         flow.new_page()

@@ -9,7 +9,8 @@ from __future__ import annotations
 
 import html
 
-from PySide6.QtCore import QAbstractTableModel, QModelIndex, QSortFilterProxyModel, Qt
+from PySide6.QtCore import (QAbstractTableModel, QItemSelection, QItemSelectionModel, QModelIndex,
+                            QSortFilterProxyModel, Qt, Signal)
 from PySide6.QtGui import QColor, QGuiApplication, QIcon, QKeySequence, QPainter, QPixmap
 from PySide6.QtWidgets import QAbstractItemView, QHeaderView, QTableView
 
@@ -20,7 +21,7 @@ from routemap.gui import theme
 COLUMNS = ["#", "Location", "Source", "Hostname", "IP address", "RTT min", "RTT avg", "Loss",
            "Notes"]
 KEYS = ["hop", "place", "source", "hostname", "address", "min", "avg", "loss", "notes"]
-WIDTHS = [32, 132, 104, 196, 112, 76, 76, 50]
+WIDTHS = [32, 132, 142, 186, 112, 76, 76, 50]
 NUMERIC = {"hop", "min", "avg", "loss"}
 
 # Short forms of the engine's annotation labels, for a narrow column. The full
@@ -34,14 +35,20 @@ NOTE_SHORT = {
 }
 
 
-def _dot(color: QColor) -> QIcon:
+def _dot(color: QColor, hollow: bool = False) -> QIcon:
+    from PySide6.QtGui import QPen
     pixmap = QPixmap(12, 12)
     pixmap.fill(Qt.transparent)
     painter = QPainter(pixmap)
     painter.setRenderHint(QPainter.Antialiasing)
-    painter.setPen(Qt.NoPen)
-    painter.setBrush(color)
-    painter.drawEllipse(1, 1, 10, 10)
+    if hollow:
+        painter.setPen(QPen(color, 2))
+        painter.setBrush(Qt.NoBrush)
+        painter.drawEllipse(2, 2, 8, 8)
+    else:
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(color)
+        painter.drawEllipse(1, 1, 10, 10)
     painter.end()
     return QIcon(pixmap)
 
@@ -57,6 +64,7 @@ class HopModel(QAbstractTableModel):
         self.hops = list(hops)
         palette = theme.current()
         self.icons = {k: _dot(v) for k, v in palette.sources.items()}
+        self.icons["country"] = _dot(palette.sources["ip-db"], hollow=True)
         self.endResetModel()
 
     def rowCount(self, parent=QModelIndex()):
@@ -87,9 +95,11 @@ class HopModel(QAbstractTableModel):
             loss = hop.get("loss_pct")
             return "" if loss is None else f"{loss:.0f}%"
         if key == "place":
-            return hop.get("place") or ("not placed" if hop.get("lat") is None else "")
+            from routemap.gui.mapview import place_label
+            return place_label(hop)
         if key == "source":
-            return theme.SOURCE_SHORT.get(hop.get("source"), hop.get("source") or "")
+            from routemap.gui.mapview import source_label
+            return source_label(hop)
         if key == "notes":
             return ", ".join(NOTE_SHORT.get(a, a) for a in hop.get("annotations") or [])
         return ""
@@ -136,6 +146,8 @@ class HopModel(QAbstractTableModel):
         if role == Qt.UserRole:
             return self.sort_key(hop, column)
         if role == Qt.DecorationRole and KEYS[column] == "source":
+            if hop.get("precision") == "country":
+                return self.icons.get("country")
             return self.icons.get(hop.get("source"))
         if role == Qt.ToolTipRole:
             return self.tooltip(hop)
@@ -147,6 +159,10 @@ class HopModel(QAbstractTableModel):
 
 
 class HopTable(QTableView):
+    """Sortable, copyable; selection is reported as hop numbers so the map can follow."""
+
+    hopsSelected = Signal(list)
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.model_ = HopModel(self)
@@ -168,11 +184,59 @@ class HopTable(QTableView):
         header.setSectionResizeMode(QHeaderView.Interactive)
         for column, width in enumerate(WIDTHS):
             self.setColumnWidth(column, width)
+        self._syncing = False
+        self.selectionModel().selectionChanged.connect(self._selection_changed)
+
+    def _selection_changed(self, *_):
+        if self._syncing:
+            return
+        self.hopsSelected.emit(self.selected_hops())
+
+    def selected_hops(self) -> list[int]:
+        rows = sorted({i.row() for i in self.selectionModel().selectedRows()})
+        out = []
+        for row in rows:
+            source = self.proxy.mapToSource(self.proxy.index(row, 0)).row()
+            if 0 <= source < len(self.model_.hops):
+                out.append(self.model_.hops[source]["hop"])
+        return out
+
+    def select_hops(self, hops: list[int], scroll: bool = True):
+        """Select the rows for *hops* without echoing the change back."""
+        wanted = set(hops)
+        selection = QItemSelection()
+        first = None
+        for row in range(self.proxy.rowCount()):
+            source = self.proxy.mapToSource(self.proxy.index(row, 0)).row()
+            if self.model_.hops[source]["hop"] in wanted:
+                left = self.proxy.index(row, 0)
+                right = self.proxy.index(row, self.proxy.columnCount() - 1)
+                selection.select(left, right)
+                first = left if first is None else first
+        self._syncing = True
+        try:
+            self.selectionModel().select(selection, QItemSelectionModel.ClearAndSelect)
+            if first is not None:
+                self.selectionModel().setCurrentIndex(first, QItemSelectionModel.NoUpdate)
+                if scroll:
+                    self.scrollTo(first, QAbstractItemView.PositionAtCenter)
+        finally:
+            self._syncing = False
 
     def set_hops(self, hops: list[dict]):
-        self.model_.set_hops(hops)
-        self.sortByColumn(self.horizontalHeader().sortIndicatorSection(),
-                          self.horizontalHeader().sortIndicatorOrder())
+        """Replace the rows, keeping the selection (by hop number) and scroll position."""
+        keep = self.selected_hops()
+        scroll = self.verticalScrollBar().value()
+        self._syncing = True
+        try:
+            self.model_.set_hops(hops)
+            self.sortByColumn(self.horizontalHeader().sortIndicatorSection(),
+                              self.horizontalHeader().sortIndicatorOrder())
+        finally:
+            self._syncing = False
+        if keep:
+            self.select_hops(keep, scroll=False)
+        self.verticalScrollBar().setValue(scroll)
 
     def keyPressEvent(self, event):
         if event.matches(QKeySequence.Copy):

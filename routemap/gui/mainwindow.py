@@ -1,19 +1,22 @@
 """
 The main window. Thin: it shows what the engine produced and nothing more.
 
-Layout: the target field and Trace button on top; below, a splitter with the map
-on the left and, on the right, the hop table (or the tool's live output while a
-trace runs) over the collapsible unplaced-hops list; a history panel that can be
-docked on the left; a status bar with the origin, the tool in use and per-source
-progress.
+Layout: the target field, a small busy indicator and the Trace/Stop button on
+top; below, a splitter with the map on the left and, on the right, the hop table
+(growing live while a trace runs), the tool's own output collapsed beneath it,
+and the unplaced hops. Nothing is ever laid over the map while tracing: state
+is in the status bar. Selecting rows highlights their markers and selecting a
+marker selects its rows; Esc clears both.
 """
 from __future__ import annotations
 
+import os
+
 from PySide6.QtCore import QSize, Qt
-from PySide6.QtGui import QAction, QGuiApplication, QKeySequence
+from PySide6.QtGui import QAction, QGuiApplication, QKeySequence, QShortcut
 from PySide6.QtWidgets import (QDockWidget, QHBoxLayout, QLabel, QLineEdit, QMainWindow,
-                               QProgressBar, QPushButton, QSplitter, QStackedWidget, QStatusBar,
-                               QVBoxLayout, QWidget)
+                               QProgressBar, QPushButton, QSplitter, QStatusBar, QVBoxLayout,
+                               QWidget)
 
 from routemap.__about__ import DISPLAY_NAME
 from routemap.gui.hoptable import HopTable
@@ -32,6 +35,7 @@ class MainWindow(QMainWindow):
         self.closing = None
         self._build()
         self._menus()
+        self._wire_selection()
         QGuiApplication.styleHints().colorSchemeChanged.connect(lambda *_: self._theme_changed())
 
     # ---------------------------------------------------------------- build ---
@@ -47,12 +51,20 @@ class MainWindow(QMainWindow):
         self.target.setPlaceholderText("Hostname or IP address to trace, e.g. heise.de")
         self.target.setClearButtonEnabled(True)
         self.target.setMinimumHeight(30)
+        self.busy = QProgressBar(central)
+        self.busy.setRange(0, 0)
+        self.busy.setFixedWidth(64)
+        self.busy.setMaximumHeight(8)
+        self.busy.setTextVisible(False)
+        self.busy.setToolTip("Tracing")
+        self.busy.hide()
         self.trace_button = QPushButton("Trace", central)
         self.trace_button.setDefault(True)
         self.trace_button.setMinimumWidth(96)
         self.trace_button.setMinimumHeight(30)
         self.target.returnPressed.connect(self.trace_button.click)
         bar.addWidget(self.target, 1)
+        bar.addWidget(self.busy, 0, Qt.AlignVCenter)
         bar.addWidget(self.trace_button)
         outer.addLayout(bar)
 
@@ -62,16 +74,14 @@ class MainWindow(QMainWindow):
         right_layout = QVBoxLayout(right)
         right_layout.setContentsMargins(0, 0, 0, 0)
         right_layout.setSpacing(6)
-        self.stack = QStackedWidget(right)
-        self.table = HopTable(self.stack)
-        self.live = LiveOutput(self.stack)
-        self.stack.addWidget(self.table)
-        self.stack.addWidget(self.live)
         self.summary = QLabel(right)
         self.summary.setTextFormat(Qt.RichText)
+        self.table = HopTable(right)
+        self.live = LiveOutput(right)
         self.unplaced = UnplacedPanel(right)
         right_layout.addWidget(self.summary)
-        right_layout.addWidget(self.stack, 1)
+        right_layout.addWidget(self.table, 1)
+        right_layout.addWidget(self.live)
         right_layout.addWidget(self.unplaced)
         self.splitter.addWidget(self.map)
         self.splitter.addWidget(right)
@@ -94,18 +104,14 @@ class MainWindow(QMainWindow):
         status = QStatusBar(self)
         self.origin_label = QLabel(status)
         self.origin_label.setTextFormat(Qt.RichText)
+        self.state_label = QLabel(status)
+        self.state_label.setTextFormat(Qt.RichText)
         self.tool_label = QLabel(status)
         self.tool_label.setTextFormat(Qt.RichText)
-        self.busy = QProgressBar(status)
-        self.busy.setRange(0, 0)
-        self.busy.setMaximumWidth(90)
-        self.busy.setMaximumHeight(12)
-        self.busy.setTextVisible(False)
-        self.busy.hide()
         self.sources = SourceStatus(status)
         status.addWidget(self.origin_label, 1)
+        status.addPermanentWidget(self.state_label)
         status.addPermanentWidget(self.tool_label)
-        status.addPermanentWidget(self.busy)
         status.addPermanentWidget(self.sources)
         self.setStatusBar(status)
 
@@ -122,7 +128,7 @@ class MainWindow(QMainWindow):
 
         edit_menu = bar.addMenu("&Edit")
         self.act_copy = QAction("Copy Hop Table", self, shortcut=QKeySequence("Ctrl+Shift+C"))
-        self.act_copy.triggered.connect(self.table.copy_selection)
+        self.act_copy.triggered.connect(lambda: self.table.copy_selection())
         self.act_settings = QAction("Settings…", self, shortcut=QKeySequence("Ctrl+,"))
         self.act_settings.setMenuRole(QAction.PreferencesRole)
         edit_menu.addAction(self.act_copy)
@@ -131,10 +137,15 @@ class MainWindow(QMainWindow):
 
         view_menu = bar.addMenu("&View")
         view_menu.addAction(self.history_dock.toggleViewAction())
+        self.act_output = QAction("Tool Output", self, checkable=True)
+        self.act_output.toggled.connect(self.live.toggle.setChecked)
+        self.live.toggle.toggled.connect(self.act_output.setChecked)
+        view_menu.addAction(self.act_output)
         fit = QAction("Fit Route", self, shortcut=QKeySequence("Ctrl+0"))
-        fit.triggered.connect(self.map.fit_route)
+        fit.triggered.connect(lambda: self.map.fit_route())
         world = QAction("Whole World", self, shortcut=QKeySequence("Ctrl+9"))
-        world.triggered.connect(self.map.reset_view)
+        world.triggered.connect(lambda: self.map.reset_view())
+        view_menu.addSeparator()
         view_menu.addAction(fit)
         view_menu.addAction(world)
 
@@ -151,10 +162,29 @@ class MainWindow(QMainWindow):
         help_menu = bar.addMenu("&Help")
         self.act_privacy = QAction("Privacy", self)
         self.act_update = QAction("Check for Updates…", self)
+        self.act_notices = QAction("Third-Party Notices", self)
         self.act_about = QAction(f"About {DISPLAY_NAME}", self)
         self.act_about.setMenuRole(QAction.AboutRole)
-        for action in (self.act_privacy, self.act_update, self.act_about):
+        for action in (self.act_privacy, self.act_notices, self.act_update, self.act_about):
             help_menu.addAction(action)
+
+    # ------------------------------------------------------------ selection ---
+    def _wire_selection(self):
+        self.table.hopsSelected.connect(lambda hops: self.map.highlight(hops, center=bool(hops)))
+        self.map.markerClicked.connect(self._marker_clicked)
+        self.map.backgroundClicked.connect(self.clear_selection)
+        escape = QShortcut(QKeySequence(Qt.Key_Escape), self)
+        escape.setContext(Qt.WindowShortcut)
+        escape.activated.connect(self.clear_selection)
+
+    def _marker_clicked(self, hops: list):
+        self.table.select_hops(hops)
+        self.map.highlight(hops, center=False)
+        self.table.setFocus()
+
+    def clear_selection(self):
+        self.table.select_hops([], scroll=False)
+        self.map.highlight([])
 
     def closeEvent(self, event):
         if callable(self.closing):
@@ -179,20 +209,26 @@ class MainWindow(QMainWindow):
             self.tool_label.setText("<span style='color:#c0392b'><b>No trace tool</b></span>")
             return
         if argv:
-            import os
             parts = [os.path.basename(argv[0])] + list(argv[1:])
             shown = " ".join(parts[:-1] if len(parts) > 1 else parts)
             self.tool_label.setText(f"<code>{shown}</code>")
 
+    def set_state(self, text: str = ""):
+        self.state_label.setText(text)
+
+    def set_running(self, running: bool):
+        self.busy.setVisible(running)
+        self.trace_button.setText("Stop" if running else "Trace")
+
     # ---------------------------------------------------------------- states ---
     def show_idle(self, origin: tuple[float, float, str] | None, tool_hint: str | None = None):
         self.setWindowTitle(DISPLAY_NAME)
-        self.trace_button.setText("Trace")
-        self.busy.hide()
+        self.set_running(False)
+        self.set_state("")
         self.sources.hide()
-        self.stack.setCurrentWidget(self.table)
         self.table.set_hops([])
         self.unplaced.set_hops([])
+        self.live.start([])
         self.summary.setText("<span style='color:gray'>No route yet.</span>")
         if origin:
             self.map.set_origin(*origin)
@@ -207,47 +243,63 @@ class MainWindow(QMainWindow):
                 "Traced somewhere else? <b>File › Paste Trace</b> or <b>Open Trace</b>.")
             self.trace_button.setEnabled(True)
 
-    def show_tracing(self, target: str, argv: list[str], lines: list[str], hop_note: str):
+    def show_tracing(self, target: str, argv: list[str], lines: list[str] | None = None,
+                     hop_note: str = "starting"):
+        """A trace has started: empty table, live output armed, nothing over the map."""
         self.setWindowTitle(f"{target} - {DISPLAY_NAME}")
         self.target.setText(target)
-        self.trace_button.setText("Stop")
-        self.busy.show()
+        self.set_running(True)
         self.sources.show()
         self.sources.reset()
         self.sources.set_state("trace", "started", hop_note)
-        self.stack.setCurrentWidget(self.live)
-        self.live.start(argv)
-        for line in lines:
-            self.live.append(line)
-        self.summary.setText(f"<b>Tracing {target}</b> <span style='color:gray'>"
-                             f"· output appears as the tool prints it</span>")
-        self.unplaced.set_hops([])
         self.map.hide_card()
+        self.table.set_hops([])
+        self.unplaced.set_hops([])
+        self.live.start(argv)
+        for line in lines or []:
+            self.live.append(line)
+        self.summary.setText(f"<b>Tracing {target}</b>")
+        self.set_state(f"Tracing <b>{target}</b>…")
         self.set_tool_status(argv)
 
+    def update_live(self, route: dict, target: str, hop_note: str = ""):
+        """Hops placed so far, drawn at once; the view follows unless the user moved it."""
+        hops = route.get("hops") or []
+        placed = sum(1 for h in hops if h.get("lat") is not None)
+        self.table.set_hops(hops)
+        self.unplaced.set_hops(hops)
+        self.map.set_route(route, destination=None, keep_view=True)
+        self.summary.setText(f"<b>Tracing {target}</b> <span style='color:gray'>· "
+                             f"{len(hops)} hops so far, {placed} placed</span>")
+        self.set_state(f"Tracing <b>{target}</b>: {hop_note or f'hop {len(hops)}'}")
+
     def show_result(self, route: dict, target: str, argv: list[str] | None,
-                    expand_unplaced: bool = False):
+                    expand_unplaced: bool = False, trace_text: str | None = None,
+                    keep_view: bool = False):
         hops = route.get("hops") or []
         placed = sum(1 for h in hops if h.get("lat") is not None)
         self.setWindowTitle(f"{target} - {DISPLAY_NAME}")
         self.target.setText(target)
-        self.trace_button.setText("Trace")
+        self.set_running(False)
         self.trace_button.setEnabled(True)
-        self.busy.hide()
+        self.set_state("")
         self.sources.show()
         self.sources.finish()
-        self.stack.setCurrentWidget(self.table)
+        self.map.hide_card()
         self.table.set_hops(hops)
         self.unplaced.set_hops(hops)
         self.unplaced.expand(expand_unplaced)
-        self.map.hide_card()
-        self.map.set_route(route, destination=target)
+        if trace_text is not None:
+            self.live.set_text(trace_text, argv)
+        self.map.set_route(route, destination=target, keep_view=keep_view)
         warnings = "".join(f"<br><span style='color:#b7791f'>{w}</span>"
                            for w in route.get("warnings") or [])
+        ruleset = route.get("hoiho_ruleset_date")
+        detail = route.get("parser_label", "")
+        if ruleset:
+            detail += f" · Hoiho ruleset {ruleset}"
         self.summary.setText(
             f"<b>{len(hops)} hops</b>, {placed} placed on the map "
-            f"<span style='color:gray'>· {route.get('parser_label', '')}"
-            f"{' · Hoiho ruleset ' + route['hoiho_ruleset_date'] if route.get('hoiho_ruleset_date') else ''}"
-            f"</span>{warnings}")
+            f"<span style='color:gray'>· {detail}</span>{warnings}")
         if argv:
             self.set_tool_status(argv)

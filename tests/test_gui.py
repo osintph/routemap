@@ -70,7 +70,8 @@ def test_an_ecmp_marker_explains_both_routers():
 def test_after_decluttering_no_two_markers_overlap(app, name):
     from routemap.gui import theme
     scene = mapview.build_scene(theme.LIGHT)
-    rect, markers = mapview.draw_route(scene, _route(name), theme.LIGHT, "dest")
+    rect, items = mapview.draw_route(scene, _route(name), theme.LIGHT, "dest")
+    markers = mapview.markers_of(items)
     source = mapview.padded(rect, 16 / 9)
     k = 1600 / source.width()
 
@@ -104,3 +105,104 @@ def test_the_gui_package_names_nothing_but_itself():
     gui = pathlib.Path(mapview.__file__).parent
     for path in gui.glob("*.py"):
         assert "Route Map" not in path.read_text(encoding="utf-8").split('"""', 2)[-1], path.name
+
+
+def _window(app):
+    from routemap.gui.mainwindow import MainWindow
+    window = MainWindow()
+    window.resize(1440, 900)
+    window.show()
+    app.processEvents()
+    return window
+
+
+def test_a_live_trace_draws_every_hop_and_keeps_the_legend_readable(app):
+    """Found on a real trace: redrawing per hop left the legend measured empty."""
+    route = _route("amazon_route")
+    window = _window(app)
+    window.show_tracing("amazon.com", ["traceroute", "amazon.com"])
+    assert not window.map.card.isVisible(), "nothing may cover the map while tracing"
+    for n in range(1, len(route["hops"]) + 1):
+        window.update_live(dict(route, hops=route["hops"][:n]), "amazon.com", f"hop {n}")
+        app.processEvents()
+        assert window.table.model().rowCount() == n
+    window.show_result(route, "amazon.com", ["traceroute", "amazon.com"], keep_view=True)
+    app.processEvents()
+    assert window.map.legend.width() > 120 and window.map.legend.height() > 60
+    assert not window.live.body.isVisible(), "tool output is collapsed by default"
+    window.close()
+
+
+def test_selection_follows_both_ways_and_esc_clears(app):
+    route = _route("amazon_route")
+    window = _window(app)
+    window.show_result(route, "amazon.com", ["traceroute", "amazon.com"])
+    app.processEvents()
+    collapsed = next(m for m in window.map.markers if m.hops == [14, 15])
+    collapsed.clicked.emit(collapsed.hops)
+    assert window.table.selected_hops() == [14, 15], "a collapsed marker selects all its rows"
+    assert collapsed.selected
+    window.table.select_hops([5])
+    window.table.hopsSelected.emit([5])
+    assert [m.hops for m in window.map.markers if m.selected] == [[5, 6]]
+    window.clear_selection()
+    assert window.table.selected_hops() == [] and not any(m.selected for m in window.map.markers)
+    window.close()
+
+
+def test_country_only_hops_are_hollow_labelled_and_not_in_the_fit(app):
+    from routemap.gui import theme
+    route = _route("heise_ecmp_route")
+    country = [h for h in route["hops"] if h.get("precision") == "country"]
+    assert country, "fixture lost its country-only hops"
+    scene = mapview.build_scene(theme.LIGHT)
+    rect, items = mapview.draw_route(scene, route, theme.LIGHT, "heise.de")
+    hollow = [m for m in mapview.markers_of(items) if m.hollow]
+    assert {n for m in hollow for n in m.hops} == {h["hop"] for h in country}
+    assert all(m.caption and m.caption.endswith("(country only)") for m in hollow)
+    # The fit is the same with the country-only hops as without them.
+    without = dict(route, hops=[dict(h, lat=None, lon=None) if h.get("precision") == "country"
+                                else h for h in route["hops"]])
+    rect_without, _ = mapview.draw_route(mapview.build_scene(theme.LIGHT), without, theme.LIGHT)
+    assert rect == rect_without, "a country centroid stretched the fit"
+    # And a country-only hop far from everything else does not drag the view there.
+    far = dict(route, hops=route["hops"] + [dict(country[0], hop=99, lat=-25.0, lon=134.0,
+                                                 place="AU")])
+    rect_far, _ = mapview.draw_route(mapview.build_scene(theme.LIGHT), far, theme.LIGHT)
+    assert rect_far == rect
+    from routemap.gui.hoptable import HopModel
+    model = HopModel()
+    model.set_hops(route["hops"])
+    hop = country[0]
+    assert model.text(hop, 2) == "ip-db, country only"
+    assert model.text(hop, 1).endswith("(country only)")
+
+
+def test_silent_hops_after_the_last_placed_one_show_at_once(app):
+    route = _route("amazon_route")
+    groups = mapview.route_groups(route)
+    assert groups[-1]["silent"] and [h["hop"] for h in groups[-1]["hops"]] == [16, 17, 18]
+    partial = dict(route, hops=route["hops"][:10])  # hops 9 and 10 have not answered yet
+    assert mapview.route_groups(partial)[-1]["silent"]
+
+
+def test_marker_hover_has_the_row_fields(app):
+    route = _route("heise_ecmp_route")
+    group = next(g for g in mapview.route_groups(route) if any(h["hop"] == 6 for h in g["hops"]))
+    tip = mapview.group_tooltip(group)
+    for field in ("Hop", "Hostname", "IP address", "RTT", "Loss", "Source", "hnk-b4-link"):
+        assert field in tip, field
+
+
+def test_the_view_stops_following_once_the_user_moves_it(app):
+    route = _route("amazon_route")
+    window = _window(app)
+    window.map.set_route(dict(route, hops=route["hops"][:3]), keep_view=True)
+    window.map.zoom(2.0)                       # the user zooms
+    assert window.map.user_moved
+    before = window.map.transform().m11()
+    window.map.set_route(route, keep_view=True)
+    assert window.map.transform().m11() == before, "the view jumped after the user zoomed"
+    window.map.fit_route()                     # Fit hands control back
+    assert not window.map.user_moved
+    window.close()

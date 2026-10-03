@@ -25,3 +25,28 @@ def test_parse_reports_text_that_is_not_a_trace(tmp_path, capsys):
     junk.write_text("hello\n")
     assert cli.main(["parse", str(junk), "--offline"]) == 1
     assert "could not read" in capsys.readouterr().err
+
+
+def test_redirected_output_is_utf8_on_windows(monkeypatch):
+    """beta.2's routemap-cli.exe wrote cp1252 when redirected; readers saw U+FFFD."""
+    import sys
+
+    class Stream:
+        def __init__(self):
+            self.encoding = "cp1252"
+
+        def isatty(self):
+            return False
+
+        def reconfigure(self, encoding, errors):
+            self.encoding = encoding
+
+    out, err = Stream(), Stream()
+    monkeypatch.setattr(sys, "stdout", out)
+    monkeypatch.setattr(sys, "stderr", err)
+    cli.utf8_streams("win32")
+    assert out.encoding == err.encoding == "utf-8"
+    other = Stream()
+    monkeypatch.setattr(sys, "stdout", other)
+    cli.utf8_streams("darwin")
+    assert other.encoding == "cp1252", "only Windows needs this"

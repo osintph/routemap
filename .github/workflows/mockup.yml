@@ -4,11 +4,9 @@
 # the offscreen platform renders instead, and the artifact name says which.
 name: mockup screenshots
 
+# Manual only.
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths: ["routemap/gui/**", "tests/fixtures/gui/**", ".github/workflows/mockup.yml"]
 
 permissions:
   contents: read

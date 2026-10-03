@@ -14,11 +14,11 @@ import os
 import threading
 from typing import Callable
 
-from routemap import config
+from routemap import config, policy
 from routemap.__about__ import NAME, REPO_SLUG, REPO_URL, USER_AGENT_PRODUCT, __version__
-from routemap.engine import (Route, SqliteCache, TraceOptions, analyse, cities, default_sources,
+from routemap_engine import (Route, SqliteCache, TraceOptions, analyse, cities, default_sources,
                              run_trace, sitecodes, whereami)
-from routemap.engine.geo import Sources
+from routemap_engine.geo import Sources
 
 ORIGIN_HOW_IP = "ip"
 EXPORT_FORMAT = "routemap/route-export"
@@ -34,15 +34,47 @@ def user_agent() -> str:
     return f"{USER_AGENT_PRODUCT} (+{REPO_URL}; traceroute geolocation)"
 
 
+# How RIPEstat identifies this app's traffic (its "sourceapp" parameter).
+SOURCEAPP = f"{NAME}-desktop"
+
+
 def sources_for(settings: config.Settings) -> Sources:
-    cache = SqliteCache(config.cache_path(), ttl_seconds=max(1, settings.cache_ttl_days) * 86400)
-    return default_sources(user_agent=user_agent(), cache=cache, use_hoiho=settings.use_hoiho,
-                           use_ip_db=settings.use_ip_db, use_ptr=settings.use_ptr)
+    import dataclasses
+
+    from routemap_engine import geo
+
+    ttl = max(1, settings.cache_ttl_days) * 86400
+    hoiho_cache = SqliteCache(config.cache_path(), ttl_seconds=ttl)
+    base = default_sources(user_agent=user_agent(), cache=hoiho_cache,
+                           use_hoiho=settings.use_hoiho and policy.HOIHO_ALLOWED,
+                           use_ip_db=False, use_ptr=settings.use_ptr)
+    if not (settings.use_ip_db and policy.RIPESTAT_ALLOWED):
+        return base
+    ip_cache = SqliteCache(config.ip_cache_path(), ttl_seconds=ttl)
+
+    async def ip_db(addresses: list[str]) -> dict:
+        """RIPEstat, with answers kept locally for the cache lifetime. Only real
+        answers are kept: a failed or empty lookup is asked again next time."""
+        found, missing = {}, []
+        for addr in dict.fromkeys(addresses):
+            hit = ip_cache.get(addr)
+            if hit:
+                found[addr] = hit
+            else:
+                missing.append(addr)
+        if missing:
+            fetched = await geo.ip_geolocate(missing, user_agent=user_agent(), sourceapp=SOURCEAPP)
+            for addr, record in fetched.items():
+                ip_cache.set(addr, record)
+                found[addr] = record
+        return found
+
+    return dataclasses.replace(base, ip_db=ip_db)
 
 
 def parse_origin_text(text: str) -> tuple[float, float, str]:
     """'14.6,121.0' or a city name -> (lat, lon, label). ValueError if neither."""
-    from routemap.engine import normalise_origin
+    from routemap_engine import normalise_origin
 
     parts = [p.strip() for p in (text or "").split(",")]
     if len(parts) == 2:
@@ -71,7 +103,9 @@ async def resolve_origin(settings: config.Settings) -> tuple[float, float, str, 
     chosen = settings.origin()
     if chosen is not None:
         return chosen[0], chosen[1], chosen[2], settings.origin_mode
-    me = await whereami.locate_me(user_agent=user_agent())
+    if not policy.RIPESTAT_ALLOWED:
+        raise RuntimeError(policy.RIPESTAT_OFF_NOTE)
+    me = await whereami.locate_me(user_agent=user_agent(), sourceapp=SOURCEAPP)
     return me["lat"], me["lon"], me["label"], ORIGIN_HOW_IP
 
 
@@ -82,7 +116,7 @@ def trace_options(settings: config.Settings, tool: str, *, cancel: threading.Eve
 
 
 def run(target: str, settings: config.Settings, **kwargs):
-    from routemap.engine.runner import pick_tool
+    from routemap_engine.runner import pick_tool
 
     tool, _path = pick_tool(settings.tool)
     return run_trace(target, trace_options(settings, tool, **kwargs))
@@ -110,7 +144,7 @@ def export_json(route: Route | dict, *, target: str | None, trace_text: str,
                   "argv": [os.path.basename(argv[0])] + list(argv[1:]) if argv else None,
                   "text": trace_text},
         "route": body,
-        "schema": "https://github.com/" + REPO_SLUG + "/blob/main/routemap/engine/route.schema.json",
+        "schema": "https://github.com/" + REPO_SLUG + "/blob/main/routemap_engine/route.schema.json",
     }
     return json.dumps(document, indent=2, ensure_ascii=False) + "\n"
 

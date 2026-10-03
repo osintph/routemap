@@ -1,9 +1,24 @@
 # routemap: working rules
 
-routemap is the Route Map engine (traceroute parsing, hostname-first
-geolocation, the RTT physics bound, hop annotations) plus a native PySide6
-desktop app and CLI built on it. FalconEye (`~/code/falconeye`) depends on the
-engine as a pinned package. Licence AGPL-3.0.
+This PUBLIC repository is the Route Map desktop app (PySide6 GUI, CLI, exports,
+packaging, CI), free software under the GNU AGPL-3.0. The engine is the
+separate public AGPL-3.0 package routemap-engine
+(github.com/osintph/routemap-engine, import `routemap_engine`), which FalconEye
+(`~/code/falconeye`) also depends on. Releases are on GitHub Releases with GPG
+signed `SHA256SUMS`; an optional pre-release site with per-tester logins is
+described in docs/download-host/. Contributions need the CLA (CLA.md).
+
+Nothing about any separate commercial product goes into this repository or its
+history. Briefs, screenshots for review, review pages, tester data, keys and
+host details (addresses, ports, paths of other sites) never go into git: review
+pages are private claude.ai artifacts, host notes live in ~/.routemap-testers/.
+The local branch `pro-seed` is private and never pushed (a local pre-push hook
+refuses it).
+
+- Never copy secrets or host details into either repository.
+- Engine changes are made in the engine repo and released there; this repo then
+  moves its pin.
+- Keep test matrices lean and builds on tags or manual dispatch only.
 
 ## Standing rules
 
@@ -34,15 +49,14 @@ handful of build-time literals that cannot import it are listed in
 
 ## Layout
 
-- `routemap/engine/`: pure Python. **No Qt imports**, ever; a test enforces
-  it. FalconEye imports this package, so anything here ships to a web server.
-- `routemap/engine/data/`: bundled site-code table and GeoNames city list
-  (and, from the GUI step, the Natural Earth geometry).
 - `routemap/gui/`: PySide6. Thin: it calls the engine and draws.
+- `routemap/gui/data/`: Natural Earth map, icon, sample trace, legal texts.
+- `routemap/config.py`, `routemap/service.py`: settings and engine wiring, Qt-free.
+- `packaging/`: Nuitka build, source-leak and Windows verifiers, release notes.
 - `routemap/cli.py`: thin, same rule.
 - `tests/`: pytest. `tests/fixtures/routemap/` holds the real traces.
 
-## Engine rules (carried over from FalconEye, where they were learned)
+## Engine rules (apply in routemap-engine; the app must respect them too)
 
 - The engine has **no global mutable state**. Configuration (User-Agent,
   cache, budgets, which sources are on) is passed in. Read-only bundled tables

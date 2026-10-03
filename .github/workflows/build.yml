@@ -1,9 +1,14 @@
-# Desktop builds for every platform, smoke-tested, and a GitHub release on a tag.
+# Compiled desktop builds (Nuitka) for every platform, verified and smoke-tested,
+# and on a tag published (see the publish job).
 #
-# Unsigned for now. Signing (Windows via SignPath, Linux via a GPG-signed
-# SHA256SUMS, macOS Developer ID behind a switch that is off) arrives as
-# .github/actions/sign-<platform> composite actions in step 5 of the brief; the
-# "sign" placeholders below mark where each one plugs in.
+# Verification on every build:
+#   - the built binary's own --smoke-test (opens the window, exports PNG/PDF/JSON)
+#   - Windows: packaging/verify_windows.py (routemap.exe is a windowed program,
+#     has no console, and survives its launching console being killed)
+#
+# Signing plugs in at the "sign-<platform>" markers: Windows through the
+# .github/actions/sign-windows seam (provider to be decided, see docs), Linux
+# by GPG-signing SHA256SUMS, macOS Developer ID behind a variable that is off.
 name: build
 
 on:
@@ -21,6 +26,7 @@ jobs:
   build:
     name: ${{ matrix.target }}
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
@@ -35,72 +41,102 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-      - name: Qt runtime libraries (Linux)
+      - name: System packages (Linux)
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq libegl1 libgl1 libxkbcommon0 libxkbcommon-x11-0 \
+          sudo apt-get install -y -qq patchelf ccache libegl1 libgl1 libxkbcommon0 libxkbcommon-x11-0 \
             libfontconfig1 libdbus-1-3 libxcb-cursor0 libxcb-icccm4 libxcb-image0 \
             libxcb-keysyms1 libxcb-randr0 libxcb-render-util0 libxcb-shape0 libxcb-xinerama0 \
             libfuse2 file
       - name: Install
-        run: python -m pip install -e ".[gui]" "pyinstaller==6.22.3" "jsonschema>=4.20"
-      - name: Build
-        run: pyinstaller packaging/routemap.spec --noconfirm --log-level WARN
-      - name: Version
+        run: python -m pip install ".[gui]" "nuitka==4.2.2" "jsonschema>=4.20"
+      - name: Version and config folder
         id: v
         shell: bash
-        run: echo "version=$(python -c 'from routemap.__about__ import __version__ as v; print(v)')" >> "$GITHUB_OUTPUT"
+        run: |
+          echo "version=$(python -c 'from routemap.__about__ import __version__ as v; print(v)')" >> "$GITHUB_OUTPUT"
+          echo "ROUTEMAP_CONFIG_DIR=$RUNNER_TEMP/routemap-config" >> "$GITHUB_ENV"
 
-      # ---- smoke test the built binary, not the source -----------------------
-      - name: Smoke test (macOS)
+      # ---- macOS ------------------------------------------------------------------
+      - name: Compile (macOS)
+        if: runner.os == 'macOS'
+        run: python packaging/build_nuitka.py macos
+      - name: Verify and smoke test (macOS)
         if: runner.os == 'macOS'
         run: |
-          BIN="dist/Route Map.app/Contents/MacOS/routemap"
+          APP="build/nuitka/Route Map.app"
+          cp THIRD_PARTY_NOTICES.md LICENSE "$APP/Contents/Resources/"
+          BIN="$APP/Contents/MacOS/routemap-app"
           "$BIN" --version
+          bash packaging/cli_check.sh "$BIN"
           "$BIN" --smoke-test smoke
           "$BIN" parse tests/fixtures/routemap/heise_mtr.txt --offline --origin "Manila, PH" > smoke/parse.json
-      - name: Smoke test (Windows)
-        if: runner.os == 'Windows'
-        shell: bash
-        run: |
-          dist/routemap.exe --version
-          dist/routemap.exe --smoke-test smoke
-          dist/routemap.exe parse tests/fixtures/routemap/heise_tracert.txt --offline --origin "Manila, PH" > smoke/parse.json
-      - name: Smoke test (Linux)
-        if: runner.os == 'Linux'
-        run: |
-          dist/routemap --version
-          QT_QPA_PLATFORM=offscreen dist/routemap --smoke-test smoke
-          dist/routemap parse tests/fixtures/routemap/heise_traceroute.txt --offline --origin "Manila, PH" > smoke/parse.json
-
-      # ---- package --------------------------------------------------------------
       - name: Package (macOS dmg, ad-hoc signed)
         if: runner.os == 'macOS'
         run: |
-          # Ad-hoc only, so it runs at all on Apple silicon. Not Developer ID signed
-          # or notarised yet: see README for the Gatekeeper workaround.
-          codesign --force --deep --sign - "dist/Route Map.app"
-          codesign --verify --deep --strict "dist/Route Map.app"
+          APP="build/nuitka/Route Map.app"
+          # sign-macos: Developer ID + notarytool when vars.APPLE_SIGNING == 'true' (off).
+          codesign --force --deep --sign - "$APP"
+          codesign --verify --deep --strict "$APP"
           mkdir -p dmgroot out
-          cp -R "dist/Route Map.app" dmgroot/
+          cp -R "$APP" dmgroot/
           ln -s /Applications dmgroot/Applications
           hdiutil create -volname "Route Map" -srcfolder dmgroot -ov -format UDZO \
             "out/routemap-${{ steps.v.outputs.version }}-${{ matrix.target }}.dmg"
-      # sign-macos: Developer ID + notarytool, behind a repository variable (step 5)
-      - name: Package (Windows exe)
+
+      # ---- Windows ----------------------------------------------------------------
+      - name: Compile (Windows, windowed app and console CLI)
+        if: runner.os == 'Windows'
+        run: |
+          python packaging/build_nuitka.py windows-gui
+          python packaging/build_nuitka.py windows-cli
+      - name: Verify and smoke test (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          build/nuitka/routemap-cli.exe --version
+          bash packaging/cli_check.sh build/nuitka/routemap-cli.exe
+          build/nuitka/routemap-cli.exe --smoke-test smoke
+          build/nuitka/routemap-cli.exe parse tests/fixtures/routemap/heise_tracert.txt --offline --origin "Manila, PH" > smoke/parse.json
+          # The windowed exe has no stdout: its smoke test leaves result.txt.
+          build/nuitka/routemap.exe --smoke-test smoke-gui
+          for i in $(seq 1 60); do [ -f smoke-gui/result.txt ] && break; sleep 2; done
+          cat smoke-gui/result.txt
+      - name: Windowed, no console, survives its terminal (Windows)
+        if: runner.os == 'Windows'
+        run: python packaging/verify_windows.py build/nuitka/routemap.exe build/nuitka/routemap-cli.exe
+      - name: Sign (Windows; off until a provider is configured)
+        if: runner.os == 'Windows'
+        uses: ./.github/actions/sign-windows
+        with:
+          files: build/nuitka/routemap.exe build/nuitka/routemap-cli.exe
+          provider: ${{ vars.WINDOWS_SIGNING || 'off' }}
+      - name: Package (Windows)
         if: runner.os == 'Windows'
         shell: bash
         run: |
           mkdir -p out
-          cp dist/routemap.exe "out/routemap-${{ steps.v.outputs.version }}-${{ matrix.target }}.exe"
-      # sign-windows: SignPath Foundation request, then signtool verify (step 5)
+          cp build/nuitka/routemap.exe "out/routemap-${{ steps.v.outputs.version }}-${{ matrix.target }}.exe"
+          cp build/nuitka/routemap-cli.exe "out/routemap-cli-${{ steps.v.outputs.version }}-${{ matrix.target }}.exe"
+
+      # ---- Linux --------------------------------------------------------------------
+      - name: Compile (Linux)
+        if: runner.os == 'Linux'
+        run: python packaging/build_nuitka.py linux
+      - name: Verify and smoke test (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          build/nuitka/routemap --version
+          QT_QPA_PLATFORM=offscreen bash packaging/cli_check.sh build/nuitka/routemap
+          QT_QPA_PLATFORM=offscreen build/nuitka/routemap --smoke-test smoke
+          build/nuitka/routemap parse tests/fixtures/routemap/heise_traceroute.txt --offline --origin "Manila, PH" > smoke/parse.json
       - name: Package (Linux AppImage and tar.gz)
         if: runner.os == 'Linux'
         run: |
           V="${{ steps.v.outputs.version }}"
           mkdir -p out AppDir/usr/bin
-          cp dist/routemap AppDir/usr/bin/routemap
+          cp build/nuitka/routemap AppDir/usr/bin/routemap
           cp packaging/linux/AppRun AppDir/AppRun
           cp packaging/linux/routemap.desktop AppDir/routemap.desktop
           cp routemap/gui/data/icon.png AppDir/routemap.png
@@ -109,10 +145,11 @@ jobs:
           chmod +x appimagetool
           ARCH=x86_64 ./appimagetool --appimage-extract-and-run AppDir "out/routemap-$V-linux-x86_64.AppImage"
           mkdir -p "routemap-$V-linux-x86_64"
-          cp dist/routemap LICENSE README.md packaging/linux/routemap.desktop routemap/gui/data/icon.png \
-            "routemap-$V-linux-x86_64/"
+          cp build/nuitka/routemap LICENSE THIRD_PARTY_NOTICES.md packaging/linux/routemap.desktop \
+            routemap/gui/data/icon.png "routemap-$V-linux-x86_64/"
           tar -czf "out/routemap-$V-linux-x86_64.tar.gz" "routemap-$V-linux-x86_64"
           ./out/routemap-$V-linux-x86_64.AppImage --appimage-extract-and-run --version
+
       - name: Sizes
         shell: bash
         run: ls -l out/
@@ -124,48 +161,75 @@ jobs:
         if: always()
         with:
           name: smoke-${{ matrix.target }}
-          path: smoke/
+          path: |
+            smoke/
+            smoke-gui/
 
-  release:
-    name: GitHub pre-release
+  publish:
+    name: Publish to the pre-release download site
     if: startsWith(github.ref, 'refs/tags/v')
     needs: build
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
+    environment: downloads
+    env:
+      DOWNLOAD_HOST: ${{ secrets.DOWNLOAD_HOST }}
+      DOWNLOAD_PORT: ${{ secrets.DOWNLOAD_PORT }}
+      DOWNLOAD_USER: ${{ secrets.DOWNLOAD_USER }}
+      # Not a secret: rrsync confines the deploy user to the download root, so
+      # the path is always ".". As a secret it made GitHub mask every "." in
+      # this repo's logs.
+      DOWNLOAD_PATH: "."
+      DOWNLOAD_SSH_KEY: ${{ secrets.DOWNLOAD_SSH_KEY }}
+      DOWNLOAD_KNOWN_HOSTS: ${{ secrets.DOWNLOAD_KNOWN_HOSTS }}
+      GPG_RELEASE_KEY: ${{ secrets.GPG_RELEASE_KEY }}
+      GPG_RELEASE_PASSPHRASE: ${{ secrets.GPG_RELEASE_PASSPHRASE }}
     steps:
       - uses: actions/checkout@v4
+      - name: Configured?
+        id: cfg
+        run: |
+          if [ -z "$DOWNLOAD_HOST" ] || [ -z "$DOWNLOAD_SSH_KEY" ]; then
+            echo "::warning::Download site secrets are not set; the artifacts are in this run. See docs/download-host/README.md."
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          else
+            [ -n "$GPG_RELEASE_KEY" ] || { echo "::error::GPG_RELEASE_KEY is not set: SHA256SUMS must be signed before publishing."; exit 1; }
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
       - uses: actions/download-artifact@v4
+        if: steps.cfg.outputs.ok == 'true'
         with:
           pattern: routemap-*
-          path: assets
+          path: release
           merge-multiple: true
-      - name: Checksums
+      - name: Checksums, GPG signature, pages
+        if: steps.cfg.outputs.ok == 'true'
         run: |
-          cd assets
+          V="${GITHUB_REF_NAME}"
+          cd release
           sha256sum * > SHA256SUMS
-          cat SHA256SUMS
-      # sign-linux: GPG-sign SHA256SUMS (step 5)
-      - name: Release notes from CHANGELOG
+          echo "$GPG_RELEASE_KEY" | gpg --batch --import
+          FPR="$(gpg --batch --list-secret-keys --with-colons | awk -F: '/^fpr/ {print $10; exit}')"
+          echo "$GPG_RELEASE_PASSPHRASE" | gpg --batch --yes --pinentry-mode loopback --passphrase-fd 0 \
+            --local-user "$FPR" --armor --detach-sign --output SHA256SUMS.asc SHA256SUMS
+          gpg --batch --verify SHA256SUMS.asc SHA256SUMS
+          cd ..
+          python3 packaging/release_notes.py "$V" > release/RELEASE-NOTES.md
+          python3 packaging/download_index.py version release "$V" release/RELEASE-NOTES.md > release/index.html
+          echo "FPR=$FPR" >> "$GITHUB_ENV"
+          cat release/SHA256SUMS
+      - name: Upload over SSH, then rebuild the version index
+        if: steps.cfg.outputs.ok == 'true'
         run: |
-          TAG="${GITHUB_REF_NAME}"
-          python3 - "$TAG" > notes.md <<'PY'
-          import re, sys
-          tag = sys.argv[1].lstrip("v")
-          text = open("CHANGELOG.md", encoding="utf-8").read()
-          match = re.search(rf"^## \[{re.escape(tag)}\].*?$(.*?)(?=^## \[|\Z)", text, re.M | re.S)
-          print(match.group(1).strip() if match else f"Release {tag}.")
-          PY
-          cat packaging/release-notes-unsigned.md >> notes.md
-      - name: Create release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          PRE=""
-          case "$GITHUB_REF_NAME" in *-*) PRE="--prerelease" ;; esac
-          # The title is the annotated tag's subject line ("vX: what it is").
-          git fetch --force origin "refs/tags/$GITHUB_REF_NAME:refs/tags/$GITHUB_REF_NAME"
-          TITLE="$(git tag -l --format='%(contents:subject)' "$GITHUB_REF_NAME")"
-          TITLE="${TITLE:-$GITHUB_REF_NAME}"
-          gh release create "$GITHUB_REF_NAME" assets/* --title "$TITLE" \
-            --notes-file notes.md --verify-tag $PRE
+          V="${GITHUB_REF_NAME}"
+          PORT="${DOWNLOAD_PORT:-22}"
+          install -m 700 -d ~/.ssh
+          echo "$DOWNLOAD_SSH_KEY" > ~/.ssh/download_key && chmod 600 ~/.ssh/download_key
+          echo "$DOWNLOAD_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          SSH="ssh -p $PORT -i ~/.ssh/download_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes"
+          # The deploy user is restricted to rsync (rrsync) inside the download
+          # root, so DOWNLOAD_PATH is "." and listings go through rsync too.
+          rsync -av --chmod=D755,F644 -e "$SSH" release/ "$DOWNLOAD_USER@$DOWNLOAD_HOST:$DOWNLOAD_PATH/$V/"
+          rsync --list-only -e "$SSH" "$DOWNLOAD_USER@$DOWNLOAD_HOST:$DOWNLOAD_PATH/" \
+            | awk '$1 ~ /^d/ {print $NF}' | grep -v '^\.$' > versions.txt
+          python3 packaging/download_index.py root versions.txt "$FPR" > index.html
+          rsync -av --chmod=F644 -e "$SSH" index.html "$DOWNLOAD_USER@$DOWNLOAD_HOST:$DOWNLOAD_PATH/index.html"

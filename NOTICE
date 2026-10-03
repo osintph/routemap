@@ -1,0 +1,41 @@
+Route Map
+Copyright (C) 2026 OSINTPH (https://osintph.info)
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU Affero General Public License as published by the Free
+Software Foundation, either version 3 of the License, or (at your option) any
+later version. See LICENSE.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+details.
+
+Route Map includes or uses third-party components and data under their own
+licences. The full list, with sources, is in THIRD_PARTY_NOTICES.md and in the
+application under Help > Third-Party Notices. In short:
+
+Software
+- routemap-engine: GNU AGPL-3.0, https://github.com/osintph/routemap-engine
+- Qt 6, PySide6 and shiboken6 (Qt for Python): GNU LGPL-3.0,
+  https://www.qt.io/ . Shipped as separate, unmodified shared libraries that
+  can be replaced.
+- Python: PSF License 2.0. httpx, httpcore, idna, h11, anyio, dnspython,
+  certifi, typing_extensions: BSD, MIT, ISC, MPL-2.0 and PSF licences.
+- Nuitka runtime (compiled builds): Apache-2.0.
+
+Data bundled with the application
+- GeoNames city list: Creative Commons Attribution 4.0,
+  https://www.geonames.org/
+- Natural Earth world map: public domain, https://www.naturalearthdata.com/
+- Carrier site codes: facts from Arelion's published looking glass router
+  list, https://lg.twelve99.net/
+
+Online services the application queries (not bundled; their terms apply)
+- CAIDA Hoiho router hostname rules: CAIDA Acceptable Use Agreement for
+  Publicly Accessible Datasets. Cite: "The CAIDA UCSD Hoiho".
+  https://www.caida.org/catalog/software/hoiho/
+- RIPEstat (RIPE NCC): IP geolocation fallback and public IP lookups, under the
+  RIPEstat Service Terms and Conditions. https://stat.ripe.net/
+- RIPE Atlas (RIPE NCC): optional, with the user's own API key, under the RIPE
+  Atlas Terms and Conditions. https://atlas.ripe.net/

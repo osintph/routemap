@@ -63,7 +63,7 @@ def _origin(args, settings):
 
 def _analyse(text, origin, settings, offline: bool):
     from routemap import service
-    from routemap.engine import OFFLINE, analyse
+    from routemap_engine import OFFLINE, analyse
 
     sources = OFFLINE if offline else service.sources_for(settings)
 
@@ -98,17 +98,13 @@ def _outputs(args, current: dict) -> int:
 
 def cmd_trace(args) -> int:
     from routemap import config, service
-    from routemap.engine import InvalidTarget, TraceParseError, validate_target
-    from routemap.engine.runner import TraceToolMissing
+    from routemap_engine import InvalidTarget, TraceParseError, validate_target
+    from routemap_engine.runner import TraceToolMissing
 
     service.startup()
     settings = config.load_settings()
     if not (args.json or args.png or args.pdf):
-        origin = None
-        if args.origin:
-            origin, _ = _origin(args, settings)
-        from routemap.gui.app import run_gui
-        return run_gui(args.target, origin_override=origin)
+        return open_window([args.target] + (["--origin", args.origin] if args.origin else []))
     try:
         target = validate_target(args.target)
     except InvalidTarget as exc:
@@ -142,7 +138,7 @@ def cmd_trace(args) -> int:
 
 def cmd_parse(args) -> int:
     from routemap import config, service
-    from routemap.engine import TraceParseError
+    from routemap_engine import TraceParseError
 
     service.startup()
     settings = config.load_settings()
@@ -167,7 +163,7 @@ def cmd_parse(args) -> int:
 
 def cmd_sites(args) -> int:
     from routemap import config
-    from routemap.engine import sitegen
+    from routemap_engine import sitegen
 
     if args.action != "update":
         return 2
@@ -182,15 +178,16 @@ def cmd_sites(args) -> int:
 
 def cmd_cache(args) -> int:
     from routemap import config
-    from routemap.engine import SqliteCache
+    from routemap_engine import SqliteCache
 
     if args.action != "clear":
         return 2
-    path = config.cache_path()
-    if not path.exists():
-        print("The cache is already empty.")
-        return 0
-    print(f"Cleared {SqliteCache(path).clear()} cached hostnames from {path}.")
+    cleared = 0
+    for path in (config.cache_path(), config.ip_cache_path()):
+        if path.exists():
+            cleared += SqliteCache(path).clear()
+    print(f"Cleared {cleared} cached answers (Hoiho hostnames and IP database addresses)."
+          if cleared else "The cache is already empty.")
     return 0
 
 
@@ -214,7 +211,7 @@ def smoke_test(out_dir: str) -> int:
     """
     from importlib import resources
 
-    from routemap.engine import OFFLINE, analyse_sync, schema
+    from routemap_engine import OFFLINE, analyse_sync, schema
     from routemap.gui.app import headless_platform, make_app, write_export
     from routemap.gui.mainwindow import MainWindow
 
@@ -251,9 +248,12 @@ def smoke_test(out_dir: str) -> int:
     # A platform with no fonts writes a PDF with no font objects and no text.
     assert b"/Font" in pdf, "the PDF has no fonts: text did not render on this platform"
     window.close()
-    print(f"{NAME} {__version__} smoke test ok: {len(route['hops'])} hops, "
-          f"{sum(1 for h in route['hops'] if h['lat'] is not None)} placed; "
-          f"png {sizes['png']} B, pdf {sizes['pdf']} B, json {sizes['json']} B, {checked}")
+    summary = (f"{NAME} {__version__} smoke test ok: {len(route['hops'])} hops, "
+               f"{sum(1 for h in route['hops'] if h['lat'] is not None)} placed; "
+               f"png {sizes['png']} B, pdf {sizes['pdf']} B, json {sizes['json']} B, {checked}")
+    with open(os.path.join(out_dir, "result.txt"), "w", encoding="utf-8") as handle:
+        handle.write(summary + "\n")
+    print(summary)
     return 0
 
 
@@ -270,22 +270,52 @@ def _common(parser):
                         help="contact nothing: site-code table and local hops only")
 
 
-def _hide_console_for_gui():
-    """Windows: the frozen binary is a console app so the CLI can print; when it
-    was double-clicked (it owns its console alone), drop the console window."""
-    if sys.platform != "win32" or not getattr(sys, "frozen", False):
+def _frozen_windows() -> bool:
+    return sys.platform == "win32" and (getattr(sys, "frozen", False) or "__compiled__" in globals())
+
+
+def open_window(args: list[str]) -> int:
+    """Open the window. From the Windows console binary (routemap-cli.exe), start
+    the windowed routemap.exe beside it, fully detached, so the window never
+    belongs to this console and survives it being closed."""
+    if _frozen_windows():
+        import subprocess
+        gui = os.path.join(os.path.dirname(os.path.abspath(sys.executable)), "routemap.exe")
+        if not os.path.exists(gui):
+            _err(f"{NAME}: routemap.exe is not next to this program; open it directly.")
+            return 2
+        flags = 0x00000008 | 0x00000200  # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
+        subprocess.Popen([gui, *args], creationflags=flags, close_fds=True,
+                         stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                         stderr=subprocess.DEVNULL)
+        return 0
+    from routemap import service
+    from routemap.gui.main import main as gui_main
+    service.startup()
+    return gui_main(args)
+
+
+def utf8_streams(platform: str = sys.platform) -> None:
+    """On Windows, write redirected output as UTF-8.
+
+    A console gets Unicode through the console API whatever this says, but
+    output redirected to a file or a pipe is encoded in the ANSI code page
+    (cp1252 and the like), so a "\u00b7" or a city name like "Z\u00fcrich" reaches
+    the next program as bytes it reads as "\ufffd". UTF-8 is what scripts, CI
+    logs and JSON readers expect.
+    """
+    if not platform.startswith("win"):
         return
-    try:
-        import ctypes
-        kernel32 = ctypes.windll.kernel32
-        processes = (ctypes.c_uint * 4)()
-        if kernel32.GetConsoleProcessList(processes, 4) <= 1:
-            kernel32.FreeConsole()
-    except Exception:  # noqa: BLE001
-        pass
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            if stream is not None and not stream.isatty() and hasattr(stream, "reconfigure"):
+                stream.reconfigure(encoding="utf-8", errors="replace")
+        except (OSError, ValueError):
+            pass
 
 
 def main(argv: list[str] | None = None) -> int:
+    utf8_streams()
     argv = list(sys.argv[1:] if argv is None else argv)
     # macOS passes -psn_... when launched from Finder on older systems.
     argv = [a for a in argv if not a.startswith("-psn_")]
@@ -326,11 +356,7 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_trace(args)
     if args.json or args.png or args.pdf:
         parser.error("give a target to trace, or use: routemap parse FILE")
-    _hide_console_for_gui()
-    from routemap import service
-    from routemap.gui.app import run_gui
-    service.startup()
-    return run_gui()
+    return open_window([])
 
 
 if __name__ == "__main__":

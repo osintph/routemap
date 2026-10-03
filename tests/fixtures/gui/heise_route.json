@@ -1,5 +1,5 @@
 {
- "note": "routemap.engine analysis of tests/fixtures/routemap/heise_traceroute.txt from Manila with live sources, captured 2026-10-03 for the GUI mockup and smoke tests.",
+ "note": "routemap.engine analysis of tests/fixtures/routemap/heise_traceroute.txt from Manila with live sources, captured 2026-10-03 for the GUI mockup and smoke tests. Updated for routemap-engine 0.2.0: 2 IP-database hop(s) with no city carry \"precision\": \"country\", as the engine now emits.",
  "trace_text": "traceroute to heise.de (193.99.144.80), 30 hops max, 60 byte packets\n 1  router (192.0.2.1)  4.112 ms  3.741 ms  3.698 ms\n 2  192.168.1.1 (192.168.1.1)  5.432 ms  5.802 ms  3.333 ms\n 3  198.51.100.1 (198.51.100.1)  8.820 ms  8.442 ms  8.051 ms\n 4  122.2.187.146.static.pldt.net (122.2.187.146)  8.323 ms  8.015 ms  6.227 ms\n 5  210.213.130.143.static.pldt.net (210.213.130.143)  9.218 ms  10.291 ms  9.905 ms\n 6  hnk-b4-link.ip.twelve99.net (62.115.209.158)  55.214 ms * *\n 7  sng-b6-link.ip.twelve99.net (62.115.112.222)  58.331 ms  58.812 ms  59.004 ms\n 8  mei-b6-link.ip.twelve99.net (62.115.140.54)  195.442 ms  195.881 ms  196.122 ms\n 9  prs-bb2-link.ip.twelve99.net (62.115.136.234)  239.118 ms  239.664 ms  240.002 ms\n10  ffm-bb2-link.ip.twelve99.net (62.115.122.139)  228.447 ms  228.902 ms  229.331 ms\n11  ffm-b16-link.ip.twelve99.net (62.115.132.229)  211.332 ms  211.884 ms *\n12  plusline-ic-323934.ip.twelve99-cust.net (62.115.153.153)  257.119 ms  257.664 ms  258.001 ms\n13  te2-2.c301.f.de.plusline.net (82.98.102.1)  258.221 ms  258.774 ms  259.118 ms\n14  82.98.103.3 (82.98.103.3)  258.443 ms  258.919 ms  259.337 ms\n15  212.19.61.13 (212.19.61.13)  256.118 ms  256.662 ms  257.004 ms\n16  heise.de (193.99.144.80)  255.337 ms  255.881 ms  256.223 ms\n",
  "route": {
   "parser": "traceroute",
@@ -537,7 +537,8 @@
       "rtt_budget_km": 26011.9,
       "accepted": true
      }
-    ]
+    ],
+    "precision": "country"
    },
    {
     "hop": 13,
@@ -697,7 +698,8 @@
       "rtt_budget_km": 25833.7,
       "accepted": true
      }
-    ]
+    ],
+    "precision": "country"
    }
   ]
  }
