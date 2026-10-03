@@ -163,6 +163,9 @@ jobs:
         run: |
           PRE=""
           case "$GITHUB_REF_NAME" in *-*) PRE="--prerelease" ;; esac
-          TITLE="$(git log -1 --format=%s "$GITHUB_REF_NAME")"
+          # The title is the annotated tag's subject line ("vX: what it is").
+          git fetch --force origin "refs/tags/$GITHUB_REF_NAME:refs/tags/$GITHUB_REF_NAME"
+          TITLE="$(git tag -l --format='%(contents:subject)' "$GITHUB_REF_NAME")"
+          TITLE="${TITLE:-$GITHUB_REF_NAME}"
           gh release create "$GITHUB_REF_NAME" assets/* --title "$TITLE" \
             --notes-file notes.md --verify-tag $PRE
