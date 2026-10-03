@@ -1,0 +1,51 @@
+<section class="hero">
+  <div class="hero-text">
+    <h1>{{tagline}}</h1>
+    <p class="lead">{{product}} runs a traceroute from your own computer, or reads one you
+    paste, and draws the path on a world map with a hop table beside it. Free and open
+    source, for macOS, Windows and Linux.</p>
+    <p class="actions"><a class="button" href="/download/">Download</a>
+    <a class="button ghost" href="{{repository}}">Source on GitHub</a></p>
+  </div>
+  <figure class="hero-shot">
+    <img src="/assets/screenshot-main.png" alt="Route Map showing a trace from Manila to Frankfurt on a world map, with the hop table beside it" width="1600" height="1000">
+  </figure>
+</section>
+
+<section class="rules" aria-labelledby="rules">
+  <h2 id="rules">Three rules</h2>
+  <ol class="cards">
+    <li><h3>Hostname first</h3>
+    <p>A router's DNS name usually says where it is: <code>ae1.fra10</code> is
+    Frankfurt. {{product}} reads it with CAIDA's Hoiho rules and carriers' own site
+    codes before it ever asks an IP database.</p></li>
+    <li><h3>Physics checked</h3>
+    <p>A hop cannot be farther away than light in fibre travels in its round-trip
+    time. A placement that breaks that bound is rejected, whatever the database
+    says, and the table says why.</p></li>
+    <li><h3>Honest labels</h3>
+    <p>Every placement says where it came from. A hop known only to a country is
+    drawn hollow, and a hop that cannot be placed is listed with the reason, never
+    guessed.</p></li>
+  </ol>
+</section>
+
+<section class="more">
+  <div>
+    <h2>Runs on your machine</h2>
+    <p>The trace runs with your system's own <code>tracert</code>, <code>traceroute</code>
+    or <code>mtr</code>. No account, no telemetry, no automatic update check. What is
+    looked up, where and when, is listed on the <a href="/privacy/">privacy page</a>.</p>
+  </div>
+  <div>
+    <h2>Map, table, export</h2>
+    <p>Hops appear as the trace runs. Click a marker to find its rows, or a row to find
+    its marker. Export a PNG map, a PDF report or JSON, from the window or the
+    <a href="/docs/cli/">command line</a>.</p>
+  </div>
+  <div>
+    <h2>Also in FalconEye</h2>
+    <p>The same engine, <a href="{{engine}}">routemap-engine</a>, powers the Route Map
+    tab of <a href="{{falconeye}}">FalconEye</a>, OSINTPH's web application.</p>
+  </div>
+</section>

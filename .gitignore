@@ -9,3 +9,6 @@ dist/
 .DS_Store
 build-nuitka-*.log
 nuitka-crash-report.xml
+
+# Generated project site
+site/build/

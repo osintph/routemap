@@ -1,14 +1,18 @@
-# Compiled desktop builds (Nuitka) for every platform, verified and smoke-tested,
-# and on a tag published (see the publish job).
+# Compiled desktop builds (Nuitka) for every platform, verified and smoke-tested;
+# on a tag, published as a GitHub Release with a GPG-signed SHA256SUMS.
 #
 # Verification on every build:
 #   - the built binary's own --smoke-test (opens the window, exports PNG/PDF/JSON)
-#   - Windows: packaging/verify_windows.py (routemap.exe is a windowed program,
-#     has no console, and survives its launching console being killed)
+#   - packaging/cli_check.sh: offline parse, and UTF-8 output when redirected
+#   - Windows: packaging/verify_windows.py (version resources, no packer
+#     sections, routemap.exe windowed with no console and surviving its
+#     launching console being killed) and a Microsoft Defender scan of every
+#     Windows artifact (packaging/defender_scan.ps1), which fails the build on
+#     any detection
 #
-# Signing plugs in at the "sign-<platform>" markers: Windows through the
-# .github/actions/sign-windows seam (provider to be decided, see docs), Linux
-# by GPG-signing SHA256SUMS, macOS Developer ID behind a variable that is off.
+# Signing: Windows through SignPath Foundation when WINDOWS_SIGNING is
+# "signpath" (sign-windows job, manual approval per request); SHA256SUMS with
+# the GPG release key; macOS ad-hoc only.
 name: build
 
 on:
@@ -26,6 +30,9 @@ jobs:
   build:
     name: ${{ matrix.target }}
     runs-on: ${{ matrix.os }}
+    outputs:
+      # Only the Windows leg sets it: the GitHub artifact SignPath signs.
+      signing-artifact-id: ${{ steps.forsigning.outputs.artifact-id }}
     timeout-minutes: 90
     strategy:
       fail-fast: false
@@ -86,39 +93,52 @@ jobs:
             "out/routemap-${{ steps.v.outputs.version }}-${{ matrix.target }}.dmg"
 
       # ---- Windows ----------------------------------------------------------------
+      # Standalone folders, not one-file exes (a one-file exe is a compressed
+      # self-extractor, which Defender's heuristics flagged in beta.3), merged
+      # into one "Route Map" folder with the windowed app and the console CLI,
+      # both with version resources and the application manifest. No packer.
       - name: Compile (Windows, windowed app and console CLI)
         if: runner.os == 'Windows'
         run: |
           python packaging/build_nuitka.py windows-gui
           python packaging/build_nuitka.py windows-cli
+          python packaging/assemble_windows.py
       - name: Verify and smoke test (Windows)
         if: runner.os == 'Windows'
         shell: bash
         run: |
-          build/nuitka/routemap-cli.exe --version
-          bash packaging/cli_check.sh build/nuitka/routemap-cli.exe
-          build/nuitka/routemap-cli.exe --smoke-test smoke
-          build/nuitka/routemap-cli.exe parse tests/fixtures/routemap/heise_tracert.txt --offline --origin "Manila, PH" > smoke/parse.json
+          D="build/nuitka/windows/Route Map"
+          "$D/routemap-cli.exe" --version
+          bash packaging/cli_check.sh "$D/routemap-cli.exe"
+          "$D/routemap-cli.exe" --smoke-test smoke
+          "$D/routemap-cli.exe" parse tests/fixtures/routemap/heise_tracert.txt --offline --origin "Manila, PH" > smoke/parse.json
           # The windowed exe has no stdout: its smoke test leaves result.txt.
-          build/nuitka/routemap.exe --smoke-test smoke-gui
+          "$D/routemap.exe" --smoke-test smoke-gui
           for i in $(seq 1 60); do [ -f smoke-gui/result.txt ] && break; sleep 2; done
           cat smoke-gui/result.txt
-      - name: Windowed, no console, survives its terminal (Windows)
+      - name: Resources, no packer, windowed, no console, survives its terminal (Windows)
         if: runner.os == 'Windows'
-        run: python packaging/verify_windows.py build/nuitka/routemap.exe build/nuitka/routemap-cli.exe
-      - name: Sign (Windows; off until a provider is configured)
+        run: python packaging/verify_windows.py "build/nuitka/windows/Route Map/routemap.exe" "build/nuitka/windows/Route Map/routemap-cli.exe"
+      - name: Package (Windows zip)
         if: runner.os == 'Windows'
-        uses: ./.github/actions/sign-windows
-        with:
-          files: build/nuitka/routemap.exe build/nuitka/routemap-cli.exe
-          provider: ${{ vars.WINDOWS_SIGNING || 'off' }}
-      - name: Package (Windows)
-        if: runner.os == 'Windows'
-        shell: bash
+        shell: pwsh
         run: |
-          mkdir -p out
-          cp build/nuitka/routemap.exe "out/routemap-${{ steps.v.outputs.version }}-${{ matrix.target }}.exe"
-          cp build/nuitka/routemap-cli.exe "out/routemap-cli-${{ steps.v.outputs.version }}-${{ matrix.target }}.exe"
+          New-Item -ItemType Directory -Force out | Out-Null
+          Compress-Archive -Path "build/nuitka/windows/Route Map" -DestinationPath "out/routemap-${{ steps.v.outputs.version }}-${{ matrix.target }}.zip"
+      - name: Defender scan of every Windows artifact (fails on a detection)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force smoke | Out-Null
+          pwsh packaging/defender_scan.ps1 -Report smoke/defender.txt "build/nuitka/windows/Route Map" "out/routemap-${{ steps.v.outputs.version }}-${{ matrix.target }}.zip"
+      - name: Folder for signing (Windows)
+        id: forsigning
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-for-signing
+          path: build/nuitka/windows/
+          retention-days: 7
 
       # ---- Linux --------------------------------------------------------------------
       - name: Compile (Linux)
@@ -165,44 +185,88 @@ jobs:
             smoke/
             smoke-gui/
 
-  publish:
-    name: Publish to the pre-release download site
-    if: startsWith(github.ref, 'refs/tags/v')
+  sign-windows:
+    # SignPath Foundation, through its trusted-build GitHub Action. Runs only
+    # when the repository variable WINDOWS_SIGNING is "signpath" (set once the
+    # project is approved). Every signing request waits for the maintainer's
+    # manual approval in SignPath (CODE_SIGNING_POLICY.md). The signed folder
+    # is verified, scanned again and replaces the unsigned zip.
+    name: Sign Windows (SignPath)
+    if: vars.WINDOWS_SIGNING == 'signpath'
     needs: build
-    runs-on: ubuntu-latest
-    environment: downloads
-    env:
-      DOWNLOAD_HOST: ${{ secrets.DOWNLOAD_HOST }}
-      DOWNLOAD_PORT: ${{ secrets.DOWNLOAD_PORT }}
-      DOWNLOAD_USER: ${{ secrets.DOWNLOAD_USER }}
-      # Not a secret: rrsync confines the deploy user to the download root, so
-      # the path is always ".". As a secret it made GitHub mask every "." in
-      # this repo's logs.
-      DOWNLOAD_PATH: "."
-      DOWNLOAD_SSH_KEY: ${{ secrets.DOWNLOAD_SSH_KEY }}
-      DOWNLOAD_KNOWN_HOSTS: ${{ secrets.DOWNLOAD_KNOWN_HOSTS }}
-      GPG_RELEASE_KEY: ${{ secrets.GPG_RELEASE_KEY }}
-      GPG_RELEASE_PASSPHRASE: ${{ secrets.GPG_RELEASE_PASSPHRASE }}
+    runs-on: windows-latest
+    timeout-minutes: 360
     steps:
       - uses: actions/checkout@v4
-      - name: Configured?
-        id: cfg
+      - name: Version
+        id: v
+        shell: bash
+        run: echo "version=$(python -c 'import re; print(re.search(r"__version__ = \"(.+?)\"", open("routemap/__about__.py").read()).group(1))')" >> "$GITHUB_OUTPUT"
+      - name: Submit to SignPath and wait for approval
+        uses: signpath/github-action-submit-signing-request@f6d04783b4569d051e0c80105fe66e82819d0092 # v3.0
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG || 'routemap' }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG || 'release-signing' }}
+          artifact-configuration-slug: ${{ vars.SIGNPATH_ARTIFACT_CONFIGURATION_SLUG || 'windows-folder' }}
+          github-artifact-id: ${{ needs.build.outputs.signing-artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 20000
+          output-artifact-directory: signed
+      - name: Verify signatures
+        shell: pwsh
         run: |
-          if [ -z "$DOWNLOAD_HOST" ] || [ -z "$DOWNLOAD_SSH_KEY" ]; then
-            echo "::warning::Download site secrets are not set; the artifacts are in this run. See docs/download-host/README.md."
-            echo "ok=false" >> "$GITHUB_OUTPUT"
-          else
-            [ -n "$GPG_RELEASE_KEY" ] || { echo "::error::GPG_RELEASE_KEY is not set: SHA256SUMS must be signed before publishing."; exit 1; }
-            echo "ok=true" >> "$GITHUB_OUTPUT"
-          fi
+          $signtool = (Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\10.*\x64\signtool.exe" | Sort-Object FullName | Select-Object -Last 1).FullName
+          foreach ($exe in "signed/Route Map/routemap.exe", "signed/Route Map/routemap-cli.exe") {
+            & $signtool verify /pa /v $exe
+            if ($LASTEXITCODE -ne 0) { throw "signature check failed: $exe" }
+          }
+      - name: Package and scan the signed build
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force out, smoke | Out-Null
+          $zip = "out/routemap-${{ steps.v.outputs.version }}-windows-x86_64.zip"
+          Compress-Archive -Path "signed/Route Map" -DestinationPath $zip
+          pwsh packaging/defender_scan.ps1 -Report smoke/defender-signed.txt "signed/Route Map" $zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: routemap-windows-x86_64
+          path: out/*
+          overwrite: true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: smoke-windows-signed
+          path: smoke/
+
+  release:
+    name: Release
+    if: >-
+      startsWith(github.ref, 'refs/tags/v') && !cancelled() &&
+      needs.build.result == 'success' &&
+      (needs.sign-windows.result == 'success' || needs.sign-windows.result == 'skipped')
+    needs: [build, sign-windows]
+    runs-on: ubuntu-latest
+    # The GPG release key lives in this environment.
+    environment: downloads
+    permissions:
+      contents: write
+    env:
+      GPG_RELEASE_KEY: ${{ secrets.GPG_RELEASE_KEY }}
+      GPG_RELEASE_PASSPHRASE: ${{ secrets.GPG_RELEASE_PASSPHRASE }}
+      WINDOWS_SIGNED: ${{ needs.sign-windows.result == 'success' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: GPG key present
+        run: |
+          [ -n "$GPG_RELEASE_KEY" ] || { echo "::error::GPG_RELEASE_KEY is not set: nothing is published unsigned."; exit 1; }
       - uses: actions/download-artifact@v4
-        if: steps.cfg.outputs.ok == 'true'
         with:
           pattern: routemap-*
           path: release
           merge-multiple: true
-      - name: Checksums, GPG signature, pages
-        if: steps.cfg.outputs.ok == 'true'
+      - name: Checksums, GPG signature, release notes
         run: |
           V="${GITHUB_REF_NAME}"
           cd release
@@ -213,23 +277,74 @@ jobs:
             --local-user "$FPR" --armor --detach-sign --output SHA256SUMS.asc SHA256SUMS
           gpg --batch --verify SHA256SUMS.asc SHA256SUMS
           cd ..
-          python3 packaging/release_notes.py "$V" > release/RELEASE-NOTES.md
-          python3 packaging/download_index.py version release "$V" release/RELEASE-NOTES.md > release/index.html
+          SIGNED=""; [ "$WINDOWS_SIGNED" = "true" ] && SIGNED="--windows-signed"
+          python3 packaging/release_notes.py "$V" --fingerprint "$FPR" $SIGNED > notes.md
           echo "FPR=$FPR" >> "$GITHUB_ENV"
           cat release/SHA256SUMS
-      - name: Upload over SSH, then rebuild the version index
-        if: steps.cfg.outputs.ok == 'true'
+      - name: GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           V="${GITHUB_REF_NAME}"
-          PORT="${DOWNLOAD_PORT:-22}"
+          TITLE="$(git for-each-ref --format='%(contents:subject)' "refs/tags/$V")"
+          PRE=""; case "$V" in *-*) PRE="--prerelease" ;; esac
+          gh release create "$V" release/* --verify-tag $PRE --title "${TITLE:-$V}" --notes-file notes.md
+      - name: Optional pre-release download site
+        env:
+          DOWNLOAD_HOST: ${{ secrets.DOWNLOAD_HOST }}
+          DOWNLOAD_PORT: ${{ secrets.DOWNLOAD_PORT }}
+          DOWNLOAD_USER: ${{ secrets.DOWNLOAD_USER }}
+          DOWNLOAD_SSH_KEY: ${{ secrets.DOWNLOAD_SSH_KEY }}
+          DOWNLOAD_KNOWN_HOSTS: ${{ secrets.DOWNLOAD_KNOWN_HOSTS }}
+        run: |
+          if [ -z "$DOWNLOAD_HOST" ] || [ -z "$DOWNLOAD_SSH_KEY" ]; then
+            echo "Pre-release site not configured; skipped."; exit 0
+          fi
+          V="${GITHUB_REF_NAME}"
+          cp notes.md release/RELEASE-NOTES.md
+          python3 packaging/download_index.py version release "$V" release/RELEASE-NOTES.md > release/index.html
           install -m 700 -d ~/.ssh
           echo "$DOWNLOAD_SSH_KEY" > ~/.ssh/download_key && chmod 600 ~/.ssh/download_key
           echo "$DOWNLOAD_KNOWN_HOSTS" > ~/.ssh/known_hosts
-          SSH="ssh -p $PORT -i ~/.ssh/download_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes"
-          # The deploy user is restricted to rsync (rrsync) inside the download
-          # root, so DOWNLOAD_PATH is "." and listings go through rsync too.
-          rsync -av --chmod=D755,F644 -e "$SSH" release/ "$DOWNLOAD_USER@$DOWNLOAD_HOST:$DOWNLOAD_PATH/$V/"
-          rsync --list-only -e "$SSH" "$DOWNLOAD_USER@$DOWNLOAD_HOST:$DOWNLOAD_PATH/" \
+          SSH="ssh -p ${DOWNLOAD_PORT:-22} -i ~/.ssh/download_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes"
+          # The deploy key is restricted to rsync (rrsync) inside the download
+          # root, so paths are relative to it and listings go through rsync too.
+          rsync -av --chmod=D755,F644 -e "$SSH" release/ "$DOWNLOAD_USER@$DOWNLOAD_HOST:./$V/"
+          rsync --list-only -e "$SSH" "$DOWNLOAD_USER@$DOWNLOAD_HOST:./" \
             | awk '$1 ~ /^d/ {print $NF}' | grep -v '^\.$' > versions.txt
           python3 packaging/download_index.py root versions.txt "$FPR" > index.html
-          rsync -av --chmod=F644 -e "$SSH" index.html "$DOWNLOAD_USER@$DOWNLOAD_HOST:$DOWNLOAD_PATH/index.html"
+          rsync -av --chmod=F644 -e "$SSH" index.html "$DOWNLOAD_USER@$DOWNLOAD_HOST:./index.html"
+
+  site:
+    # The project site (site/), rebuilt for this release and copied to the web
+    # host over rsync. The deploy key is confined to the site's folder (rrsync).
+    name: Project site
+    if: startsWith(github.ref, 'refs/tags/v') && !cancelled() && needs.release.result == 'success'
+    needs: release
+    runs-on: ubuntu-latest
+    environment: downloads
+    env:
+      SITE_HOST: ${{ secrets.DOWNLOAD_HOST }}
+      SITE_PORT: ${{ secrets.DOWNLOAD_PORT }}
+      SITE_USER: ${{ secrets.DOWNLOAD_USER }}
+      SITE_SSH_KEY: ${{ secrets.SITE_SSH_KEY }}
+      SITE_KNOWN_HOSTS: ${{ secrets.DOWNLOAD_KNOWN_HOSTS }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download "$GITHUB_REF_NAME" --pattern SHA256SUMS --dir sums
+          python site/build.py --tag "$GITHUB_REF_NAME" --sums sums/SHA256SUMS
+      - name: Deploy
+        run: |
+          if [ -z "$SITE_SSH_KEY" ]; then echo "Site deploy key not set; skipped."; exit 0; fi
+          install -m 700 -d ~/.ssh
+          echo "$SITE_SSH_KEY" > ~/.ssh/site_key && chmod 600 ~/.ssh/site_key
+          echo "$SITE_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          SSH="ssh -p ${SITE_PORT:-22} -i ~/.ssh/site_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes"
+          rsync -rv --delete --chmod=D755,F644 -e "$SSH" site/build/ "$SITE_USER@$SITE_HOST:./"

@@ -103,7 +103,8 @@ def root_page(versions_file: str, fingerprint: str) -> str:
             "<code>shasum -a 256 -c SHA256SUMS --ignore-missing</code> (macOS), or "
             "<code>Get-FileHash</code> in PowerShell.</p>"
             "<h2>First run of an unsigned beta</h2>"
-            "<p><b>Windows:</b> SmartScreen, then More info, then Run anyway. "
+            "<p><b>Windows:</b> extract the zip and run <code>routemap.exe</code> in the "
+            "<code>Route Map</code> folder; if SmartScreen warns, More info, then Run anyway. "
             "<b>macOS:</b> right-click Route Map in Applications, Open, Open; or "
             "<code>xattr -d com.apple.quarantine \"/Applications/Route Map.app\"</code>. "
             "<b>Linux:</b> <code>chmod +x</code> the AppImage.</p>")

@@ -13,12 +13,13 @@ import json
 import os
 import sys
 
-from PySide6.QtCore import QByteArray, QObject, Qt, QTimer
-from PySide6.QtGui import QGuiApplication, QIcon
+from PySide6.QtCore import QByteArray, QObject, Qt, QTimer, QUrl
+from PySide6.QtGui import QDesktopServices, QGuiApplication, QIcon
 from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox
 
 from routemap import config, service
-from routemap.__about__ import DISPLAY_NAME, NAME, REPO_URL, __version__
+from routemap.__about__ import (DISPLAY_NAME, NAME, REPO_URL, SIGNPATH_ATTRIBUTION,
+                                SIGNPATH_SIGNED, SITE_URL, SPONSOR_URL, __version__)
 from routemap_engine import (InvalidTarget, Route, SqliteCache, TraceParseError, analyse, atlas,
                              available_tools, install_hint, validate_target, whereami)
 from routemap_engine.runner import TraceToolMissing, pick_tool
@@ -59,6 +60,8 @@ class Controller(QObject):
         w.act_update.triggered.connect(self.check_update)
         w.act_notices.triggered.connect(lambda: dialogs.NoticesDialog(w).exec())
         w.act_about.triggered.connect(self.about)
+        # Opens the sponsor page in the browser; nothing else, no prompts.
+        w.act_support.triggered.connect(lambda: QDesktopServices.openUrl(QUrl(SPONSOR_URL)))
         w.history.opened.connect(self.open_history)
         w.history.cleared.connect(self.clear_history)
         w.map.originPicked.connect(self._picked)
@@ -536,7 +539,10 @@ class Controller(QObject):
             f"<a href='https://github.com/osintph/routemap-engine'>routemap-engine</a> {_engine_version()} "
             "(AGPL-3.0)<br><br>"
             "Hostname rules: CAIDA Hoiho. IP geolocation: RIPEstat (RIPE NCC). Cities: GeoNames, "
-            "CC BY 4.0. Map: Natural Earth. Carrier sites: Arelion's looking glass. Built with Qt."))
+            "CC BY 4.0. Map: Natural Earth. Carrier sites: Arelion's looking glass. Built with Qt."
+            f"<br><br><a href='{SITE_URL}'>{SITE_URL}</a> \u00b7 "
+            f"<a href='{SPONSOR_URL}'>Support this project</a>"
+            + (f"<br><br>{SIGNPATH_ATTRIBUTION}." if SIGNPATH_SIGNED else "")))
 
     def save_window(self):
         self.settings.window_geometry = bytes(self.w.saveGeometry().toBase64()).decode()

@@ -206,3 +206,23 @@ def test_the_view_stops_following_once_the_user_moves_it(app):
     window.map.fit_route()                     # Fit hands control back
     assert not window.map.user_moved
     window.close()
+
+
+def test_help_menu_has_support_and_it_only_opens_the_sponsor_page(app, monkeypatch):
+    """Help > Support Route Map opens the sponsor page and does nothing else."""
+    from PySide6.QtGui import QDesktopServices
+
+    from routemap import config
+    from routemap.__about__ import SPONSOR_URL
+    from routemap.gui.app import Controller
+    from routemap.gui.mainwindow import MainWindow
+    opened = []
+    monkeypatch.setattr(QDesktopServices, "openUrl", lambda url: opened.append(url.toString()))
+    window = MainWindow()
+    Controller(window, config.load_settings())
+    help_menu = next(a.menu() for a in window.menuBar().actions() if a.text() == "&Help")
+    labels = [a.text() for a in help_menu.actions()]
+    assert "Support Route Map" in labels
+    window.act_support.trigger()
+    assert opened == [SPONSOR_URL]
+    window.close()

@@ -16,8 +16,15 @@ DISPLAY_NAME = "Route Map"
 # GitHub owner/repo, for the explicit update check and the User-Agent contact.
 REPO_SLUG = "osintph/routemap"
 REPO_URL = f"https://github.com/{REPO_SLUG}"
+# The project site, and where Help > Support Route Map leads.
+SITE_URL = "https://getroutemap.app"
+SPONSOR_URL = "https://github.com/sponsors/osintph"
+# True once Windows builds are signed through SignPath Foundation: the About box
+# then carries the attribution SignPath requires.
+SIGNPATH_SIGNED = False
+SIGNPATH_ATTRIBUTION = "Free code signing provided by SignPath.io, certificate by SignPath Foundation"
 
-__version__ = "0.1.0b3"
+__version__ = "0.1.0b4"
 
 # Upstreams see this product token, so a complaint about our traffic reaches
 # the project rather than whoever happens to be running it.

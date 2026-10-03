@@ -8,7 +8,7 @@ The routemap command line. Thin by rule: parse arguments, call the engine, print
     routemap TARGET --origin "Manila, PH"    or --origin 14.6,121.0
     routemap parse FILE [--json|--png|--pdf] analyse a trace run elsewhere
     routemap sites update [--dry-run]        refresh the carrier site-code table
-    routemap cache clear                     forget cached Hoiho answers
+    routemap cache clear                     forget cached Hoiho and IP database answers
     routemap --check-update                  ask GitHub for the latest release tag
 
 Progress and the tool's own output go to stderr, so --json output on stdout can

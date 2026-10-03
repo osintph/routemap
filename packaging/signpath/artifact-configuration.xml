@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SignPath artifact configuration "windows-folder" for the Route Map project.
+     Paste into SignPath (Project > Artifact configurations). The artifact is the
+     GitHub Actions artifact "windows-for-signing" uploaded by the build
+     workflow: a zip holding the "Route Map" folder. Only the two exes built
+     from this repository are signed; every other file passes through as is. -->
+<artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
+  <zip-file>
+    <directory path="Route Map">
+      <pe-file path="routemap.exe" product-name="Route Map" company-name="OSINTPH">
+        <authenticode-sign />
+      </pe-file>
+      <pe-file path="routemap-cli.exe" product-name="Route Map" company-name="OSINTPH">
+        <authenticode-sign />
+      </pe-file>
+    </directory>
+  </zip-file>
+</artifact-configuration>

@@ -552,8 +552,12 @@ fallback. Only public addresses.</td></tr>
 a name.</td></tr>
 <tr><td><b>One public IP lookup</b></td><td>to find your approximate city, and only while no
 origin is set. Set one in Settings and it never happens.</td></tr>
-<tr><td><b>RIPE Atlas</b></td><td>only if you enable it with your own key: the target, to
-schedule a public measurement.</td></tr>
+<tr><td><b>RIPE Atlas</b></td><td>only if you enable it with your own key and choose Trace
+from a RIPE Atlas probe. To atlas.ripe.net: your API key, your network's AS number (or, if
+no probe is on it, your country code) to find a probe, and the target, to schedule the
+measurement. To find the AS number, your public IP goes to RIPEstat once. Atlas
+measurements, target included, are published by RIPE NCC. Your origin coordinates are
+never sent: they only rank probes on this machine.</td></tr>
 <tr><td><b>Update check</b></td><td>only when you choose Help &rsaquo; Check for updates: one
 request to GitHub for the latest release tag.</td></tr>
 </table>

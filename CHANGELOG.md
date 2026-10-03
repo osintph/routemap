@@ -6,12 +6,25 @@ uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.0-beta.4] - 2026-10-04
+
 ### Changed
 
 - **Route Map is free and open source** under the GNU AGPL-3.0, and its
-  repository is public again. Contributions are welcome under a Contributor
-  Licence Agreement (CLA.md, CONTRIBUTING.md).
-- Releases are published on GitHub Releases with a GPG-signed `SHA256SUMS`.
+  repository is public. Contributions are welcome under a Contributor Licence
+  Agreement (CLA.md, CONTRIBUTING.md). No licence key is needed.
+- **Releases are on GitHub Releases**, with a GPG-signed `SHA256SUMS`, and the
+  project has a site: https://getroutemap.app.
+- **Windows: a zip instead of a single exe.** Extract it and run `routemap.exe`
+  in the `Route Map` folder; `routemap-cli.exe` is beside it. beta.3's
+  one-file exe, which unpacked itself at start, was deleted by Microsoft
+  Defender on download as a false positive. Both exes now carry full version
+  information and an application manifest, no packer is used, and every
+  Windows build is scanned with Defender before release. The Windows build is
+  still unsigned; signing through SignPath Foundation is applied for.
+- Help > Support Route Map opens the project's sponsor page (nothing else, and
+  never on its own). Help > About links the project site.
+- Help > Privacy and PRIVACY.md now spell out everything an Atlas trace sends.
 
 ## [0.1.0-beta.3] - 2026-10-03
 

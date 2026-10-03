@@ -2,12 +2,20 @@
 Compile the desktop app with Nuitka. One place for every flag.
 
     python packaging/build_nuitka.py macos           -> build/nuitka/Route Map.app
-    python packaging/build_nuitka.py windows-gui     -> build/nuitka/routemap.exe     (no console)
-    python packaging/build_nuitka.py windows-cli     -> build/nuitka/routemap-cli.exe (console)
+    python packaging/build_nuitka.py windows-gui     -> build/nuitka/entry_gui.dist/routemap.exe     (no console)
+    python packaging/build_nuitka.py windows-cli     -> build/nuitka/entry_cli.dist/routemap-cli.exe (console)
+    python packaging/assemble_windows.py             -> build/nuitka/windows/Route Map/ (both, one folder)
     python packaging/build_nuitka.py linux           -> build/nuitka/routemap         (one file)
 
 The app's Python is compiled to C. Qt and PySide6 stay separate shared
-libraries, as the LGPL requires. The bundled notices and licence texts travel as package data.
+libraries, as the LGPL requires.
+
+Windows builds are standalone folders, not one-file executables: a one-file
+exe is a self-extracting compressed payload, which antivirus heuristics treat
+like a packer (beta.3's one-file exe was deleted by Defender on download). No
+UPX or other packer is ever used. Both exes carry full version resources here
+and the application manifest from packaging/windows/routemap.manifest
+(embedded by assemble_windows.py). The bundled notices and licence texts travel as package data.
 """
 from __future__ import annotations
 
@@ -38,8 +46,14 @@ COMMON = [
     "--assume-yes-for-downloads",
     f"--output-dir={OUT}",
     f"--product-name={DISPLAY_NAME}",
-    "--company-name=osintph",
+    "--company-name=OSINTPH",
+    "--copyright=Copyright (C) 2026 OSINTPH. Free software under the GNU AGPL-3.0.",
+    f"--trademarks={DISPLAY_NAME}",
 ]
+
+# Nothing that packs or compresses executables. Checked here so a flag added
+# later cannot slip one in; packaging/verify_windows.py checks the result.
+FORBIDDEN = ("upx", "--onefile")
 
 
 def numeric_version() -> str:
@@ -69,14 +83,19 @@ def main(target: str) -> int:
             shutil.rmtree(app)
         (OUT / "entry_cli.app").rename(app)
         print(app)
-    elif target == "windows-gui":
-        run(["packaging/entry_gui.py", "--onefile", "--windows-console-mode=disable",
-             "--windows-icon-from-ico=packaging/icon.ico", "--output-filename=routemap.exe",
-             *version, *COMMON])
-    elif target == "windows-cli":
-        run(["packaging/entry_cli.py", "--onefile", "--windows-console-mode=force",
-             "--windows-icon-from-ico=packaging/icon.ico", "--output-filename=routemap-cli.exe",
-             *version, *COMMON])
+    elif target in ("windows-gui", "windows-cli"):
+        gui = target == "windows-gui"
+        args = [f"packaging/entry_{'gui' if gui else 'cli'}.py", "--standalone",
+                f"--windows-console-mode={'disable' if gui else 'force'}",
+                "--windows-icon-from-ico=packaging/icon.ico",
+                f"--output-filename={'routemap.exe' if gui else 'routemap-cli.exe'}",
+                f"--file-description={DISPLAY_NAME}" + ("" if gui else " (command line)"),
+                *version, *COMMON]
+        bad = [a for a in args if any(f in a.lower() for f in FORBIDDEN)]
+        if bad:
+            print(f"refusing packer or one-file options on Windows: {bad}", file=sys.stderr)
+            return 2
+        run(args)
     elif target == "linux":
         # Built under another name for the same collision reason, then renamed:
         # the one-file binary is self-contained, so its name is free.

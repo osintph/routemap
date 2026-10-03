@@ -1,0 +1,30 @@
+# The project site's branding and links, in one place. A domain or name change
+# is a change here (and in routemap/__about__.py for the app itself).
+
+[site]
+hostname = "getroutemap.app"
+url = "https://getroutemap.app"
+product = "Route Map"
+tagline = "See where your traffic physically goes."
+description = "Route Map runs a traceroute from your own computer and draws the path on a world map: hostname first, physics checked, every placement labelled. Free and open source for macOS, Windows and Linux."
+
+[links]
+repository = "https://github.com/osintph/routemap"
+releases = "https://github.com/osintph/routemap/releases"
+issues = "https://github.com/osintph/routemap/issues"
+engine = "https://github.com/osintph/routemap-engine"
+sponsor = "https://github.com/sponsors/osintph"
+falconeye = "https://falconeye.osintph.info"
+builder = "https://osintph.info"
+builder_name = "OSINTPH"
+# Shown on the support page when set; leave empty to show only GitHub Issues.
+contact_email = ""
+
+[release]
+gpg_fingerprint = "D57C7E26C19F9436E2D66F37408097D191DDF981"
+
+[signing]
+# true once SignPath Foundation signs the Windows builds: the footer, download
+# page and release notes then carry SignPath's attribution line.
+signpath_signed = false
+signpath_attribution = "Free code signing provided by SignPath.io, certificate by SignPath Foundation"

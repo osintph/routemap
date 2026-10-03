@@ -1,0 +1,10 @@
+<p><strong>macOS:</strong> the app is not notarised, so Gatekeeper blocks the first
+start. Right-click Route Map in Applications, choose <strong>Open</strong>, then
+<strong>Open</strong> again. On macOS 15: System Settings, Privacy &amp; Security,
+<strong>Open Anyway</strong>. Or in Terminal:
+<code>xattr -d com.apple.quarantine "/Applications/Route Map.app"</code>.</p>
+<p><strong>Linux:</strong> tracing needs <code>traceroute</code> (for example
+<code>sudo apt install traceroute</code>); <code>mtr</code> works too.</p>
+<p><strong>Windows:</strong> keep the <code>Route Map</code> folder together.
+<code>routemap.exe</code> is the app and never opens a console; <code>routemap-cli.exe</code>
+beside it is the command line.</p>

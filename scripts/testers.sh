@@ -112,10 +112,10 @@ Route Map is free and open source (AGPL-3.0): https://github.com/osintph/routema
 Released versions are on GitHub Releases and need no login.
 
 Installing
-- Windows 10/11: download routemap-<version>-windows-x86_64.exe and run it.
-  The build is not code-signed yet, so SmartScreen says "Windows protected your
-  PC": choose More info, then Run anyway. routemap.exe never opens a console;
-  for the command line there is also routemap-cli-<version>-windows-x86_64.exe.
+- Windows 10/11: download routemap-<version>-windows-x86_64.zip, extract it,
+  and run routemap.exe in the "Route Map" folder (routemap-cli.exe beside it
+  is the command line). The build is not code-signed yet, so SmartScreen may
+  say "Windows protected your PC": choose More info, then Run anyway.
 - macOS 12 or later: open the .dmg for your Mac (macos-arm64 for Apple silicon,
   macos-x86_64 for Intel) and drag Route Map to Applications. The first time,
   right-click it, choose Open, then Open again.
