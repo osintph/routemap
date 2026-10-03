@@ -269,8 +269,10 @@ def download_body(tag: str, sums: dict[str, str]) -> str:
 sha256sum -c SHA256SUMS --ignore-missing        # Linux
 shasum -a 256 -c SHA256SUMS --ignore-missing    # macOS
 Get-FileHash .\\routemap-{version}-windows-x86_64.zip   # Windows PowerShell</code></pre>
-<p>Get the key from a keyserver with <code>gpg --recv-keys {fpr}</code>, or from the
-<a href="{L['repository']}">repository</a>, and compare the fingerprint above.</p>
+<p>Import the public key first: download <a href="/assets/release-key.asc">release-key.asc</a>
+(also <a href="{L['repository']}/blob/main/RELEASE-KEY.asc">RELEASE-KEY.asc</a> in the repository),
+run <code>gpg --import release-key.asc</code>, and check that
+<code>gpg --fingerprint {fpr}</code> shows the fingerprint above.</p>
 </article>"""
 
 

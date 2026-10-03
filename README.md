@@ -44,9 +44,11 @@ notarised.
 ### Verify a download
 
 Each release has `SHA256SUMS` and its GPG signature `SHA256SUMS.asc`, made
-with the release key `D57C 7E26 C19F 9436 E2D6  6F37 4080 97D1 91DD F981`.
+with the release key `D57C 7E26 C19F 9436 E2D6  6F37 4080 97D1 91DD F981`
+(public key: [RELEASE-KEY.asc](RELEASE-KEY.asc)).
 
 ```bash
+gpg --import RELEASE-KEY.asc
 gpg --verify SHA256SUMS.asc SHA256SUMS
 sha256sum -c SHA256SUMS --ignore-missing          # Linux
 shasum -a 256 -c SHA256SUMS --ignore-missing      # macOS

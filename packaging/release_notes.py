@@ -44,8 +44,10 @@ def notes(tag: str, fingerprint: str = "", windows_signed: bool = False) -> str:
     match = re.search(rf"^## \[{re.escape(version)}\].*?$(.*?)(?=^## \[|\Z)", changelog, re.M | re.S)
     body = match.group(1).strip() if match else f"Release {version}."
     fpr = " ".join(fingerprint[i:i + 4] for i in range(0, len(fingerprint), 4)) if fingerprint else ""
-    verify = ("**Verify a download**: `gpg --verify SHA256SUMS.asc SHA256SUMS`"
-              + (f" (release key `{fpr}`)" if fpr else "")
+    verify = ("**Verify a download**: import the release key "
+              f"([RELEASE-KEY.asc]({REPO_URL}/blob/main/RELEASE-KEY.asc)) with `gpg --import`, then "
+              "`gpg --verify SHA256SUMS.asc SHA256SUMS`"
+              + (f" (key `{fpr}`)" if fpr else "")
               + ", then `sha256sum -c SHA256SUMS --ignore-missing` (Linux), "
                 "`shasum -a 256 -c SHA256SUMS --ignore-missing` (macOS), or "
                 "`Get-FileHash <file>` in PowerShell.")

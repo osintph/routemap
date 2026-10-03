@@ -21,7 +21,9 @@ Download the latest release from
   `.tar.gz` and run `./routemap`. Tracing needs `traceroute` (for example
   `sudo apt install traceroute`); `mtr` is used if you prefer it.
 
-Check a download (optional): `gpg --verify SHA256SUMS.asc SHA256SUMS`, then
+Check a download (optional): import the release key
+([RELEASE-KEY.asc](../RELEASE-KEY.asc)) with `gpg --import RELEASE-KEY.asc`,
+run `gpg --verify SHA256SUMS.asc SHA256SUMS`, then
 `sha256sum -c SHA256SUMS --ignore-missing` (Linux),
 `shasum -a 256 -c SHA256SUMS --ignore-missing` (macOS) or `Get-FileHash <file>`
 (PowerShell). The release key is
