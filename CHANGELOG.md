@@ -13,8 +13,7 @@ uses [Semantic Versioning](https://semver.org/).
 - **Route Map is free and open source** under the GNU AGPL-3.0, and its
   repository is public. Contributions are welcome under a Contributor Licence
   Agreement (CLA.md, CONTRIBUTING.md). No licence key is needed.
-- **Releases are on GitHub Releases**, with a GPG-signed `SHA256SUMS`, and the
-  project has a site: https://getroutemap.app.
+- **Releases are on GitHub Releases**, with a GPG-signed `SHA256SUMS`.
 - **Windows: a zip instead of a single exe.** Extract it and run `routemap.exe`
   in the `Route Map` folder; `routemap-cli.exe` is beside it. beta.3's
   one-file exe, which unpacked itself at start, was deleted by Microsoft

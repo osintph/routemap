@@ -1,0 +1,16 @@
+Route Map donation addresses
+https://getroutemap.app/donate/
+
+Bitcoin (bech32): bc1q8hn6knzpkp0f2s06qncljpcsatv9dlqan5ttjv
+Monero: 42kA1yiEM8GSan4FeeZ9MxGtZCLNwYsvGefWLrMJ849dV2o9eVrc1Pufc7LcBAbRebXbVdxC5eoKj1a8pXJ3fSuFUDKLtXM
+
+Also: https://ko-fi.com/osintph and https://paypal.me/osintph
+
+These addresses receive donations for Route Map, maintained by OSINTPH
+(https://osintph.info). This file is signed with the Route Map release key
+D57C 7E26 C19F 9436 E2D6 6F37 4080 97D1 91DD F981
+(https://getroutemap.app/release-key.asc); the signature is addresses.txt.asc.
+
+    gpg --verify addresses.txt.asc addresses.txt
+
+Published 2026-10-04.

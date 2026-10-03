@@ -1,20 +1,17 @@
-<article class="prose">
-<h1>Support {{product}}</h1>
-<p class="lead">{{product}} is free and open source, with no ads, no tracking and no paid
-tier. If it is useful to you, you can support its development.</p>
-<p class="actions"><a class="button" href="{{sponsor}}">Sponsor on GitHub</a></p>
-<p>In the app, the same link is under Help, Support {{product}}. It never asks on its
-own.</p>
-<h2>Other ways to help</h2>
+<h2 id="donate">Donate</h2>
+{{donations}}
+<h2 id="report">Report a bug</h2>
+<p>Please open an issue on <a href="{{issues}}">GitHub Issues</a>. If you would rather not use
+GitHub, email <a href="mailto:{{contact}}">{{contact}}</a>.</p>
+<p>What helps most:</p>
 <ul>
-<li><a href="{{issues}}">Report a bug or an odd placement</a>: a trace where a hop landed
-in the wrong city is exactly what improves the rules.</li>
-<li>Tell a carrier's naming scheme that {{product}} does not know yet.</li>
-<li>Contribute code: see <a href="{{repository}}/blob/main/CONTRIBUTING.md">CONTRIBUTING.md</a>.
-Pull requests need the contributor licence agreement and may be declined.</li>
+<li>your OS and version, and the Route Map version (Help, About);</li>
+<li>what you traced, what you expected and what you saw;</li>
+<li>a screenshot, or a JSON export (File, Export). A JSON export contains the trace, so leave it out if the path is private;</li>
+<li>for a hop in the wrong place: its hostname and address, and where it really is if you know.</li>
 </ul>
-<h2>Help with the app</h2>
-<p>Start with the <a href="/docs/">user guide</a> and the <a href="/faq/">questions</a>.
-For a problem, please <a href="{{issues}}">open an issue on GitHub</a>.</p>
-{{contact}}
-</article>
+<p>Security issues: <a href="mailto:{{contact}}">{{contact}}</a>, encrypted to the
+<a href="/release-key.asc">release key</a> if you like (<a href="/.well-known/security.txt">security.txt</a>).</p>
+<h2 id="help">Help</h2>
+<p>Start with the <a href="/docs/guide/">user guide</a>, the <a href="/docs/faq/">questions</a> and
+<a href="/docs/troubleshooting/">troubleshooting</a>.</p>

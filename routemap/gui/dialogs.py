@@ -11,7 +11,8 @@ from PySide6.QtWidgets import (QButtonGroup, QCheckBox, QComboBox, QDialog, QDia
                                QPushButton, QRadioButton, QSpinBox, QTabWidget, QTextBrowser,
                                QVBoxLayout, QWidget)
 
-from routemap.__about__ import DISPLAY_NAME
+from routemap.__about__ import (CONTACT_EMAIL, DISPLAY_NAME, DONATE_ADDRESSES, DONATE_LINKS,
+                                DONATE_URL, DONATIONS_PAY_FOR)
 from routemap.config import ORIGIN_AUTO, ORIGIN_CITY, ORIGIN_COORDS, ORIGIN_MAP, Settings
 from routemap_engine.runner import DEFAULT_FLAGS
 
@@ -269,14 +270,14 @@ class SettingsDialog(QDialog):
         layout.addWidget(_note("Private, CGNAT and reserved addresses are never looked up "
                                "anywhere, whatever is switched on."))
         row = QHBoxLayout()
-        row.addWidget(QLabel("Keep Hoiho answers for"))
+        row.addWidget(QLabel("Keep Hoiho and IP database answers for"))
         self.ttl = QSpinBox()
         self.ttl.setRange(1, 365)
         self.ttl.setValue(int(s.cache_ttl_days))
         self.ttl.setSuffix(" days")
         row.addWidget(self.ttl)
         row.addStretch(1)
-        self.clear_cache = QPushButton(f"Clear cache ({cache_count} hostnames)")
+        self.clear_cache = QPushButton(f"Clear cache ({cache_count} answers)")
         self.clear_cache.setEnabled(cache_count > 0)
         self.clear_cache.clicked.connect(self.clearCacheRequested)
         row.addWidget(self.clear_cache)
@@ -563,6 +564,7 @@ request to GitHub for the latest release tag.</td></tr>
 </table>
 <p>Private, CGNAT and reserved addresses are never looked up. There is no telemetry and no
 automatic update check.</p>
+<p>Questions about privacy: <a href="mailto:support@getroutemap.app">support@getroutemap.app</a>.</p>
 <h3>What stays on this machine</h3>
 <p>In your config folder: settings, the Hoiho and IP database answer caches (30 days,
 clearable: router hostnames and public hop addresses with their locations) and, if it is
@@ -601,3 +603,44 @@ class NoticesDialog(QDialog):
         buttons = QDialogButtonBox(QDialogButtonBox.Close)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
+
+
+class SupportDialog(QDialog):
+    """Help > Support. Opened only from the menu, never on its own."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        from PySide6.QtGui import QGuiApplication
+        self.setWindowTitle(f"Support {DISPLAY_NAME}")
+        layout = QVBoxLayout(self)
+        layout.addWidget(_note(
+            f"{DISPLAY_NAME} is free and open source. If it is useful to you, donations pay for "
+            f"{DONATIONS_PAY_FOR}."))
+        links = " &nbsp;\u00b7&nbsp; ".join(f"<a href='{url}'>{name}</a>" for name, url in DONATE_LINKS)
+        note = _note(links)
+        note.setOpenExternalLinks(True)
+        layout.addWidget(note)
+        form = QFormLayout()
+        self.address_fields = {}
+        for name, address in DONATE_ADDRESSES:
+            row = QHBoxLayout()
+            field = QLineEdit(address)
+            field.setReadOnly(True)
+            field.setMinimumWidth(420)
+            field.setCursorPosition(0)
+            copy = QPushButton("Copy")
+            copy.clicked.connect(lambda _=False, a=address: QGuiApplication.clipboard().setText(a))
+            row.addWidget(field, 1)
+            row.addWidget(copy)
+            form.addRow(name, row)
+            self.address_fields[name] = field
+        layout.addLayout(form)
+        more = _note(f"QR codes and a GPG-signed list of these addresses: "
+                     f"<a href='{DONATE_URL}'>{DONATE_URL}</a>. Bug reports and good trace "
+                     f"examples help too: <a href='mailto:{CONTACT_EMAIL}'>{CONTACT_EMAIL}</a>.")
+        more.setOpenExternalLinks(True)
+        layout.addWidget(more)
+        buttons = QDialogButtonBox(QDialogButtonBox.Close)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+

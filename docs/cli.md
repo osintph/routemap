@@ -29,8 +29,8 @@ routemap --version
 | `--offline` | contact nothing: only the bundled carrier site codes and local hops |
 
 `TARGET` is a hostname or an IP address. `parse FILE` reads the output of
-`traceroute`, `tracert`, `mtr --report` or `mtr --json` saved to a file, or a
-Route Map JSON export.
+`traceroute`, `tracert` or `mtr --report` saved to a file. (A Route Map JSON
+export is reopened in the window with File > Open Trace.)
 
 Progress and the trace tool's own output go to stderr, so `--json` output on
 stdout can be piped. Nothing is written anywhere except the files named on the

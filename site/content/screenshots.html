@@ -1,14 +1,28 @@
-<article class="prose wide">
+<article class="gallery-page">
 <h1>Screenshots</h1>
-<p class="lead">0.1.0-beta.4. The macOS shots are a live trace from Manila to heise.de, drawn by the app on the real macOS desktop; the Windows shot and the export come from the packaged Windows build on a Windows desktop.</p>
-<div class="gallery">
-  <figure><img src="/assets/screenshot-main.jpg" alt="A finished live trace on macOS: the route on the map, the hop table on the right" loading="lazy">
-  <figcaption>macOS: a finished trace, map and hop table.</figcaption></figure>
-  <figure><img src="/assets/screenshot-dark.jpg" alt="The same window in dark mode" loading="lazy">
-  <figcaption>macOS, dark mode.</figcaption></figure>
-  <figure><img src="/assets/screenshot-windows.png" alt="Route Map on Windows" loading="lazy">
-  <figcaption>Windows: the windowed app, from the build's own smoke test.</figcaption></figure>
-  <figure><img src="/assets/export.png" alt="A PNG export of a route, with the legend" loading="lazy">
-  <figcaption>A PNG export, legend included.</figcaption></figure>
+<p class="lead">0.1.0-beta.4. A live trace from Manila to heise.de, drawn by the app on the macOS
+desktop; the images follow this site's light or dark mode, as the app follows the system. The
+Windows image comes from the packaged Windows build on a Windows desktop.</p>
+<figure class="shot">
+  [[pic window jpg 1600 1000 bare|Route Map on macOS after a trace from Manila to heise.de, with the map and the hop table]]
+  <figcaption><strong>macOS.</strong> Thirty hops: Manila, Hong Kong, Singapore, Marseille, Frankfurt, then the German side. The Source column says where each placement came from.</figcaption>
+</figure>
+<figure class="shot narrow">
+  <img src="/assets/shots/windows-light.png" width="1028" height="749" loading="lazy" alt="Route Map on Windows with a recorded trace to heise.de mapped from Manila">
+  <figcaption><strong>Windows</strong> (light theme). The packaged routemap.exe, mapping a recorded trace with the bundled carrier site codes only.</figcaption>
+</figure>
+<div class="pair">
+  <figure class="shot paper">
+    <img src="/assets/shots/pdf-page1.jpg" width="1240" height="1754" loading="lazy" alt="Page one of the PDF report: the trace details, the map and the hop table">
+    <figcaption><strong>PDF report</strong>, page one. Later pages: the unplaced hops with their reasons, how each location was decided, and the raw trace as an appendix.</figcaption>
+  </figure>
+  <figure class="shot">
+    [[pic export jpg 1600 900 bare|PNG export of the route with its legend and provenance line]]
+    <figcaption><strong>PNG export</strong>, 1600 by 900, light or dark, with the legend and a provenance line.</figcaption>
+  </figure>
 </div>
+<figure class="shot">
+  [[pic rule1-sources png 986 764 bare|The hop table's Location and Source columns]]
+  <figcaption><strong>The Source column</strong>: site codes for Arelion's backbone, the IP database for the PLDT and German hops, local for the home network.</figcaption>
+</figure>
 </article>

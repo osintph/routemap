@@ -13,6 +13,7 @@ it from the maintainer's account; the fields follow the form's order.
   own licences (NOTICE, THIRD_PARTY_NOTICES.md).
 - **Maintainer:** osintph (OSINTPH, https://osintph.info). Author, reviewer and
   approver for code signing.
+- **Contact:** support@getroutemap.app
 
 ## What the software does
 

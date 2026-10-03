@@ -38,6 +38,8 @@ gui = ["PySide6==6.11.2"]
 dev = [
     "pytest>=8",
     "jsonschema>=4.20",
+    # QR codes for the project site's donation page (site/build.py).
+    "segno==1.6.6",
 ]
 
 [project.urls]

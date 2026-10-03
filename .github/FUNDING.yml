@@ -1,4 +1,5 @@
-# The "Sponsor" button on the repository page.
-github: [osintph]
-# ko_fi: <handle>       add when there is one
-# liberapay: <handle>   add when there is one
+# The "Sponsor" button on the repository page. Same order everywhere:
+# Ko-fi, PayPal; the crypto addresses are in the README and the app.
+ko_fi: osintph
+custom:
+  - https://paypal.me/osintph

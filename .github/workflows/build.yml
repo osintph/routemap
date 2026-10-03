@@ -38,14 +38,14 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { target: macos-arm64, os: macos-latest }
+          - { target: macos-arm64, os: macos-15 }
           - { target: macos-x86_64, os: macos-15-intel }
-          - { target: windows-x86_64, os: windows-latest }
+          - { target: windows-x86_64, os: windows-2025 }
           # 22.04 for an older glibc, so the binary runs on more distributions.
           - { target: linux-x86_64, os: ubuntu-22.04 }
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: ${{ env.PYTHON_VERSION }}
       - name: System packages (Linux)
@@ -140,7 +140,7 @@ jobs:
       - name: Folder for signing (Windows)
         id: forsigning
         if: runner.os == 'Windows'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: windows-for-signing
           path: build/nuitka/windows/
@@ -179,11 +179,11 @@ jobs:
       - name: Sizes
         shell: bash
         run: ls -l out/
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: routemap-${{ matrix.target }}
           path: out/*
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: smoke-${{ matrix.target }}
@@ -200,10 +200,10 @@ jobs:
     name: Sign Windows (SignPath)
     if: vars.WINDOWS_SIGNING == 'signpath'
     needs: build
-    runs-on: windows-latest
+    runs-on: windows-2025
     timeout-minutes: 360
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Version
         id: v
         shell: bash
@@ -235,12 +235,12 @@ jobs:
           $zip = "out/routemap-${{ steps.v.outputs.version }}-windows-x86_64.zip"
           Compress-Archive -Path "signed/Route Map" -DestinationPath $zip
           pwsh packaging/defender_scan.ps1 -Report smoke/defender-signed.txt "signed/Route Map" $zip
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: routemap-windows-x86_64
           path: out/*
           overwrite: true
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: smoke-windows-signed
@@ -253,7 +253,7 @@ jobs:
       needs.build.result == 'success' &&
       (needs.sign-windows.result == 'success' || needs.sign-windows.result == 'skipped')
     needs: [build, sign-windows]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # The GPG release key lives in this environment.
     environment: downloads
     permissions:
@@ -263,11 +263,11 @@ jobs:
       GPG_RELEASE_PASSPHRASE: ${{ secrets.GPG_RELEASE_PASSPHRASE }}
       WINDOWS_SIGNED: ${{ needs.sign-windows.result == 'success' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: GPG key present
         run: |
           [ -n "$GPG_RELEASE_KEY" ] || { echo "::error::GPG_RELEASE_KEY is not set: nothing is published unsigned."; exit 1; }
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           pattern: routemap-*
           path: release
@@ -292,7 +292,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           V="${GITHUB_REF_NAME}"
-          TITLE="$(git for-each-ref --format='%(contents:subject)' "refs/tags/$V")"
+          # checkout fetches the tag as a bare ref to the commit; fetch the
+          # annotated tag object itself, or the title falls back to the commit.
+          git fetch --force origin "refs/tags/$V:refs/tags/$V"
+          TITLE="$(git tag -l --format='%(contents:subject)' "$V")"
+          [ -n "$TITLE" ] || { echo "::error::tag $V has no annotation subject"; exit 1; }
           PRE=""; case "$V" in *-*) PRE="--prerelease" ;; esac
           gh release create "$V" release/* --verify-tag $PRE --title "${TITLE:-$V}" --notes-file notes.md
       - name: Optional pre-release download site
@@ -322,35 +326,61 @@ jobs:
           rsync -av --chmod=F644 -e "$SSH" index.html "$DOWNLOAD_USER@$DOWNLOAD_HOST:./index.html"
 
   site:
-    # The project site (site/), rebuilt for this release and copied to the web
-    # host over rsync. The deploy key is confined to the site's folder (rrsync).
     name: Project site
     if: startsWith(github.ref, 'refs/tags/v') && !cancelled() && needs.release.result == 'success'
     needs: release
-    runs-on: ubuntu-latest
-    environment: downloads
-    env:
-      SITE_HOST: ${{ secrets.DOWNLOAD_HOST }}
-      SITE_PORT: ${{ secrets.DOWNLOAD_PORT }}
-      SITE_USER: ${{ secrets.DOWNLOAD_USER }}
-      SITE_SSH_KEY: ${{ secrets.SITE_SSH_KEY }}
-      SITE_KNOWN_HOSTS: ${{ secrets.DOWNLOAD_KNOWN_HOSTS }}
+    uses: ./.github/workflows/site.yml
+    with:
+      tag: ${{ github.ref_name }}
+    secrets: inherit
+
+  summary:
+    # Always runs, and fails the run loudly: names any failed platform leg,
+    # and on a tag treats a skipped or failed release-path job as a failure.
+    # The only expected skip is SignPath while WINDOWS_SIGNING is unset; it is
+    # reported as "unsigned" in the summary, not hidden.
+    name: Summary
+    if: always()
+    needs: [build, sign-windows, release, site]
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: read
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-      - name: Build
+      - name: Per-job results
         env:
           GH_TOKEN: ${{ github.token }}
+          IS_TAG: ${{ startsWith(github.ref, 'refs/tags/v') }}
+          SIGNING: ${{ vars.WINDOWS_SIGNING || 'off' }}
+          R_BUILD: ${{ needs.build.result }}
+          R_SIGN: ${{ needs.sign-windows.result }}
+          R_RELEASE: ${{ needs.release.result }}
+          R_SITE: ${{ needs.site.result }}
         run: |
-          gh release download "$GITHUB_REF_NAME" --pattern SHA256SUMS --dir sums
-          python site/build.py --tag "$GITHUB_REF_NAME" --sums sums/SHA256SUMS
-      - name: Deploy
-        run: |
-          if [ -z "$SITE_SSH_KEY" ]; then echo "Site deploy key not set; skipped."; exit 0; fi
-          install -m 700 -d ~/.ssh
-          echo "$SITE_SSH_KEY" > ~/.ssh/site_key && chmod 600 ~/.ssh/site_key
-          echo "$SITE_KNOWN_HOSTS" > ~/.ssh/known_hosts
-          SSH="ssh -p ${SITE_PORT:-22} -i ~/.ssh/site_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes"
-          rsync -rv --delete --chmod=D755,F644 -e "$SSH" site/build/ "$SITE_USER@$SITE_HOST:./"
+          {
+            echo "## Build ${GITHUB_REF_NAME} (run ${GITHUB_RUN_ID})"
+            echo
+            echo "| Job | Result |"
+            echo "|---|---|"
+            gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/jobs?per_page=100" \
+              --jq '.jobs[] | select(.name != "Summary") | "| \(.name) | \(.conclusion // .status) |"'
+          } >> "$GITHUB_STEP_SUMMARY"
+          fail=0
+          failed_legs="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/jobs?per_page=100" \
+            --jq '[.jobs[] | select(.conclusion == "failure" or .conclusion == "cancelled") | .name] | join(", ")')"
+          if [ -n "$failed_legs" ]; then
+            echo "::error::Failed: $failed_legs"; fail=1
+          fi
+          if [ "$IS_TAG" = "true" ]; then
+            for pair in "release:$R_RELEASE" "site:$R_SITE"; do
+              if [ "${pair#*:}" != "success" ]; then
+                echo "::error::On a tag, the ${pair%%:*} job must succeed; it was ${pair#*:}."; fail=1
+              fi
+            done
+            if [ "$SIGNING" = "signpath" ] && [ "$R_SIGN" != "success" ]; then
+              echo "::error::WINDOWS_SIGNING is signpath but signing was $R_SIGN."; fail=1
+            fi
+          fi
+          if [ "$R_SIGN" = "skipped" ]; then
+            echo "Windows signing: not configured (WINDOWS_SIGNING=$SIGNING); the Windows build is unsigned." >> "$GITHUB_STEP_SUMMARY"
+          fi
+          exit $fail

@@ -1,51 +1,109 @@
 <section class="hero">
-  <div class="hero-text">
-    <h1>{{tagline}}</h1>
-    <p class="lead">{{product}} runs a traceroute from your own computer, or reads one you
-    paste, and draws the path on a world map with a hop table beside it. Free and open
-    source, for macOS, Windows and Linux.</p>
-    <p class="actions"><a class="button" href="/download/">Download</a>
-    <a class="button ghost" href="{{repository}}">Source on GitHub</a></p>
-  </div>
-  <figure class="hero-shot">
-    <img src="/assets/screenshot-main.jpg" alt="Route Map after a live trace from Manila to heise.de in Germany: the route on the world map, the hop table beside it" width="1600" height="1000">
-  </figure>
+  <p class="eyebrow">Desktop traceroute map &middot; Windows, macOS, Linux &middot; {{tag}}</p>
+  <h1>See where your packets actually went.</h1>
+  <p class="lead">Route Map places each router by its operator's own hostname before it asks any
+  IP database, rejects every placement the round-trip time makes impossible, and labels each hop
+  with where its location came from.</p>
+  {{downloads}}
+  <p class="oss"><span class="badge">Free and open source, AGPL-3.0</span>
+  <a class="source" href="{{repository}}">github.com/osintph/routemap</a></p>
+  [[pic window jpg 1600 1000 hero|Route Map after a live trace from Manila to heise.de: the route through Hong Kong, Singapore and Marseille to Frankfurt on a world map, and the hop table with location, source, hostname, address and round-trip time]]
+</section>
+
+<section class="story" aria-label="Why it exists">
+  <p>On a trace from Manila, an IP geolocation database put a Tata Communications backbone router
+  in Harare, though it answered at the same round-trip time as its neighbours in San Jose. On a
+  trace to heise.de, the same database had no city for any of Arelion's backbone routers between
+  Hong Kong and Frankfurt: no answer at all for some, just "France" for the rest. A map built on
+  that shows Asia, a blank, then Germany. Yet every one of those routers names its site in its
+  hostname: <code>hnk</code>, <code>sng</code>, <code>mei</code>, <code>ffm</code>. Route Map reads
+  those names first.</p>
 </section>
 
 <section class="rules" aria-labelledby="rules">
-  <h2 id="rules">Three rules</h2>
-  <ol class="cards">
-    <li><h3>Hostname first</h3>
-    <p>A router's DNS name usually says where it is: <code>ae1.fra10</code> is
-    Frankfurt. {{product}} reads it with CAIDA's Hoiho rules and carriers' own site
-    codes before it ever asks an IP database.</p></li>
-    <li><h3>Physics checked</h3>
-    <p>A hop cannot be farther away than light in fibre travels in its round-trip
-    time. A placement that breaks that bound is rejected, whatever the database
-    says, and the table says why.</p></li>
-    <li><h3>Honest labels</h3>
-    <p>Every placement says where it came from. A hop known only to a country is
-    drawn hollow, and a hop that cannot be placed is listed with the reason, never
-    guessed.</p></li>
-  </ol>
+  <h2 id="rules">How it places a hop</h2>
+
+  <div class="rule">
+    <div class="rule-text">
+      <h3>Hostname first</h3>
+      <p>Operators name routers after their sites: <code>ffm-b16-link.ip.twelve99.net</code> is
+      Arelion in Frankfurt. Route Map reads names with CAIDA's Hoiho rules and a table of carrier
+      site codes, and falls back to an IP database only when the name says nothing.</p>
+    </div>
+    [[pic rule1-sources png 986 764 crop|The hop table's Location and Source columns: hops 7 to 11 placed by carrier site code in Singapore and Frankfurt, hops 4, 5 and 12 to 14 by the IP database, hops 1 to 3 local]]
+  </div>
+
+  <div class="rule">
+    <div class="rule-text">
+      <h3>Checked against physics</h3>
+      <p>Light in fibre covers about 200 km per millisecond, so each millisecond of round trip
+      allows about <strong>100 km</strong>: a hop that answers in <strong>5 ms</strong> is within
+      about <strong>500 km</strong>, plus 300 km of slack for an approximate origin. Any placement
+      farther than that is rejected, whatever its source, and the reason is shown.</p>
+    </div>
+    [[pic rule2-rejected png 1474 200 crop wide|The Unplaced panel listing hops 4, 5 and 7 as location impossible for RTT, for example 10,266 km away when the round trip allows at most 6,133 km]]
+    <p class="crop-note">The recorded heise.de trace with the origin deliberately set to Frankfurt:
+    the Manila hops and even Arelion's Singapore router are rejected, because their round trips
+    cannot reach that far.</p>
+  </div>
+
+  <div class="rule">
+    <div class="rule-text">
+      <h3>Nothing guessed, nothing dropped</h3>
+      <p>Every hop carries its source, and a hop the database knows only to a country is drawn
+      hollow. A hop that cannot be placed stays in the table and in the Unplaced panel, with the
+      reason it is not on the map.</p>
+    </div>
+    [[pic rule3-unplaced png 1056 404 crop|The Unplaced panel: hops 1 to 3 private or carrier NAT addresses, never looked up, and hops 6 and 15 to 19 that did not answer]]
+  </div>
 </section>
 
-<section class="more">
+<section class="prose-band" aria-labelledby="machine">
+  <h2 id="machine">On your machine, with your tools</h2>
+  <p>The trace runs on your computer with its own <code>tracert</code>, <code>traceroute</code> or
+  <code>mtr</code>, and the status bar says which, with which flags, and which lookups answered.
+  Hops appear on the map and in the table as the trace runs; click a marker to find its rows, or
+  a row to find its marker. Paste a trace someone else ran, say where it came from, and it is
+  mapped the same way. Export a PNG map, the full trace as JSON, or a PDF report with every hop,
+  its source and the raw tool output, from the window or the <a href="/docs/cli/">command line</a>.
+  The same engine powers the Route Map tab in OSINTPH's <a href="{{falconeye}}">FalconEye</a>.</p>
+  [[pic statusbar png 2880 54 crop strip|The status bar: origin Manila from the public IP, the command traceroute -m 30 -q 3 -w 1, and checks for the trace, PTR, Hoiho and the IP database]]
+
+  <h3 id="labels">The source labels</h3>
+  <dl class="labels">
+    <dt><span class="dot hoiho"></span><code>hoiho</code></dt><dd>A CAIDA Hoiho rule for that operator matched the hostname and names the city.</dd>
+    <dt><span class="dot site"></span><code>site-code</code></dt><dd>The hostname carries a carrier's own site code, from the bundled table.</dd>
+    <dt><span class="dot ipdb"></span><code>ip-db</code></dt><dd>RIPEstat's IP geolocation placed it: a hint, since backbone addresses often sit where the prefix was registered.</dd>
+    <dt><span class="dot ipdb hollow"></span><code>ip-db, country only</code></dt><dd>Only the country is known; hollow marker, kept out of the map's fit.</dd>
+    <dt><span class="dot local"></span><code>local</code></dt><dd>Your network or your ISP's carrier NAT; never looked up anywhere.</dd>
+  </dl>
+
+  <h3 id="leaves">What leaves your machine</h3>
+  <div class="table-wrap"><table>
+    <thead><tr><th scope="col">What</th><th scope="col">To</th><th scope="col">When</th></tr></thead>
+    <tbody>
+      <tr><td>Public router hostnames</td><td>CAIDA Hoiho</td><td>each trace, unless switched off; cached 30 days</td></tr>
+      <tr><td>Public hop addresses</td><td>RIPEstat</td><td>each trace, unless switched off; cached 30 days</td></tr>
+      <tr><td>Reverse DNS queries</td><td>your own resolver</td><td>for public hops without a name</td></tr>
+      <tr><td>Your public IP</td><td>RIPEstat</td><td>only while no origin is set in Settings</td></tr>
+      <tr><td>Target, key, your network's AS</td><td>RIPE Atlas</td><td>only for an Atlas trace, with your own key; public</td></tr>
+    </tbody>
+  </table></div>
+  <p>No account, no telemetry, no automatic update check. Private, CGNAT and reserved addresses
+  are never looked up. The full list: <a href="/privacy/">privacy</a>.</p>
+</section>
+
+<section class="support-band" aria-labelledby="support">
   <div>
-    <h2>Runs on your machine</h2>
-    <p>The trace runs with your system's own <code>tracert</code>, <code>traceroute</code>
-    or <code>mtr</code>. No account, no telemetry, no automatic update check. What is
-    looked up, where and when, is listed on the <a href="/privacy/">privacy page</a>.</p>
+    <h2 id="support">Support the project</h2>
+    <p>Route Map is free. Donations pay for {{donate_pays_for}}.</p>
+    <p class="pay-inline"><a href="{{donate_kofi}}">Ko-fi</a> <a href="{{donate_paypal}}">PayPal</a>
+    <a href="/donate/">Bitcoin and Monero</a></p>
   </div>
-  <div>
-    <h2>Map, table, export</h2>
-    <p>Hops appear as the trace runs. Click a marker to find its rows, or a row to find
-    its marker. Export a PNG map, a PDF report or JSON, from the window or the
-    <a href="/docs/cli/">command line</a>.</p>
-  </div>
-  <div>
-    <h2>Also in FalconEye</h2>
-    <p>The same engine, <a href="{{engine}}">routemap-engine</a>, powers the Route Map
-    tab of <a href="{{falconeye}}">FalconEye</a>, OSINTPH's web application.</p>
+  <div class="maker">
+    <p class="eyebrow">Built by</p>
+    <p class="maker-name"><a href="{{builder}}">OSINTPH</a></p>
+    <p>Bugs and ideas: <a href="{{issues}}">GitHub Issues</a> or
+    <a href="mailto:{{contact}}">{{contact}}</a>. <a href="/about/">About the project</a>.</p>
   </div>
 </section>

@@ -1,0 +1,17 @@
+<p class="lead">Route Map is built by <a href="{{builder}}">OSINTPH</a>.</p>
+<h2>Why</h2>
+<p>Most traceroute maps put each router where an IP geolocation database says it is. For backbone
+routers that is often where the operator registered the address block, not where the router
+stands, and the map ends up showing paths the packets never took. Route Map was written to do the
+opposite: believe the operator's own router names first, check every placement against the speed
+of light in fibre, and say plainly where each placement came from.</p>
+<h2>FalconEye</h2>
+<p>The placement engine, <a href="{{engine}}">routemap-engine</a>, started in
+<a href="{{falconeye}}">FalconEye</a>, OSINTPH's web application, where it powers the Route Map tab.
+The desktop app runs the trace on your own machine instead of in a browser.</p>
+<h2>Open source</h2>
+<p>The app and the engine are free software under the GNU AGPL-3.0:
+<a href="{{repository}}">github.com/osintph/routemap</a>. Contributions are welcome under a
+contributor licence agreement; see <a href="{{repository}}/blob/main/CONTRIBUTING.md">CONTRIBUTING.md</a>.</p>
+<h2>Contact</h2>
+<p><a href="mailto:{{contact}}">{{contact}}</a>. Bugs and ideas: <a href="{{issues}}">GitHub Issues</a>.</p>

@@ -22,7 +22,7 @@
 #   HTPASSWD_SUDO=1                          1 if editing it needs sudo
 #   DOWNLOAD_URL=https://downloads.example.org/
 #   GPG_FINGERPRINT="XXXX XXXX ..."          the release key, for the email
-#   FEEDBACK_EMAIL=beta@example.org
+#   FEEDBACK_EMAIL=support@getroutemap.app    (the default)
 set -euo pipefail
 
 HERE="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
@@ -38,6 +38,7 @@ source "$CONF"
 : "${DOWNLOAD_HOST:?}" "${HTPASSWD_FILE:?}" "${DOWNLOAD_URL:?}"
 DOWNLOAD_PORT="${DOWNLOAD_PORT:-22}"
 DOWNLOAD_ADMIN="${DOWNLOAD_ADMIN:-$USER}"
+FEEDBACK_EMAIL="${FEEDBACK_EMAIL:-support@getroutemap.app}"
 SUDO=""; [[ "${HTPASSWD_SUDO:-0}" == "1" ]] && SUDO="sudo"
 
 remote() {
@@ -127,7 +128,7 @@ GPG signature, SHA256SUMS.asc, made with the release key
 ${GPG_FINGERPRINT:-(fingerprint on the download page)}.
 
 Feedback: please open an issue at https://github.com/osintph/routemap/issues
-If you would rather not use GitHub, reply to this email${FEEDBACK_EMAIL:+ or write to ${FEEDBACK_EMAIL}}.
+If you would rather not use GitHub, write to ${FEEDBACK_EMAIL}.
 Your OS and version, the Route Map version (Help > About), what you traced and
 what you expected help most. A screenshot helps too.
 

@@ -25,6 +25,7 @@ requests also carry `sourceapp=routemap-desktop`. The project runs no server
 of its own that the app talks to.
 
 When this list changes, this file and Help > Privacy change with it.
+Questions: support@getroutemap.app.
 
 ## What stays on this machine
 

@@ -1,0 +1,66 @@
+# The project site (site/), built and copied to the web host.
+#
+# Runs after a release (called by build.yml), on pushes to main that change
+# the site or the documents it is made from, and by hand. It always describes
+# the newest GitHub Release (including pre-releases): its version, file sizes
+# and SHA-256s. The deploy key is confined to the site's folder (rrsync).
+name: site
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        type: string
+        required: false
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "site/**"
+      - "docs/**"
+      - "PRIVACY.md"
+      - "CODE_SIGNING_POLICY.md"
+      - "CHANGELOG.md"
+      - "RELEASE-KEY.asc"
+      - ".github/workflows/site.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: site
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build and deploy the site
+    runs-on: ubuntu-24.04
+    environment: downloads
+    env:
+      SITE_HOST: ${{ secrets.DOWNLOAD_HOST }}
+      SITE_PORT: ${{ secrets.DOWNLOAD_PORT }}
+      SITE_USER: ${{ secrets.DOWNLOAD_USER }}
+      SITE_SSH_KEY: ${{ secrets.SITE_SSH_KEY }}
+      SITE_KNOWN_HOSTS: ${{ secrets.DOWNLOAD_KNOWN_HOSTS }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Build
+        run: |
+          python -m pip install -r site/requirements.txt
+          TAG="${{ inputs.tag }}"
+          [ -n "$TAG" ] || TAG="$(gh release list --repo "$GITHUB_REPOSITORY" --limit 1 --json tagName --jq '.[0].tagName')"
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json tagName,publishedAt,assets > release.json
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern SHA256SUMS --dir sums
+          python site/build.py --tag "$TAG" --release-json release.json --sums sums/SHA256SUMS
+      - name: Deploy
+        run: |
+          if [ -z "$SITE_SSH_KEY" ]; then echo "::error::SITE_SSH_KEY is not set"; exit 1; fi
+          install -m 700 -d ~/.ssh
+          echo "$SITE_SSH_KEY" > ~/.ssh/site_key && chmod 600 ~/.ssh/site_key
+          echo "$SITE_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          SSH="ssh -p ${SITE_PORT:-22} -i ~/.ssh/site_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes"
+          rsync -rv --delete --chmod=D755,F644 -e "$SSH" site/build/ "$SITE_USER@$SITE_HOST:./"

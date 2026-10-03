@@ -13,13 +13,13 @@ import json
 import os
 import sys
 
-from PySide6.QtCore import QByteArray, QObject, Qt, QTimer, QUrl
-from PySide6.QtGui import QDesktopServices, QGuiApplication, QIcon
+from PySide6.QtCore import QByteArray, QObject, Qt, QTimer
+from PySide6.QtGui import QGuiApplication, QIcon
 from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox
 
 from routemap import config, service
 from routemap.__about__ import (DISPLAY_NAME, NAME, REPO_URL, SIGNPATH_ATTRIBUTION,
-                                SIGNPATH_SIGNED, SITE_URL, SPONSOR_URL, __version__)
+                                CONTACT_EMAIL, DONATE_URL, SIGNPATH_SIGNED, SITE_URL, __version__)
 from routemap_engine import (InvalidTarget, Route, SqliteCache, TraceParseError, analyse, atlas,
                              available_tools, install_hint, validate_target, whereami)
 from routemap_engine.runner import TraceToolMissing, pick_tool
@@ -60,8 +60,8 @@ class Controller(QObject):
         w.act_update.triggered.connect(self.check_update)
         w.act_notices.triggered.connect(lambda: dialogs.NoticesDialog(w).exec())
         w.act_about.triggered.connect(self.about)
-        # Opens the sponsor page in the browser; nothing else, no prompts.
-        w.act_support.triggered.connect(lambda: QDesktopServices.openUrl(QUrl(SPONSOR_URL)))
+        # Only when chosen from the menu; the app never asks on its own.
+        w.act_support.triggered.connect(lambda: dialogs.SupportDialog(w).exec())
         w.history.opened.connect(self.open_history)
         w.history.cleared.connect(self.clear_history)
         w.map.originPicked.connect(self._picked)
@@ -348,11 +348,13 @@ class Controller(QObject):
     # ------------------------------------------------------------ settings ---
     def open_settings(self, tab: int = 0):
         cache_count = 0
-        try:
-            if os.path.exists(config.cache_path()):
-                cache_count = len(SqliteCache(config.cache_path()))
-        except Exception:  # noqa: BLE001
-            pass
+        # Both caches: Hoiho hostnames and IP database addresses.
+        for path in (config.cache_path(), config.ip_cache_path()):
+            try:
+                if os.path.exists(path):
+                    cache_count += len(SqliteCache(path))
+            except Exception:  # noqa: BLE001
+                pass
         dialog = dialogs.SettingsDialog(self.w, self.settings,
                                         origin_label=self.origin[2] if self.origin else "",
                                         tools=self.tools, cache_count=cache_count,
@@ -541,7 +543,8 @@ class Controller(QObject):
             "Hostname rules: CAIDA Hoiho. IP geolocation: RIPEstat (RIPE NCC). Cities: GeoNames, "
             "CC BY 4.0. Map: Natural Earth. Carrier sites: Arelion's looking glass. Built with Qt."
             f"<br><br><a href='{SITE_URL}'>{SITE_URL}</a> \u00b7 "
-            f"<a href='{SPONSOR_URL}'>Support this project</a>"
+            f"<a href='mailto:{CONTACT_EMAIL}'>{CONTACT_EMAIL}</a> \u00b7 "
+            f"<a href='{DONATE_URL}'>Support this project</a>"
             + (f"<br><br>{SIGNPATH_ATTRIBUTION}." if SIGNPATH_SIGNED else "")))
 
     def save_window(self):

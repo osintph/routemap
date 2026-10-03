@@ -56,6 +56,11 @@ reviewed by the maintainer, from contributors who have signed the
 Multi-factor authentication is required for every account with write access
 to this repository and for every SignPath account in the project.
 
+## Contact
+
+support@getroutemap.app. Security reports can be encrypted to the release key
+([RELEASE-KEY.asc](RELEASE-KEY.asc)).
+
 ## Privacy
 
 Route Map has no telemetry and no account. The online services it queries, and

@@ -208,21 +208,22 @@ def test_the_view_stops_following_once_the_user_moves_it(app):
     window.close()
 
 
-def test_help_menu_has_support_and_it_only_opens_the_sponsor_page(app, monkeypatch):
-    """Help > Support Route Map opens the sponsor page and does nothing else."""
-    from PySide6.QtGui import QDesktopServices
-
-    from routemap import config
-    from routemap.__about__ import SPONSOR_URL
-    from routemap.gui.app import Controller
+def test_help_menu_support_shows_every_donation_option_in_order(app):
+    """Help > Support Route Map lists the donation options, in the agreed order,
+    with the full crypto addresses; it is a dialog opened only from the menu."""
+    from routemap.__about__ import DONATE_ADDRESSES, DONATE_LINKS
+    from routemap.gui import dialogs
     from routemap.gui.mainwindow import MainWindow
-    opened = []
-    monkeypatch.setattr(QDesktopServices, "openUrl", lambda url: opened.append(url.toString()))
     window = MainWindow()
-    Controller(window, config.load_settings())
     help_menu = next(a.menu() for a in window.menuBar().actions() if a.text() == "&Help")
-    labels = [a.text() for a in help_menu.actions()]
-    assert "Support Route Map" in labels
-    window.act_support.trigger()
-    assert opened == [SPONSOR_URL]
+    assert "Support Route Map" in [a.text() for a in help_menu.actions()]
+    assert [n for n, _ in DONATE_LINKS] == ["Ko-fi", "PayPal"]
+    assert [n for n, _ in DONATE_ADDRESSES] == ["Bitcoin", "Monero"]
+    dialog = dialogs.SupportDialog(window)
+    for name, address in DONATE_ADDRESSES:
+        assert dialog.address_fields[name].text() == address
+    text = " ".join(label.text() for label in dialog.findChildren(dialogs.QLabel))
+    assert text.index("ko-fi.com/osintph") < text.index("paypal.me/osintph")
+    assert "sponsors" not in text.lower()
+    dialog.close()
     window.close()

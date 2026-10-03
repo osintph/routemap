@@ -3,7 +3,7 @@
 **See where your traffic physically goes.** Route Map runs a traceroute from
 your own computer, or reads one you paste, and draws the path on a world map
 with a hop table beside it. Free and open source (GNU AGPL-3.0), for macOS,
-Windows and Linux. Website: [getroutemap.app](https://getroutemap.app).
+Windows and Linux.
 
 It follows three rules:
 
@@ -92,15 +92,21 @@ on a tag, then publishes the release.
 
 ## Support this project
 
-Route Map is free, with no ads, no tracking and no paid tier in this project.
-If it is useful to you, you can support its development through
-[GitHub Sponsors](https://github.com/sponsors/osintph) (also in the app:
-Help > Support Route Map). Bug reports and good trace examples help just as
-much.
+Route Map is free, with no ads and no tracking. Donations pay for code
+signing, hosting, the RIPE Atlas probe, and maintenance time.
+
+- Ko-fi: https://ko-fi.com/osintph
+- PayPal: https://paypal.me/osintph
+- Bitcoin: `bc1q8hn6knzpkp0f2s06qncljpcsatv9dlqan5ttjv`
+- Monero: `42kA1yiEM8GSan4FeeZ9MxGtZCLNwYsvGefWLrMJ849dV2o9eVrc1Pufc7LcBAbRebXbVdxC5eoKj1a8pXJ3fSuFUDKLtXM`
+
+The addresses are also in the app under Help > Support Route Map. Bug reports and good trace examples help just
+as much.
 
 ## Contributing
 
 Issues and pull requests are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md).
+Contact: support@getroutemap.app.
 Pull requests need the [Contributor Licence Agreement](CLA.md), signed once
 with a comment, and may be declined.
 
