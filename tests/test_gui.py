@@ -104,4 +104,4 @@ def test_the_gui_package_names_nothing_but_itself():
     """The product name comes from __about__, not from the GUI code."""
     gui = pathlib.Path(mapview.__file__).parent
     for path in gui.glob("*.py"):
-        assert "Route Map" not in path.read_text().split('"""', 2)[-1], path.name
+        assert "Route Map" not in path.read_text(encoding="utf-8").split('"""', 2)[-1], path.name
