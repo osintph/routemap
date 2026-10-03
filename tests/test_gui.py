@@ -10,7 +10,6 @@ import pathlib
 import pytest
 
 pytest.importorskip("PySide6")
-os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtCore import QRectF  # noqa: E402
 from PySide6.QtWidgets import QApplication  # noqa: E402

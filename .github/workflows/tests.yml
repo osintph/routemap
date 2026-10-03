@@ -19,8 +19,6 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, macos-15-intel, windows-latest]
         python: ["3.11", "3.12", "3.13"]
-    env:
-      QT_QPA_PLATFORM: offscreen
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

@@ -34,9 +34,9 @@ def _err(message: str) -> None:
 
 
 def _headless_qt():
-    """A QApplication for rendering PNG and PDF with no window and no display."""
-    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-    from routemap.gui.app import make_app
+    """A QApplication for rendering PNG and PDF with no window shown."""
+    from routemap.gui.app import headless_platform, make_app
+    headless_platform()
     return make_app()
 
 
@@ -212,13 +212,13 @@ def smoke_test(out_dir: str) -> int:
     Contacts nothing: the sample is analysed with every network source off. Used
     by CI on each packaged binary, so it exercises the frozen app, not the source.
     """
-    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
     from importlib import resources
 
     from routemap.engine import OFFLINE, analyse_sync, schema
-    from routemap.gui.app import make_app, write_export
+    from routemap.gui.app import headless_platform, make_app, write_export
     from routemap.gui.mainwindow import MainWindow
 
+    headless_platform()
     app = make_app()
     text = resources.files("routemap.gui").joinpath("data/sample_trace.txt").read_text("utf-8")
     route = analyse_sync(text, (14.6, 121.0), sources=OFFLINE).to_dict()
@@ -246,7 +246,10 @@ def smoke_test(out_dir: str) -> int:
     except ImportError:
         checked = "schema not checked (jsonschema not bundled)"
     with open(os.path.join(out_dir, "smoke.pdf"), "rb") as handle:
-        assert handle.read(5) == b"%PDF-"
+        pdf = handle.read()
+    assert pdf[:5] == b"%PDF-"
+    # A platform with no fonts writes a PDF with no font objects and no text.
+    assert b"/Font" in pdf, "the PDF has no fonts: text did not render on this platform"
     window.close()
     print(f"{NAME} {__version__} smoke test ok: {len(route['hops'])} hops, "
           f"{sum(1 for h in route['hops'] if h['lat'] is not None)} placed; "

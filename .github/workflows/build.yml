@@ -58,14 +58,14 @@ jobs:
         run: |
           BIN="dist/Route Map.app/Contents/MacOS/routemap"
           "$BIN" --version
-          QT_QPA_PLATFORM=offscreen "$BIN" --smoke-test smoke
+          "$BIN" --smoke-test smoke
           "$BIN" parse tests/fixtures/routemap/heise_mtr.txt --offline --origin "Manila, PH" > smoke/parse.json
       - name: Smoke test (Windows)
         if: runner.os == 'Windows'
         shell: bash
         run: |
           dist/routemap.exe --version
-          QT_QPA_PLATFORM=offscreen dist/routemap.exe --smoke-test smoke
+          dist/routemap.exe --smoke-test smoke
           dist/routemap.exe parse tests/fixtures/routemap/heise_tracert.txt --offline --origin "Manila, PH" > smoke/parse.json
       - name: Smoke test (Linux)
         if: runner.os == 'Linux'

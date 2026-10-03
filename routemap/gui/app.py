@@ -579,6 +579,20 @@ def _city(route: dict) -> str:
     return label.split(",")[0]
 
 
+def headless_platform() -> None:
+    """Pick a Qt platform for work with no visible window (CLI exports, smoke test).
+
+    Only Linux without a display needs "offscreen". Elsewhere the native platform
+    renders fine with no window shown, and must be used: on Windows the offscreen
+    platform has no font database, so text in a PNG or PDF comes out empty.
+    """
+    if os.environ.get("QT_QPA_PLATFORM"):
+        return
+    if sys.platform.startswith("linux") and not (os.environ.get("DISPLAY")
+                                                  or os.environ.get("WAYLAND_DISPLAY")):
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+
+
 def make_app(argv: list[str] | None = None) -> QApplication:
     app = QApplication.instance() or QApplication(argv or [sys.argv[0]])
     app.setApplicationName(DISPLAY_NAME)

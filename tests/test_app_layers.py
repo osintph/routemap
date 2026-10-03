@@ -87,7 +87,6 @@ def test_cli_parse_writes_png_pdf_and_json(tmp_path, capsys):
 
 def test_the_pdf_report_carries_the_sections_it_promises(tmp_path):
     pytest.importorskip("PySide6")
-    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
     from PySide6.QtPdf import QPdfDocument
 
     from routemap.gui.app import make_app, write_export
