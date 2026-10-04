@@ -111,7 +111,7 @@ def engine_commit_from_metadata() -> str | None:
 
 
 def engine_line() -> str:
-    """'routemap-engine 0.3.1', or with the commit while the app is not pinned to a release."""
+    """'routemap-engine 0.4.0', or with the commit while the app is not pinned to a release."""
     try:
         from routemap_engine.__about__ import __version__ as version
     except ImportError:

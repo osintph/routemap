@@ -245,6 +245,12 @@ jobs:
       GPG_RELEASE_PASSPHRASE: ${{ secrets.GPG_RELEASE_PASSPHRASE }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: The engine is a published release
+        run: |
+          # No app release while the engine is pinned to a git commit.
+          if grep -nE 'routemap-engine[^"]*@ *git\+' pyproject.toml; then
+            echo "::error::pyproject.toml pins routemap-engine to a git commit; pin a PyPI release first."; exit 1
+          fi
       - name: GPG key present
         run: |
           [ -n "$GPG_RELEASE_KEY" ] || { echo "::error::GPG_RELEASE_KEY is not set: nothing is published unsigned."; exit 1; }
