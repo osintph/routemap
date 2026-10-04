@@ -27,7 +27,7 @@ classifiers = [
 ]
 # The engine is its own public package (AGPL-3.0), from PyPI.
 dependencies = [
-    "routemap-engine==0.2.1",
+    "routemap-engine==0.2.2",
 ]
 
 [project.optional-dependencies]
