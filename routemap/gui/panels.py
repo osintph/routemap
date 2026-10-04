@@ -104,7 +104,7 @@ class LiveOutput(QWidget):
         self.text.setReadOnly(True)
         self.text.setLineWrapMode(QPlainTextEdit.NoWrap)
         mono = QFontDatabase.systemFont(QFontDatabase.FixedFont)
-        mono.setPointSizeF(max(10.0, mono.pointSizeF()))
+        mono.setPixelSize(13)
         self.text.setFont(mono)
         body.addWidget(self.heading)
         body.addWidget(self.text, 1)

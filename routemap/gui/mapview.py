@@ -260,10 +260,10 @@ class MarkerItem(QGraphicsObject):
         if tooltip:
             self.setToolTip(tooltip)
         self.font = QFont()
-        self.font.setPointSizeF(8.5 * size)
+        self.font.setPixelSize(round(11.5 * size))
         self.font.setBold(True)
         self.caption_font = QFont()
-        self.caption_font.setPointSizeF(8.5 * size)
+        self.caption_font.setPixelSize(round(11.5 * size))
         metrics = QFontMetricsF(self.font)
         self.h = 20.0 * size
         self.w = max(self.h, metrics.horizontalAdvance(label) + 12 * size) if label else 14.0 * size
@@ -995,7 +995,7 @@ class MapView(QGraphicsView):
         rect = self.mapToScene(self.viewport().rect()).boundingRect()
         box = (rect.left() / SCALE, -rect.bottom() / SCALE, rect.right() / SCALE, -rect.top() / SCALE)
         font = QFont()
-        font.setPointSizeF(8.0)
+        font.setPixelSize(11)
         metrics = QFontMetricsF(font)
         taken = [QRectF(QPointF(self.mapFromScene(m.pos())) + m.offset - QPointF(m.w / 2 + 6, m.h / 2 + 6),
                         QSize(int(m.w + 12), int(m.h + 12))) for m in self.markers]
@@ -1273,7 +1273,7 @@ def render_png(route: dict, *, width: int = 1600, height: int = 900, dark: bool 
     # Title top left, provenance bottom right.
     if title:
         tfont = QFont()
-        tfont.setPointSizeF(20)
+        tfont.setPixelSize(27)
         tfont.setBold(True)
         painter.setFont(tfont)
         tm = QFontMetricsF(tfont)
@@ -1285,7 +1285,7 @@ def render_png(route: dict, *, width: int = 1600, height: int = 900, dark: bool 
         painter.drawText(QPointF(40, 32 + tm.ascent()), title)
     if provenance:
         pfont = QFont()
-        pfont.setPointSizeF(11)
+        pfont.setPixelSize(15)
         painter.setFont(pfont)
         pm = QFontMetricsF(pfont)
         pw = pm.horizontalAdvance(provenance)

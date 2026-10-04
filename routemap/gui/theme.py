@@ -209,6 +209,13 @@ def apply(app, theme: str = "system") -> None:
     font = QFont(_load_fonts())
     font.setPixelSize(FONT_PX)
     app.setFont(font)
+    # macOS gives some widget classes their own smaller system font, which the
+    # application font does not override; set ours on each of them.
+    for cls in ("QToolButton", "QPushButton", "QLabel", "QHeaderView", "QTableView", "QAbstractItemView",
+                "QComboBox", "QLineEdit", "QMenu", "QMenuBar", "QTabBar", "QCheckBox", "QRadioButton",
+                "QGroupBox", "QStatusBar", "QTipLabel", "QSpinBox", "QDoubleSpinBox", "QPlainTextEdit",
+                "QTextBrowser", "QListWidget"):
+        app.setFont(font, cls)
     dark = is_dark()
     app.setPalette(_palette(dark))
     app.setStyleSheet(stylesheet(dark))

@@ -41,7 +41,11 @@ def snapshot(window) -> dict:
     font = app.font()
     return {
         "style": app.property("routemapStyle"),
-        "font": {"family": font.family(), "pixel_size": font.pixelSize()},
+        "font": {"family": font.family(), "pixel_size": font.pixelSize(),
+                 # Widgets the platform gives its own font (macOS: tool buttons, headers).
+                 "tool_button": QApplication.font("QToolButton").pixelSize(),
+                 "header": QApplication.font("QHeaderView").pixelSize(),
+                 "map_marker": flat.markers[0].font.pixelSize() if flat.markers else None},
         "accent": theme.ACCENT["dark" if theme.is_dark() else "light"],
         "sections": sections,
         "headings": headings,

@@ -24,7 +24,7 @@ def _note(text: str) -> QLabel:
     label.setOpenExternalLinks(True)
     label.setProperty("role", "note")
     font = label.font()
-    font.setPointSizeF(font.pointSizeF() * 0.92)
+    font.setPixelSize(12)
     label.setFont(font)
     label.setStyleSheet("color: palette(placeholder-text);")
     return label

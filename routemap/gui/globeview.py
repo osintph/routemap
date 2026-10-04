@@ -413,7 +413,7 @@ class GlobeView(QWidget):
               origin=False, caption=None, hollow=False, silent=False, selected=False, ghost=False,
               mark=None, size: float = 1.0) -> QRectF:
         font = QFont()
-        font.setPointSizeF(8.5 * size)
+        font.setPixelSize(round(11.5 * size))
         font.setBold(True)
         metrics = QFontMetricsF(font)
         h = (20.0 if label else 14.0) * size
@@ -463,7 +463,7 @@ class GlobeView(QWidget):
             p.drawRoundedRect(rect.adjusted(-g, -g, g, g), h / 2 + g, h / 2 + g)
         if caption:
             cfont = QFont()
-            cfont.setPointSizeF(8.5 * size)
+            cfont.setPixelSize(round(11.5 * size))
             cm = QFontMetricsF(cfont)
             cw = cm.horizontalAdvance(caption) + 12
             crect = QRectF(at.x() - cw / 2, rect.bottom() + 3, cw, cm.height() + 4)
@@ -623,7 +623,7 @@ def paint_legend(p: QPainter, bottom_left: QPointF, pal: theme.Palette, route: d
     """The flat map's legend, painted: sources used, then the RTT step colours."""
     rows = _legend_rows(route, pal, quiet_ms, hot_ms)
     font = QFont()
-    font.setPointSizeF(9.0 * size)
+    font.setPixelSize(round(12 * size))
     bold = QFont(font)
     bold.setBold(True)
     m = QFontMetricsF(font)

@@ -8,7 +8,10 @@
  },
  "font": {
   "family": "IBM Plex Sans",
-  "pixel_size": 13
+  "header": 13,
+  "map_marker": 12,
+  "pixel_size": 13,
+  "tool_button": 13
  },
  "globe_legend": [
   "Placed by",

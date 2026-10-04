@@ -89,7 +89,7 @@ class UpdateBars(QWidget):
             p.setBrush(pal.sources["ip-db"] if n else pal.coast)
             p.drawRect(QRectF(i * bw + 1, h - max(bar, 1.5), max(1.0, bw - 2), max(bar, 1.5)))
         font = QFont()
-        font.setPointSizeF(8)
+        font.setPixelSize(11)
         p.setFont(font)
         p.setPen(pal.overlay_muted)
         p.drawText(QRectF(0, h + 2, w, 14), Qt.AlignLeft, "48 h ago")
@@ -142,7 +142,7 @@ class RttSparkline(QWidget):
         for q in rtt:
             p.drawEllipse(q, 2.4, 2.4)
         font = QFont()
-        font.setPointSizeF(8)
+        font.setPixelSize(11)
         p.setFont(font)
         p.setPen(pal.overlay_muted)
         p.drawText(QRectF(4, h + 5, w, 14), Qt.AlignLeft, f"{top:.0f} ms at the top")
