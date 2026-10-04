@@ -29,11 +29,14 @@ def test_every_define_the_installer_uses_is_passed():
 
 
 def test_installer_names_and_versions_come_from_about():
-    args = iss_defines.defines("0.2.0b1", "54455e58a0f5" + "0" * 28, "41", "src", "out")
+    args = iss_defines.defines("0.2.0-beta.2", "54455e58a0f5" + "0" * 28, "41", "src", "out")
     assert f"/DAppName={DISPLAY_NAME}" in args and f"/DGuiExe={NAME}.exe" in args
-    assert "/DNumericVersion=0.2.0.41" in args and "/DAppVersion=0.2.0b1+54455e5" in args
-    cfg = make_packages.config("/b/routemap", "0.2.0b1", "41")
-    assert (cfg["name"], cfg["version"], cfg["prerelease"], cfg["release"]) == (NAME, "0.2.0", "b1", "41")
+    assert "/DNumericVersion=0.2.0.41" in args and "/DAppVersion=0.2.0-beta.2+54455e5" in args
+    assert "/Froutemap-0.2.0-beta.2-windows-x86_64-setup" in args, "a release names it like its other files"
+    wrapped = iss_defines.defines("0.2.0-beta.2", "54455e58a0f5" + "0" * 28, "41", "src", "out", commit_in_name=True)
+    assert "/Froutemap-0.2.0-beta.2-54455e5-windows-x86_64-setup" in wrapped
+    cfg = make_packages.config("/b/routemap", "0.2.0-beta.2", "41")
+    assert (cfg["name"], cfg["version"], cfg["prerelease"], cfg["release"]) == (NAME, "0.2.0", "beta.2", "41")
     assert make_packages.config("/b/routemap", "0.2.0", "41").get("prerelease") is None
     dsts = {c["dst"] for c in cfg["contents"]}
     assert {f"/usr/bin/{NAME}", f"/usr/share/applications/{NAME}.desktop", f"/usr/share/pixmaps/{NAME}.png"} <= dsts
@@ -43,3 +46,16 @@ def test_the_packages_declare_what_the_build_machine_installs_for_qt():
     build = (ROOT / ".github/workflows/build.yml").read_text()
     for deb in make_packages.LIBS:
         assert re.search(rf"\b{re.escape(deb)}\b", build), deb
+
+
+def test_every_version_a_person_sees_uses_the_tag_spelling():
+    from routemap import __about__
+    assert __about__.VERSION == __about__.display_version(__about__.__version__)
+    assert __about__.display_version("0.2.0b2") == "0.2.0-beta.2" and __about__.display_version("0.3.0") == "0.3.0"
+    assert __about__.VERSION in __about__.version_line() and __about__.VERSION in __about__.USER_AGENT
+    build = (ROOT / ".github/workflows/build.yml").read_text()
+    assert "import VERSION as v" in build, "release file names use the display spelling"
+    for path in ["routemap/cli.py", "routemap/service.py", "routemap/gui/app.py", "routemap/gui/report.py",
+                 "routemap/gui/mockup.py"]:
+        text = (ROOT / path).read_text()
+        assert "__version__" not in text.replace("routemap_engine.__about__ import __version__", ""), path

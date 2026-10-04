@@ -59,7 +59,8 @@ def config(binary: str, version: str, run_number: str) -> dict:
         },
     }
     if pre:
-        out["prerelease"] = pre  # 0.2.0b1 -> 0.2.0~b1, which sorts before 0.2.0
+        # 0.2.0-beta.2 -> 0.2.0~beta.2, which sorts before 0.2.0 and after 0.2.0~b1
+        out["prerelease"] = pre.lstrip("-")
     return out
 
 

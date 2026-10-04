@@ -46,6 +46,12 @@ UninstallDisplayName={#AppName}
 ChangesEnvironment=yes
 CloseApplications=yes
 WizardStyle=modern
+#ifdef Sign
+; scripts/sign-windows.ps1 passes /DSign=1 and /Ssigntool=...: Setup and the
+; uninstaller it writes are both signed with the release certificate.
+SignTool=signtool
+SignedUninstaller=yes
+#endif
 Compression=lzma2/max
 SolidCompression=yes
 

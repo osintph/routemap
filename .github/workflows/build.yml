@@ -1,9 +1,14 @@
 # Compiled desktop builds (Nuitka) for every platform, verified and smoke-tested;
-# on a tag, published as a GitHub Release with a GPG-signed SHA256SUMS.
+# on a tag, published as a GitHub Release with a GPG-signed SHA256SUMS. One run,
+# one commit: macOS DMGs, the Windows installer and zip, the Linux .deb, .rpm,
+# AppImage and tar.gz. installers.yml wraps an earlier run's binaries the same way.
 #
 # Verification on every build:
 #   - the built binary's own --smoke-test (opens the window, exports PNG/PDF/JSON)
 #   - packaging/cli_check.sh: offline parse, and UTF-8 output when redirected
+#   - the Windows installer installed, checked and uninstalled per user and per
+#     machine (packaging/windows/install_check.ps1); the .deb and .rpm installed,
+#     opened and removed in Ubuntu, Debian and Fedora (packaging/linux/install_check.sh)
 #   - Windows: packaging/verify_windows.py (version resources, no packer
 #     sections, routemap.exe windowed with no console and surviving its
 #     launching console being killed) and a Microsoft Defender scan of every
@@ -59,7 +64,7 @@ jobs:
         id: v
         shell: bash
         run: |
-          echo "version=$(python -c 'from routemap.__about__ import __version__ as v; print(v)')" >> "$GITHUB_OUTPUT"
+          echo "version=$(python -c 'from routemap.__about__ import VERSION as v; print(v)')" >> "$GITHUB_OUTPUT"
           echo "ROUTEMAP_CONFIG_DIR=$RUNNER_TEMP/routemap-config" >> "$GITHUB_ENV"
 
       # ---- macOS ------------------------------------------------------------------
@@ -133,12 +138,23 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force out | Out-Null
           Compress-Archive -Path "build/nuitka/windows/Route Map" -DestinationPath "out/routemap-${{ steps.v.outputs.version }}-${{ matrix.target }}.zip"
+      - name: Installer (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: pwsh packaging/windows/build_installer.ps1 -Source "build/nuitka/windows/Route Map" -Commit $env:GITHUB_SHA -RunNumber $env:GITHUB_RUN_NUMBER -Out out
+      - name: Install, check and uninstall, per user and per machine (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $setup = (Get-ChildItem out -Filter "*-setup.exe").FullName
+          pwsh packaging/windows/install_check.ps1 -Setup $setup -Commit $env:GITHUB_SHA
+          if ($LASTEXITCODE -ne 0) { exit 1 }
       - name: Defender scan of every Windows artifact (fails on a detection)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force smoke | Out-Null
-          pwsh packaging/defender_scan.ps1 -Report smoke/defender.txt "build/nuitka/windows/Route Map" "out/routemap-${{ steps.v.outputs.version }}-${{ matrix.target }}.zip"
+          pwsh packaging/defender_scan.ps1 -Report smoke/defender.txt "build/nuitka/windows/Route Map" "out/routemap-${{ steps.v.outputs.version }}-${{ matrix.target }}.zip" (Get-ChildItem out -Filter "*-setup.exe").FullName
       # ---- Linux --------------------------------------------------------------------
       - name: Compile (Linux)
         if: runner.os == 'Linux'
@@ -170,6 +186,9 @@ jobs:
             routemap/gui/data/icon.png "routemap-$V-linux-x86_64/"
           tar -czf "out/routemap-$V-linux-x86_64.tar.gz" "routemap-$V-linux-x86_64"
           ./out/routemap-$V-linux-x86_64.AppImage --appimage-extract-and-run --version
+      - name: Package (Linux .deb and .rpm)
+        if: runner.os == 'Linux'
+        run: sh packaging/linux/build_packages.sh build/nuitka/routemap "${{ steps.v.outputs.version }}" "$GITHUB_RUN_NUMBER" out
 
       - name: Sizes
         shell: bash
@@ -186,12 +205,36 @@ jobs:
             smoke/
             smoke-gui/
 
+  linux-packages:
+    # The .deb and .rpm on clean systems: dependencies resolve, the window
+    # opens offscreen and on an X server, the menu entry validates, removal is clean.
+    name: Install on ${{ matrix.image }}
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    container: ${{ matrix.image }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { image: "ubuntu:24.04", kind: deb }
+          - { image: "debian:12", kind: deb }
+          - { image: "fedora:42", kind: rpm }
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: routemap-linux-x86_64
+          path: pkgs
+      - name: Install, check and remove
+        run: sh packaging/linux/install_check.sh "$(ls pkgs/*.${{ matrix.kind }})" "$GITHUB_SHA"
+
   release:
     name: Release
     if: >-
       startsWith(github.ref, 'refs/tags/v') && !cancelled() &&
-      needs.build.result == 'success'
-    needs: [build]
+      needs.build.result == 'success' && needs.linux-packages.result == 'success'
+    needs: [build, linux-packages]
     runs-on: ubuntu-24.04
     # The GPG release key lives in this environment.
     environment: downloads
@@ -277,7 +320,7 @@ jobs:
     # The Windows build being unsigned is reported in the summary, not hidden.
     name: Summary
     if: always()
-    needs: [build, release, site]
+    needs: [build, linux-packages, release, site]
     runs-on: ubuntu-24.04
     permissions:
       actions: read

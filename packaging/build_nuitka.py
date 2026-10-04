@@ -28,7 +28,7 @@ import sys
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 OUT = ROOT / "build" / "nuitka"
 sys.path.insert(0, str(ROOT))
-from routemap.__about__ import DISPLAY_NAME, __version__  # noqa: E402
+from routemap.__about__ import DISPLAY_NAME, VERSION, __version__, engine_commit_from_metadata  # noqa: E402
 
 COMMON = [
     "--enable-plugin=pyside6",
@@ -77,8 +77,10 @@ def stamp_commit() -> str:
     platform of a release came from one commit."""
     commit = os.environ.get("GITHUB_SHA") or subprocess.run(
         ["git", "rev-parse", "HEAD"], capture_output=True, text=True, cwd=ROOT).stdout.strip()
+    engine = engine_commit_from_metadata() or ""
     (ROOT / "routemap" / "_build.py").write_text(
-        f'"""Written by packaging/build_nuitka.py; not in git."""\nCOMMIT = "{commit}"\n', encoding="utf-8")
+        f'"""Written by packaging/build_nuitka.py; not in git."""\nCOMMIT = "{commit}"\n'
+        f'ENGINE_COMMIT = "{engine}"  # empty: the engine is a published release\n', encoding="utf-8")
     return commit
 
 
@@ -91,7 +93,7 @@ def main(target: str) -> int:
         # routemap/ data folder beside it on a case-insensitive filesystem.
         run(["packaging/entry_cli.py", "--standalone", "--macos-create-app-bundle",
              f"--macos-app-name={DISPLAY_NAME}", "--macos-app-icon=packaging/icon.icns",
-             f"--macos-app-version={__version__}", "--output-filename=routemap-app",
+             f"--macos-app-version={VERSION}", "--output-filename=routemap-app",
              *COMMON])
         app = OUT / f"{DISPLAY_NAME}.app"
         if app.exists():

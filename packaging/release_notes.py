@@ -15,28 +15,47 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from routemap.__about__ import REPO_URL  # noqa: E402
 
-WINDOWS_UNSIGNED = (
-    "- **Windows 10/11**: download `routemap-<version>-windows-x86_64.zip`, "
-    "extract it, and run `routemap.exe` in the `Route Map` folder (keep the folder "
-    "together; `routemap-cli.exe` beside it is the command line). **The Windows "
-    "build is not code-signed yet**: SmartScreen says \"Windows protected your PC\"; choose **More "
-    "info**, then **Run anyway**.")
-WINDOWS_SIGNED = (
-    "- **Windows 10/11**: download `routemap-<version>-windows-x86_64.zip`, "
-    "extract it, and run `routemap.exe` in the `Route Map` folder (keep the folder "
-    "together; `routemap-cli.exe` beside it is the command line). Both exes are "
-    "code-signed with the maintainer's Certum code signing certificate.")
+WINDOWS = (
+    "- **Windows 10/11**: run `routemap-<version>-windows-x86_64-setup.exe`. It asks "
+    "whether to install for you only (no administrator rights, in your user folder) or "
+    "for everyone (Program Files). Route Map is then in the Start menu and in Settings > "
+    "Apps, with an uninstaller; `routemap-cli.exe` beside it is the command line (tick "
+    "\"Add routemap-cli.exe to PATH\" to use it in any terminal). Without installing: "
+    "extract `routemap-<version>-windows-x86_64.zip` and run `routemap.exe` in the "
+    "`Route Map` folder.")
+WINDOWS_UNSIGNED = WINDOWS + (
+    " **This build is not code-signed yet**: SmartScreen says \"Windows protected your "
+    "PC\"; choose **More info**, then **Run anyway**.")
+WINDOWS_SIGNED = WINDOWS + (
+    " The installer, its uninstaller and both executables are signed with the "
+    "maintainer's Certum code signing certificate.")
 REST = """- **macOS 12+**: open the `.dmg` for your Mac (`macos-arm64` for Apple silicon,
   `macos-x86_64` for Intel) and drag Route Map to Applications. The app is not
   notarised yet, so Gatekeeper blocks the first start: **right-click** it,
   choose **Open**, then **Open** again (on macOS 15, System Settings > Privacy &
   Security > **Open Anyway**). Or: `xattr -d com.apple.quarantine "/Applications/Route Map.app"`.
-- **Linux x86_64**: `chmod +x` the `.AppImage` and run it, or unpack the
-  `.tar.gz` and run `./routemap`. Tracing needs `traceroute` installed."""
+- **Linux x86_64**: on Debian, Ubuntu and their relatives,
+  `sudo apt install ./routemap_<debversion>_amd64.deb`; on Fedora, RHEL and
+  openSUSE, `sudo dnf install ./routemap-<debversion>.x86_64.rpm` (or `zypper
+  install`). Route Map is then in the applications menu and `routemap` on the
+  PATH. Without installing: `chmod +x` the `.AppImage` and run it, or unpack the
+  `.tar.gz` and run `./routemap`. Where the distribution does not allow
+  unprivileged ICMP, traces use `traceroute` (UDP), which then has to be installed.
+
+**Upgrade**: install the new version over the old one (the Windows installer,
+the package manager or the new DMG); settings, history and downloaded databases
+stay. Help > Check for Updates links the right file for your system.
+
+**Uninstall**: Windows, Settings > Apps > Route Map > Uninstall; macOS, move
+Route Map to the Trash; Linux, `sudo apt remove routemap` or `sudo dnf remove
+routemap`. Settings and history stay until you delete their folder:
+`%APPDATA%\\routemap` (Windows), `~/Library/Application Support/routemap`
+(macOS), `~/.config/routemap` (Linux)."""
 
 
 def notes(tag: str, fingerprint: str = "", windows_signed: bool = False) -> str:
     version = tag.lstrip("v")
+    debversion = version.replace("-", "~", 1)
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     match = re.search(rf"^## \[{re.escape(version)}\].*?$(.*?)(?=^## \[|\Z)", changelog, re.M | re.S)
     body = match.group(1).strip() if match else f"Release {version}."
@@ -50,7 +69,8 @@ def notes(tag: str, fingerprint: str = "", windows_signed: bool = False) -> str:
                 "`Get-FileHash <file>` in PowerShell.")
     return "\n\n".join([
         "## Install",
-        (WINDOWS_SIGNED if windows_signed else WINDOWS_UNSIGNED) + "\n" + REST,
+        ((WINDOWS_SIGNED if windows_signed else WINDOWS_UNSIGNED) + "\n" + REST)
+        .replace("<version>", version).replace("<debversion>", debversion + "-*"),
         verify,
         f"Problems or ideas: [open an issue]({REPO_URL}/issues).",
         "---",
