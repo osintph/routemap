@@ -162,9 +162,8 @@ jobs:
     runs-on: windows-2025
     timeout-minutes: 30
     steps:
+      # This workflow's own scripts, against the build run's files (-AnyCheckout).
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ needs.source.outputs.sha }}
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: ${{ env.PYTHON_VERSION }}
@@ -191,7 +190,7 @@ jobs:
         run: |
           $zip = (Get-ChildItem dist -Filter "*-windows-x86_64.zip").FullName
           $setup = (Get-ChildItem setup -Filter "*-setup.exe").FullName
-          pwsh scripts/sign-windows.ps1 -Zip $zip -Setup $setup -Thumbprint $env:THUMB -Out signed
+          pwsh scripts/sign-windows.ps1 -Zip $zip -Setup $setup -Thumbprint $env:THUMB -Out signed -AnyCheckout
           if ($LASTEXITCODE -ne 0) { exit 1 }
       - name: The signed installer installs, and its uninstaller is signed
         shell: pwsh

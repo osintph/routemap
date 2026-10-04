@@ -26,7 +26,9 @@ param(
     [Parameter(Mandatory = $true)] [string] $Thumbprint,
     [string] $Out = "signed",
     [string] $TimestampUrl = "http://time.certum.pl",
-    [string] $SignTool = ""
+    [string] $SignTool = "",
+    # CI's test of this script only: allow a clone at another commit than the build.
+    [switch] $AnyCheckout
 )
 $ErrorActionPreference = "Stop"
 $Root = Resolve-Path (Join-Path $PSScriptRoot "..")
@@ -77,7 +79,10 @@ if ("$v" -notmatch "commit ([0-9a-f]{12})") { Fail "routemap-cli.exe --version s
 $commit12 = $Matches[1]
 if ($short -and -not $commit12.StartsWith($short)) { Fail "the zip is commit $commit12, the installer $short" }
 $head = (git -C $Root rev-parse HEAD).Trim()
-if (-not $head.StartsWith($commit12)) { Fail "this clone is at $($head.Substring(0,12)); check out $commit12 so the installer script matches" }
+if (-not $head.StartsWith($commit12)) {
+    if (-not $AnyCheckout) { Fail "this clone is at $($head.Substring(0,12)); check out $commit12 so the installer script matches" }
+    Write-Host "note: this clone is at $($head.Substring(0,12)), the build at $commit12 (-AnyCheckout)"
+}
 Write-Host "release $version, commit $commit12, build $runNumber"
 
 # ---- 2. sign the executables -------------------------------------------------
@@ -90,9 +95,13 @@ foreach ($exe in $exes) {
 # ---- 3. the installer around the signed folder ---------------------------------
 Step "Rebuilding the installer; Inno Setup signs Setup and its uninstaller"
 $signCmd = "`$q$SignTool`$q sign /sha1 $Thumbprint /fd sha256 /tr $TimestampUrl /td sha256 /d `$qRoute Map`$q `$f"
-$built = & pwsh (Join-Path $Root "packaging\windows\build_installer.ps1") -Source $folder -Version $version `
-    -Commit $head -RunNumber $runNumber -Out $Out -SignCommand $signCmd -CommitInName:$commitInName | Select-Object -Last 1
-if ($LASTEXITCODE -ne 0 -or -not (Test-Path $built)) { Fail "the installer build failed" }
+# In this process, so the switch and the strings arrive as they are.
+try {
+    $built = & (Join-Path $Root "packaging\windows\build_installer.ps1") -Source $folder -Version $version `
+        -Commit $commit12 -RunNumber $runNumber -Out $Out -SignCommand $signCmd -CommitInName:$commitInName |
+        Select-Object -Last 1
+} catch { Fail "the installer build failed: $_" }
+if (-not $built -or -not (Test-Path $built)) { Fail "the installer build produced no installer" }
 if ((Split-Path $built -Leaf) -ne $setupName) { Fail "the rebuilt installer is $(Split-Path $built -Leaf), expected $setupName" }
 
 # ---- 4. the zip ----------------------------------------------------------------
