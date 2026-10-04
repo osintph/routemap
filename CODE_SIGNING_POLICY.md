@@ -58,6 +58,7 @@ support@getroutemap.app. Security reports can be encrypted to the release key
 Route Map has no telemetry and no account. The online services it queries, and
 exactly what each receives, are listed in [PRIVACY.md](PRIVACY.md) and in the
 app under Help > Privacy: CAIDA Hoiho (router hostnames), RIPEstat (public hop
-addresses, and the user's public IP to find the origin when none is set), the
-user's own DNS resolver (reverse DNS), RIPE Atlas (only with the user's own key)
-and GitHub (only for an explicit update check).
+addresses and route details, and the user's public IP to find the origin when
+none is set), RIPE Atlas (anchor baselines; traces only with the user's own
+key), the user's own DNS resolver (reverse DNS), DB-IP (only for a download the
+user starts) and GitHub (only for an explicit update check).

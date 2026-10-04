@@ -9,6 +9,10 @@ The routemap command line. Thin by rule: parse arguments, call the engine, print
     routemap parse FILE [--json|--png|--pdf] analyse a trace run elsewhere
     routemap sites update [--dry-run]        refresh the carrier site-code table
     routemap cache clear                     forget cached Hoiho and IP database answers
+    routemap data update                     download this month's DB-IP Lite City and ASN
+    routemap data import FILE                install a DB-IP Lite City file (offline machines)
+    routemap data status                     which offline databases are installed
+    routemap TARGET --pdf r.pdf --compare earlier.json   include a comparison
     routemap --check-update                  ask GitHub for the latest release tag
 
 Progress and the tool's own output go to stderr, so --json output on stdout can
@@ -26,7 +30,7 @@ import sys
 
 from routemap.__about__ import DISPLAY_NAME, NAME, __version__
 
-SUBCOMMANDS = {"parse", "sites", "cache"}
+SUBCOMMANDS = {"parse", "sites", "cache", "data"}
 
 
 def _err(message: str) -> None:
@@ -65,7 +69,7 @@ def _analyse(text, origin, settings, offline: bool):
     from routemap import service
     from routemap_engine import OFFLINE, analyse
 
-    sources = OFFLINE if offline else service.sources_for(settings)
+    sources = service.offline_sources() if offline else service.sources_for(settings)
 
     def progress(source, state, detail):
         if state in ("timeout", "failed"):
@@ -75,21 +79,54 @@ def _analyse(text, origin, settings, offline: bool):
                                progress=progress))
 
 
+def _insight(args, current: dict, settings) -> None:
+    """The AS path and countries (offline, always); RIPE details unless --offline
+    or Online lookups are off; and a comparison when --compare names an export."""
+    from routemap import insight, service
+
+    route = current["route"]
+    ins = insight.offline(route, settings)
+    if args.offline or not insight.online_allowed(settings):
+        ins["online"] = {"status": insight.OFF}
+    else:
+        asyncio.run(insight.online(route, ins, settings, user_agent=service.user_agent(),
+                                   sourceapp=service.SOURCEAPP))
+    current["insight"] = ins
+    if getattr(args, "compare", None):
+        from routemap_engine import diff as route_diff
+        try:
+            with open(args.compare, encoding="utf-8") as handle:
+                document = json.load(handle)
+            old = document["route"]
+        except (OSError, ValueError, KeyError, TypeError) as exc:
+            raise SystemExit(f"{NAME}: {args.compare} is not a route export ({exc.__class__.__name__})")
+        result = route_diff.diff_routes(old, route)
+        current["comparison"] = {"label": (document.get("exported_at") or args.compare)[:16].replace("T", " "),
+                                 "summary": result["summary"], "changes": result["changes"],
+                                 "old_route": old, "new_marks": result["new_marks"],
+                                 "old_marks": result["old_marks"]}
+        _err(f"{NAME}: compared with {args.compare}: {result['summary']}")
+
+
 def _outputs(args, current: dict) -> int:
-    from routemap import service
+    from routemap import config, service
+
+    settings = config.load_settings()
+    _insight(args, current, settings)
 
     if args.png or args.pdf:
         _headless_qt()
         from routemap.gui.app import write_export
         for fmt, path in (("png", args.png), ("pdf", args.pdf)):
             if path:
-                write_export(fmt, path, current)
+                write_export(fmt, path, current, settings=settings)
                 _err(f"{NAME}: wrote {path}")
     if args.json or not (args.png or args.pdf):
         sys.stdout.write(service.export_json(
             current["route"], target=current["target"], trace_text=current["trace_text"],
             argv=current.get("argv"), source=current["source"],
-            origin_how=current.get("origin_how")) if args.envelope else
+            origin_how=current.get("origin_how"), insight=current.get("insight"),
+            comparison=current.get("comparison")) if args.envelope else
             json.dumps(current["route"], indent=2, ensure_ascii=False) + "\n")
     return 0
 
@@ -183,10 +220,10 @@ def cmd_cache(args) -> int:
     if args.action != "clear":
         return 2
     cleared = 0
-    for path in (config.cache_path(), config.ip_cache_path()):
+    for path in (config.cache_path(), config.ip_cache_path(), config.ripe_cache_path()):
         if path.exists():
             cleared += SqliteCache(path).clear()
-    print(f"Cleared {cleared} cached answers (Hoiho hostnames and IP database addresses)."
+    print(f"Cleared {cleared} cached answers (Hoiho hostnames, IP database addresses, RIPE details)."
           if cleared else "The cache is already empty.")
     return 0
 
@@ -200,6 +237,52 @@ def check_update() -> int:
         _err(f"{NAME}: GitHub did not answer: {exc}")
         return 1
     print(f"installed: v{__version__}\nlatest:    {tag or 'no release yet'}")
+    return 0
+
+
+def cmd_data(args) -> int:
+    """The DB-IP Lite databases: status, update (download), import (a file)."""
+    from routemap import dbip, service
+
+    if args.action == "status":
+        for kind, db in (("city", dbip.city_database()), ("asn", dbip.asn_database())):
+            if db is None:
+                print(f"{kind}: not installed")
+            else:
+                note = " (bundled)" if db.bundled else ""
+                stale = "; a newer month is out: routemap data update" if dbip.is_stale(db) else ""
+                print(f"{kind}: {db.month}{note}, {db.path}{stale}")
+        print(f"{dbip.ATTRIBUTION} ({dbip.ATTRIBUTION_URL}), {dbip.LICENCE}")
+        return 0
+    if args.action == "import":
+        if not args.file:
+            _err(f"{NAME}: routemap data import FILE")
+            return 2
+        try:
+            db = dbip.import_file(args.file, "city")
+        except dbip.DatabaseError as exc:
+            _err(f"{NAME}: {exc}")
+            return 1
+        print(f"installed {db.label}: {db.path}")
+        return 0
+    last = [-1]
+
+    def progress(done, total):
+        if total:
+            pct = int(100 * done / total)
+            if pct // 10 != last[0]:
+                last[0] = pct // 10
+                _err(f"{NAME}: {done / 1e6:.0f} of {total / 1e6:.0f} MB")
+
+    for kind in ("city", "asn"):
+        _err(f"{NAME}: downloading DB-IP Lite {kind} from download.db-ip.com")
+        last[0] = -1
+        try:
+            db = dbip.download(kind, user_agent=service.user_agent(), progress=progress)
+        except dbip.DatabaseError as exc:
+            _err(f"{NAME}: {exc}")
+            return 1
+        print(f"installed {db.label}: {db.path}")
     return 0
 
 
@@ -225,8 +308,21 @@ def smoke_test(out_dir: str) -> int:
     app.processEvents()
     assert window.table.model().rowCount() == len(route["hops"]) > 0
     os.makedirs(out_dir, exist_ok=True)
+    from routemap import config, insight
+    settings = config.Settings(online_lookups=False)
+    ins = insight.offline(route, settings)
+    ins["online"] = {"status": insight.OFF}
+    # The bundled DB-IP Lite ASN file unpacked and answered: the AS path works offline.
+    assert ins["as_path"], "no AS path: the bundled ASN database did not load"
+    window.insight.show_summary(route, ins)
+    window.map.set_projection("globe")
+    app.processEvents()
+    globe = os.path.join(out_dir, "smoke-globe.png")
+    window.grab().save(globe)
+    window.map.set_projection("flat")
     current = {"route": route, "target": "heise.de", "trace_text": text, "source": "file",
-               "argv": None, "origin_how": "coords", "when": _dt.datetime.now().astimezone()}
+               "argv": None, "origin_how": "coords", "when": _dt.datetime.now().astimezone(),
+               "insight": ins}
     sizes = {}
     for fmt in ("png", "pdf", "json"):
         path = os.path.join(out_dir, f"smoke.{fmt}")
@@ -250,6 +346,7 @@ def smoke_test(out_dir: str) -> int:
     window.close()
     summary = (f"{NAME} {__version__} smoke test ok: {len(route['hops'])} hops, "
                f"{sum(1 for h in route['hops'] if h['lat'] is not None)} placed; "
+               f"AS path {ins['as_path_text']}; "
                f"png {sizes['png']} B, pdf {sizes['pdf']} B, json {sizes['json']} B, {checked}")
     with open(os.path.join(out_dir, "result.txt"), "w", encoding="utf-8") as handle:
         handle.write(summary + "\n")
@@ -267,7 +364,9 @@ def _common(parser):
     parser.add_argument("--pdf", metavar="FILE", help="write the PDF report")
     parser.add_argument("--origin", help='"lat,lon" or a city, e.g. "Manila, PH"')
     parser.add_argument("--offline", action="store_true",
-                        help="contact nothing: site-code table and local hops only")
+                        help="contact nothing: offline data only (site codes, DB-IP Lite)")
+    parser.add_argument("--compare", metavar="FILE",
+                        help="compare with an earlier JSON export (in the PDF and --envelope JSON)")
 
 
 def _frozen_windows() -> bool:
@@ -334,13 +433,18 @@ def main(argv: list[str] | None = None) -> int:
         p_cache = sub.add_parser("cache", help="the Hoiho answer cache")
         p_cache.add_argument("action", choices=["clear"])
         p_cache.set_defaults(func=cmd_cache)
+        p_data = sub.add_parser("data", help="the DB-IP Lite offline databases")
+        p_data.add_argument("action", choices=["update", "import", "status"])
+        p_data.add_argument("file", nargs="?", help="with import: a .mmdb or .mmdb.gz file")
+        p_data.set_defaults(func=cmd_data)
         args = parser.parse_args(argv)
         return args.func(args)
 
     parser = argparse.ArgumentParser(
         prog=NAME, description=f"{DISPLAY_NAME}: hostname-first, physics-checked traceroute "
                                "maps. With no arguments, opens the window.",
-        epilog="Also: routemap parse FILE, routemap sites update, routemap cache clear.")
+        epilog="Also: routemap parse FILE, routemap sites update, routemap cache clear, "
+               "routemap data update|import|status.")
     parser.add_argument("target", nargs="?", help="hostname or IP address to trace")
     parser.add_argument("--version", action="version", version=f"{NAME} {__version__}")
     parser.add_argument("--check-update", action="store_true",

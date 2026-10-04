@@ -23,11 +23,15 @@ Software
 - Python: PSF License 2.0. httpx, httpcore, idna, h11, anyio, dnspython,
   certifi, typing_extensions: BSD, MIT, ISC, MPL-2.0 and PSF licences.
 - Nuitka runtime (compiled builds): Apache-2.0.
+- maxminddb (reads the DB-IP files): Apache-2.0.
 
 Data bundled with the application
 - GeoNames city list: Creative Commons Attribution 4.0,
   https://www.geonames.org/
-- Natural Earth world map: public domain, https://www.naturalearthdata.com/
+- Natural Earth world map (1:50m, 1:10m, populated places): public domain,
+  https://www.naturalearthdata.com/
+- DB-IP Lite ASN (bundled) and DB-IP Lite City (downloaded on request):
+  Creative Commons Attribution 4.0. IP Geolocation by DB-IP, https://db-ip.com
 - Carrier site codes: facts from Arelion's published looking glass router
   list, https://lg.twelve99.net/
 

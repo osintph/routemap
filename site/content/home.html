@@ -7,7 +7,7 @@
   {{downloads}}
   <p class="oss"><span class="badge">Free and open source, AGPL-3.0</span>
   <a class="source" href="{{repository}}">github.com/osintph/routemap</a></p>
-  [[pic window jpg 1600 1000 hero|Route Map with a recorded trace from Manila to heise.de: the route through Hong Kong, Singapore, Marseille and Paris to Frankfurt on a world map, and the hop table with location, source, hostname, address and round-trip time]]
+  [[pic window jpg 1600 1000 hero|Route Map with a recorded trace from Manila to heise.de: great-circle lines through Hong Kong, Singapore, Marseille and Paris to Frankfurt, coloured by the round-trip time each step added; beside the map the AS path with RPKI badges, the countries crossed, a RIPE Atlas baseline, the RIS view and 48 hours of BGP updates; below, the hop table with ASN and RPKI, and the details of hop 7 in Singapore]]
   <p class="crop-note">A recorded trace from Manila to heise.de, origin set in Settings. The first five hops, the home network and the ISP, are shown with documentation addresses.</p>
 </section>
 
@@ -28,9 +28,10 @@
       <h3>Hostname first</h3>
       <p>Operators name routers after their sites: <code>ffm-b16-link.ip.twelve99.net</code> is
       Arelion in Frankfurt. Route Map reads names with CAIDA's Hoiho rules and a table of carrier
-      site codes, and falls back to an IP database only when the name says nothing.</p>
+      site codes, and falls back to an IP database only when the name says nothing: DB-IP Lite
+      on your machine, or RIPEstat online.</p>
     </div>
-    [[pic rule1-sources png 986 764 crop|The hop table: hops 1 to 5 local, hops 6 to 11 placed by carrier site code in Hong Kong, Singapore, Marseille, Paris and Frankfurt, hops 12 to 16 by the IP database, two of them country only]]
+    [[pic rule1-sources png 1286 764 crop|The hop table: hops 1 to 5 local, hops 6 to 11 placed by carrier site code in Hong Kong, Singapore, Marseille, Paris and Frankfurt on Arelion's network, AS1299 with valid RPKI; hop 12 not placed; hops 13 to 15 placed in Frankfurt by DB-IP, AS12306]]
   </div>
 
   <div class="rule">
@@ -39,10 +40,11 @@
       <p>Light in fibre covers about 200 km per millisecond, so each millisecond of round trip
       allows about <strong>100 km</strong>: a hop that answers in <strong>5 ms</strong> is within
       about <strong>500 km</strong>, plus 300 km of slack for an approximate origin. Any placement
-      farther than that is rejected, whatever its source, and the reason is shown.</p>
+      farther than that is rejected, whatever its source, and the reason is shown. So is a
+      database answer that would need a detour the round trip did not pay for.</p>
     </div>
-    [[pic rule2-rejected png 1474 116 crop wide|The Unplaced panel: hop 7, Arelion's Singapore router, location impossible for RTT, 10,266 km away when the round trip allows at most 6,133 km]]
-    <p class="crop-note">The same trace with the origin deliberately set to Frankfurt: Arelion's Singapore router answered in 58 ms, which cannot reach 10,266 km, so it is rejected even though its own hostname placed it.</p>
+    [[pic rule2-rejected png 2330 180 crop wide|The Unplaced panel: hop 12, plusline-ic-323934.ip.twelve99-cust.net, location impossible for RTT: 6,964 km from hop 11 in Frankfurt and back again by hop 13, which needs 70 ms more RTT; it rose 46 ms]]
+    <p class="crop-note">The IP database puts hop 12 in Chicago, between two Frankfurt hops. Going there and back would add at least 70 ms; the round trip rose 46 ms, so the placement is rejected.</p>
   </div>
 
   <div class="rule">
@@ -52,8 +54,30 @@
       hollow. A hop that cannot be placed stays in the table and in the Unplaced panel, with the
       reason it is not on the map.</p>
     </div>
-    [[pic rule3-unplaced png 1083 296 crop|The Unplaced panel for a recorded trace to amazon.com: hops 9, 10, 12 and 16 to 18 did not answer, so there is nothing to locate]]
+    [[pic rule3-unplaced png 1354 436 crop|The Unplaced panel for a recorded trace to amazon.com: hops 9, 10, 12 and 16 to 18 did not answer, so there is nothing to locate]]
   </div>
+</section>
+
+<section class="prose-band" aria-labelledby="beyond">
+  <h2 id="beyond">Beyond where the hops are</h2>
+  <p>Beside the map: the networks your packets crossed (the AS path, from DB-IP Lite ASN on your
+  machine) with an RPKI badge for each, the countries they went through, what RIPE's route
+  collectors see for the destination prefix, its BGP activity over the last 48 hours, and a typical
+  latency for the same trip from RIPE Atlas anchors. Lines follow the great circle and warm with
+  the round-trip time each step added; switch to the globe to see the path as the packets flew it.
+  Trace again and the app compares the two runs.</p>
+  <div class="pair">
+    <figure class="shot">
+      [[pic globe jpg 1600 1000 bare|The same route on the globe, centred on the path from Manila to Frankfurt, with the route summary and hop details beside it]]
+      <figcaption><strong>Globe</strong>, centred on the route; drag to turn it.</figcaption>
+    </figure>
+    <figure class="shot">
+      [[pic compare jpg 1600 1000 bare|A later run compared with the recorded one: the earlier path faint and dashed, and the summary saying Marseille and Paris are gone and the destination did not answer this time]]
+      <figcaption><strong>Trace again and compare</strong>: Marseille and Paris are gone, and the destination stopped answering.</figcaption>
+    </figure>
+  </div>
+  <p>No submarine cables or exchange points yet: the cable data is sold under licence, and
+  PeeringDB's terms do not allow bundling its list. The <a href="/docs/faq/">FAQ</a> has the details.</p>
 </section>
 
 <section class="prose-band" aria-labelledby="machine">
@@ -71,7 +95,7 @@
   <dl class="labels">
     <dt><span class="dot hoiho"></span><code>hoiho</code></dt><dd>A CAIDA Hoiho rule for that operator matched the hostname and names the city.</dd>
     <dt><span class="dot site"></span><code>site-code</code></dt><dd>The hostname carries a carrier's own site code, from the bundled table.</dd>
-    <dt><span class="dot ipdb"></span><code>ip-db</code></dt><dd>RIPEstat's IP geolocation placed it: a hint, since backbone addresses often sit where the prefix was registered.</dd>
+    <dt><span class="dot ipdb"></span><code>ip-db</code></dt><dd>An IP database placed it, DB-IP Lite on your machine or RIPEstat online (the label says which): a hint, since backbone addresses often sit where the prefix was registered.</dd>
     <dt><span class="dot ipdb hollow"></span><code>ip-db, country only</code></dt><dd>Only the country is known; hollow marker, kept out of the map's fit.</dd>
     <dt><span class="dot local"></span><code>local</code></dt><dd>Your network or your ISP's carrier NAT; never looked up anywhere.</dd>
   </dl>
@@ -81,14 +105,17 @@
     <thead><tr><th scope="col">What</th><th scope="col">To</th><th scope="col">When</th></tr></thead>
     <tbody>
       <tr><td>Public router hostnames</td><td>CAIDA Hoiho</td><td>each trace, unless switched off; cached 30 days</td></tr>
-      <tr><td>Public hop addresses</td><td>RIPEstat</td><td>each trace, unless switched off; cached 30 days</td></tr>
+      <tr><td>Public hop addresses DB-IP Lite does not place</td><td>RIPEstat</td><td>each trace, unless switched off; cached 30 days</td></tr>
+      <tr><td>Public addresses, prefixes and AS numbers, for route details</td><td>RIPEstat</td><td>after each trace, unless Online lookups are off</td></tr>
+      <tr><td>Two country codes and an anchor name</td><td>RIPE Atlas</td><td>after each trace, for the typical latency; public data</td></tr>
+      <tr><td>A download request</td><td>DB-IP</td><td>only when you choose to download DB-IP Lite</td></tr>
       <tr><td>Reverse DNS queries</td><td>your own resolver</td><td>for public hops without a name</td></tr>
       <tr><td>Your public IP</td><td>RIPEstat</td><td>only while no origin is set in Settings</td></tr>
       <tr><td>Target, key, your network's AS</td><td>RIPE Atlas</td><td>only for an Atlas trace, with your own key; public</td></tr>
     </tbody>
   </table></div>
-  <p>No account, no telemetry, no automatic update check. Private, CGNAT and reserved addresses
-  are never looked up. The full list: <a href="/privacy/">privacy</a>.</p>
+  <p>No account, no telemetry, no automatic update check. One switch, Online lookups, turns every
+  lookup off. Private, CGNAT and reserved addresses are never looked up. The full list: <a href="/privacy/">privacy</a>.</p>
 </section>
 
 <section class="support-band" aria-labelledby="support">

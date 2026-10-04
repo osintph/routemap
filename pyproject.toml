@@ -27,7 +27,9 @@ classifiers = [
 ]
 # The engine is its own public package (AGPL-3.0), from PyPI.
 dependencies = [
-    "routemap-engine==0.2.2",
+    "routemap-engine[offline]==0.3.0",
+    # Reads the DB-IP Lite files; pinned so the packaged build is reproducible.
+    "maxminddb==3.2.0",
 ]
 
 [project.optional-dependencies]

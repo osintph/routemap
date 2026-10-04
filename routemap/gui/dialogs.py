@@ -45,6 +45,8 @@ class SettingsDialog(QDialog):
     pickRequested = Signal()
     clearCacheRequested = Signal()
     clearHistoryRequested = Signal()
+    updateDataRequested = Signal()
+    importDataRequested = Signal()
 
     def __init__(self, parent=None, settings: Settings | None = None, *, origin_label: str = "",
                  tools: dict | None = None, cache_count: int = 0, history_count: int = 0):
@@ -57,6 +59,7 @@ class SettingsDialog(QDialog):
         self.tabs.addTab(self._origin_page(origin_label), "Origin")
         self.tabs.addTab(self._trace_page(tools or {}), "Trace")
         self.tabs.addTab(self._sources_page(cache_count), "Sources")
+        self.tabs.addTab(self._map_page(), "Map")
         self.tabs.addTab(self._atlas_page(), "RIPE Atlas")
         self.tabs.addTab(self._privacy_page(history_count), "Privacy")
         layout.addWidget(self.tabs)
@@ -238,6 +241,17 @@ class SettingsDialog(QDialog):
         s = self.settings
         page = QWidget()
         layout = QVBoxLayout(page)
+        self.online = QCheckBox("Online lookups")
+        font = self.online.font()
+        font.setBold(True)
+        self.online.setFont(font)
+        self.online.setChecked(s.online_lookups)
+        layout.addWidget(self.online)
+        layout.addWidget(_note("&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;On: CAIDA Hoiho, RIPEstat (IP database, "
+                               "RPKI, BGP, abuse contacts), RIPE Atlas baselines, reverse DNS, each as "
+                               "ticked below. Off: nothing new leaves this machine; placement uses the "
+                               "offline data only (site codes, DB-IP Lite City and ASN)."))
+        layout.addWidget(_rule())
         layout.addWidget(_note("Where hop locations come from, in the order they are tried. "
                                "Each line says what leaves this machine when it is on."))
         from routemap import policy
@@ -282,6 +296,89 @@ class SettingsDialog(QDialog):
         self.clear_cache.clicked.connect(self.clearCacheRequested)
         row.addWidget(self.clear_cache)
         layout.addLayout(row)
+        layout.addWidget(_rule())
+        data = QHBoxLayout()
+        self.data_label = QLabel()
+        self.data_label.setWordWrap(True)
+        self.data_label.setTextFormat(Qt.RichText)
+        data.addWidget(self.data_label, 1)
+        self.update_data = QPushButton("Update now")
+        self.update_data.setToolTip("Downloads this month's DB-IP Lite City (about 60 MB) and ASN "
+                                    "from download.db-ip.com.")
+        self.update_data.clicked.connect(self.updateDataRequested)
+        self.import_data = QPushButton("Import database file…")
+        self.import_data.setToolTip("For a machine with no internet: a dbip-city-lite .mmdb or "
+                                    ".mmdb.gz copied from elsewhere.")
+        self.import_data.clicked.connect(self.importDataRequested)
+        data.addWidget(self.update_data)
+        data.addWidget(self.import_data)
+        layout.addLayout(data)
+        layout.addWidget(_note("DB-IP Lite, CC BY 4.0: IP Geolocation by "
+                               "<a href='https://db-ip.com'>DB-IP</a>. Updated monthly; "
+                               "<code>routemap data update</code> does the same from a terminal."))
+        self.refresh_databases()
+        self.online.toggled.connect(self._online_toggled)
+        self._online_toggled(self.online.isChecked())
+        layout.addStretch(1)
+        return page
+
+    def _online_toggled(self, on: bool):
+        from routemap import policy
+        self.use_hoiho.setEnabled(on and policy.HOIHO_ALLOWED)
+        self.use_ipdb.setEnabled(on and policy.RIPESTAT_ALLOWED)
+        self.use_ptr.setEnabled(on)
+
+    def refresh_databases(self):
+        from routemap import dbip
+        city, asn = dbip.city_database(), dbip.asn_database()
+        city_text = (f"City {city.month}" if city else
+                     "City <b>not installed</b>: IP database placements come from RIPEstat, online")
+        asn_text = f"ASN {asn.month}" + (" (bundled)" if asn and asn.bundled else "") if asn else "ASN missing"
+        stale = " <span style='color:#b7791f'>(a newer month is out)</span>" if city and dbip.is_stale(city) else ""
+        self.data_label.setText(f"<b>Offline data</b>: DB-IP Lite {city_text}; {asn_text}{stale}")
+
+    # ---- map
+    def _map_page(self) -> QWidget:
+        s = self.settings
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        form = QFormLayout()
+        self.projection = QComboBox()
+        self.projection.addItem("Flat (overview)", "flat")
+        self.projection.addItem("Globe, centred on the route", "globe")
+        self.projection.setCurrentIndex(1 if s.projection == "globe" else 0)
+        form.addRow("Projection", self.projection)
+        steps = QHBoxLayout()
+        self.rtt_quiet = QDoubleSpinBox()
+        self.rtt_quiet.setRange(0, 500)
+        self.rtt_quiet.setDecimals(0)
+        self.rtt_quiet.setSuffix(" ms")
+        self.rtt_quiet.setValue(s.rtt_quiet_ms)
+        self.rtt_hot = QDoubleSpinBox()
+        self.rtt_hot.setRange(1, 1000)
+        self.rtt_hot.setDecimals(0)
+        self.rtt_hot.setSuffix(" ms")
+        self.rtt_hot.setValue(s.rtt_hot_ms)
+        steps.addWidget(QLabel("grey under"))
+        steps.addWidget(self.rtt_quiet)
+        steps.addWidget(QLabel("fully warm from"))
+        steps.addWidget(self.rtt_hot)
+        steps.addStretch(1)
+        form.addRow("RTT step colours", steps)
+        self.sensitive = QLineEdit(", ".join(s.sensitive_countries))
+        self.sensitive.setPlaceholderText("Two-letter country codes, e.g. SG, CN")
+        form.addRow("Sensitive countries", self.sensitive)
+        self.falconeye = QLineEdit(s.falconeye_url)
+        form.addRow("FalconEye", self.falconeye)
+        layout.addLayout(form)
+        layout.addWidget(_note("Sensitive countries are flagged in the route summary when a placed "
+                               "hop is in one of them. FalconEye: right-click a hop, Open in "
+                               "FalconEye opens IP Reputation there with the address on the clipboard."))
+        layout.addWidget(_rule())
+        layout.addWidget(_note("<b>Submarine cables: not available.</b> TeleGeography's cable data "
+                               "is sold under licence; the overlay waits for a source the app may ship."))
+        layout.addWidget(_note("<b>Exchange points: not available.</b> PeeringDB's terms do not allow "
+                               "bundling its prefix list; possible later with their permission."))
         layout.addStretch(1)
         return page
 
@@ -372,6 +469,24 @@ class SettingsDialog(QDialog):
             except ValueError:
                 problems.append(f"The {name} flags have unbalanced quotes; they were not changed.")
         settings.timeout_seconds = self.timeout.value()
+        settings.online_lookups = self.online.isChecked()
+        settings.projection = self.projection.currentData() or "flat"
+        settings.rtt_quiet_ms = float(self.rtt_quiet.value())
+        settings.rtt_hot_ms = float(self.rtt_hot.value())
+        if settings.rtt_hot_ms <= settings.rtt_quiet_ms:
+            problems.append("The fully warm RTT step must be above the grey one; it was set 1 ms above.")
+        codes = [c.strip().upper() for c in self.sensitive.text().replace(";", ",").split(",") if c.strip()]
+        bad = [c for c in codes if len(c) != 2 or not c.isalpha()]
+        if bad:
+            problems.append("Not two-letter country codes, so left out: " + ", ".join(bad))
+        settings.sensitive_countries = [c for c in codes if c not in bad]
+        url = self.falconeye.text().strip()
+        if url and not url.startswith(("https://", "http://")):
+            problems.append("The FalconEye address must start with https://; it was not changed.")
+        else:
+            settings.falconeye_url = url or "https://falconeye.osintph.info"
+        from routemap import config as _config
+        _config.normalise(settings)
         settings.use_hoiho = self.use_hoiho.isChecked()
         settings.use_ip_db = self.use_ipdb.isChecked()
         settings.use_ptr = self.use_ptr.isChecked()
@@ -548,7 +663,14 @@ PRIVACY_HTML = """
 <tr><td><b>Router hostnames</b></td><td>to CAIDA Hoiho (api.hoiho.caida.org), to read the
 location the carrier's naming scheme gives. Only public hostnames; never a local name.</td></tr>
 <tr><td><b>Hop IP addresses</b></td><td>to RIPEstat (stat.ripe.net), the IP geolocation
-fallback. Only public addresses.</td></tr>
+fallback, for the addresses the offline DB-IP Lite City file does not place (all of them
+while it is not installed). Only public addresses.</td></tr>
+<tr><td><b>Route details</b></td><td>to RIPEstat: public hop addresses, their prefixes and
+AS numbers, for RPKI, RIS paths and visibility, BGP updates and AS overviews; a hop's RIR
+and abuse contact only when you open its details. To RIPE Atlas: two country codes and an
+anchor's public name, for a typical latency (public data, no key).</td></tr>
+<tr><td><b>Offline data</b></td><td>to download.db-ip.com, only when you choose Download or
+Update now: one request per DB-IP Lite file.</td></tr>
 <tr><td><b>PTR queries</b></td><td>to your own DNS resolver, for hops that came back without
 a name.</td></tr>
 <tr><td><b>One public IP lookup</b></td><td>to find your approximate city, and only while no
@@ -562,13 +684,16 @@ never sent: they only rank probes on this machine.</td></tr>
 <tr><td><b>Update check</b></td><td>only when you choose Help &rsaquo; Check for updates: one
 request to GitHub for the latest release tag.</td></tr>
 </table>
+<p><b>Settings &rsaquo; Sources &rsaquo; Online lookups</b> turns all of the above off at once
+except Atlas traces you start, the update check and downloads you choose: hops are then
+placed from offline data only.</p>
 <p>Private, CGNAT and reserved addresses are never looked up. There is no telemetry and no
 automatic update check.</p>
 <p>Questions about privacy: <a href="mailto:support@getroutemap.app">support@getroutemap.app</a>.</p>
 <h3>What stays on this machine</h3>
-<p>In your config folder: settings, the Hoiho and IP database answer caches (30 days,
-clearable: router hostnames and public hop addresses with their locations) and, if it is
-on, the history of the last 50 traces (clearable). Exports go only to the file you choose.</p>
+<p>In your config folder: settings, the Hoiho, IP database and RIPE detail answer caches
+(clearable), the DB-IP Lite files and, if it is on, the history of the last 50 traces
+(clearable). Exports go only to the file you choose.</p>
 """
 
 
@@ -645,3 +770,65 @@ class SupportDialog(QDialog):
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
 
+
+
+class CityDatabaseDialog(QDialog):
+    """First run: offer DB-IP Lite City. Asked once; "Not now" is remembered."""
+
+    DOWNLOAD, IMPORT, NOT_NOW = 2, 3, 0
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Offline IP database")
+        self.setMinimumWidth(520)
+        layout = QVBoxLayout(self)
+        layout.addWidget(QLabel("<b>Download DB-IP Lite City for offline placement?</b>"))
+        layout.addWidget(_note(
+            f"When a hop's hostname says nothing about where it is, {DISPLAY_NAME} falls back to an IP "
+            "geolocation database. With DB-IP Lite City on this machine that lookup stays here; "
+            "without it, the hop addresses are sent to RIPEstat. The file is about 60 MB to "
+            "download (127 MB on disk), from download.db-ip.com, and is updated monthly. "
+            "Licence CC BY 4.0, IP Geolocation by <a href='https://db-ip.com'>DB-IP</a>."))
+        layout.addWidget(_note("No internet on this machine? Import a file copied from elsewhere. "
+                               "You can do either later in Settings › Sources."))
+        buttons = QDialogButtonBox()
+        download = buttons.addButton("Download", QDialogButtonBox.AcceptRole)
+        importer = buttons.addButton("Import File…", QDialogButtonBox.ActionRole)
+        later = buttons.addButton("Not Now", QDialogButtonBox.RejectRole)
+        download.setDefault(True)
+        download.clicked.connect(lambda: self.done(self.DOWNLOAD))
+        importer.clicked.connect(lambda: self.done(self.IMPORT))
+        later.clicked.connect(lambda: self.done(self.NOT_NOW))
+        layout.addWidget(buttons)
+
+
+class DownloadDialog(QDialog):
+    """Progress for the DB-IP downloads; Cancel stops them cleanly."""
+
+    def __init__(self, parent=None):
+        from PySide6.QtWidgets import QProgressBar
+        super().__init__(parent)
+        self.setWindowTitle("Updating offline data")
+        self.setMinimumWidth(460)
+        layout = QVBoxLayout(self)
+        self.label = QLabel("Starting…")
+        layout.addWidget(self.label)
+        self.bar = QProgressBar()
+        self.bar.setRange(0, 0)
+        layout.addWidget(self.bar)
+        buttons = QDialogButtonBox(QDialogButtonBox.Cancel)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+        self.kind = ""
+
+    def set_kind(self, kind: str):
+        self.kind = kind
+        self.label.setText(f"Downloading DB-IP Lite {'City' if kind == 'city' else 'ASN'}…")
+        self.bar.setRange(0, 0)
+
+    def set_progress(self, done: int, total: int):
+        if total:
+            self.bar.setRange(0, 1000)
+            self.bar.setValue(int(1000 * done / total))
+            self.label.setText(f"Downloading DB-IP Lite {'City' if self.kind == 'city' else 'ASN'}: "
+                               f"{done / 1e6:.1f} of {total / 1e6:.1f} MB")

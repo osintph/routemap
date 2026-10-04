@@ -17,6 +17,11 @@ It follows three rules:
    only to a country is drawn hollow, and a hop that cannot be placed is listed
    with the reason, not guessed.
 
+Beside the map: the AS path with RPKI badges, the countries crossed, what
+RIPE's route collectors see for the destination, its recent BGP activity and a
+typical latency from RIPE Atlas. Flat map or globe, lines coloured by the RTT
+each step added, and a comparison with an earlier run.
+
 The trace runs on your machine with the system's own `tracert`, `traceroute`
 or `mtr`. Nothing about it is sent anywhere except the lookups listed in
 [PRIVACY.md](PRIVACY.md).

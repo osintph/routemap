@@ -22,7 +22,9 @@ from routemap_engine.geo import Sources
 
 ORIGIN_HOW_IP = "ip"
 EXPORT_FORMAT = "routemap/route-export"
-EXPORT_FORMAT_VERSION = 1
+# 2 (0.2.0): optional "insight" (AS path, countries, RIPE data) and "comparison".
+# Readers of version 1 files keep working: both are additions.
+EXPORT_FORMAT_VERSION = 2
 
 
 def startup() -> None:
@@ -38,38 +40,83 @@ def user_agent() -> str:
 SOURCEAPP = f"{NAME}-desktop"
 
 
+_CITY_READERS: dict = {}
+
+
+def offline_city():
+    """The DB-IP Lite City reader for the installed file, or None. One reader per
+    file per process; a newer month installed later gets its own."""
+    from routemap import dbip
+    db = dbip.city_database()
+    if db is None:
+        return None
+    reader = _CITY_READERS.get(db.path)
+    if reader is None:
+        from routemap_engine.offline import OfflineCity
+        try:
+            reader = OfflineCity(db.path)
+        except Exception:  # noqa: BLE001 - a broken file is the same as no file
+            return None
+        _CITY_READERS.clear()
+        _CITY_READERS[db.path] = reader
+    return reader
+
+
+def offline_sources() -> Sources:
+    """Nothing contacted: site codes, local classification and, when installed,
+    DB-IP Lite City."""
+    from routemap_engine import OFFLINE
+    city = offline_city()
+    if city is None:
+        return OFFLINE
+    from routemap_engine.offline import layered_ip_db
+    return Sources(ip_db=layered_ip_db(city, None))
+
+
 def sources_for(settings: config.Settings) -> Sources:
+    """The engine's sources for these settings.
+
+    IP database placements come from DB-IP Lite City when it is installed
+    (offline, sends nothing) and from RIPEstat for what the file does not know,
+    or for everything when it is not installed. Settings > Online lookups off:
+    Hoiho, RIPEstat and reverse DNS are all off, whatever their own boxes say.
+    """
     import dataclasses
 
     from routemap_engine import geo
+    from routemap_engine.offline import layered_ip_db
 
+    online = bool(settings.online_lookups)
     ttl = max(1, settings.cache_ttl_days) * 86400
     hoiho_cache = SqliteCache(config.cache_path(), ttl_seconds=ttl)
     base = default_sources(user_agent=user_agent(), cache=hoiho_cache,
-                           use_hoiho=settings.use_hoiho and policy.HOIHO_ALLOWED,
-                           use_ip_db=False, use_ptr=settings.use_ptr)
-    if not (settings.use_ip_db and policy.RIPESTAT_ALLOWED):
+                           use_hoiho=online and settings.use_hoiho and policy.HOIHO_ALLOWED,
+                           use_ip_db=False, use_ptr=online and settings.use_ptr)
+    ripestat = None
+    if online and settings.use_ip_db and policy.RIPESTAT_ALLOWED:
+        ip_cache = SqliteCache(config.ip_cache_path(), ttl_seconds=ttl)
+
+        async def ripestat(addresses: list[str]) -> dict:
+            """RIPEstat, with answers kept locally for the cache lifetime. Only real
+            answers are kept: a failed or empty lookup is asked again next time."""
+            found, missing = {}, []
+            for addr in dict.fromkeys(addresses):
+                hit = ip_cache.get(addr)
+                if hit:
+                    found[addr] = hit
+                else:
+                    missing.append(addr)
+            if missing:
+                fetched = await geo.ip_geolocate(missing, user_agent=user_agent(), sourceapp=SOURCEAPP)
+                for addr, record in fetched.items():
+                    ip_cache.set(addr, record)
+                    found[addr] = record
+            return found
+
+    city = offline_city()
+    if city is None and ripestat is None:
         return base
-    ip_cache = SqliteCache(config.ip_cache_path(), ttl_seconds=ttl)
-
-    async def ip_db(addresses: list[str]) -> dict:
-        """RIPEstat, with answers kept locally for the cache lifetime. Only real
-        answers are kept: a failed or empty lookup is asked again next time."""
-        found, missing = {}, []
-        for addr in dict.fromkeys(addresses):
-            hit = ip_cache.get(addr)
-            if hit:
-                found[addr] = hit
-            else:
-                missing.append(addr)
-        if missing:
-            fetched = await geo.ip_geolocate(missing, user_agent=user_agent(), sourceapp=SOURCEAPP)
-            for addr, record in fetched.items():
-                ip_cache.set(addr, record)
-                found[addr] = record
-        return found
-
-    return dataclasses.replace(base, ip_db=ip_db)
+    return dataclasses.replace(base, ip_db=layered_ip_db(city, ripestat))
 
 
 def parse_origin_text(text: str) -> tuple[float, float, str]:
@@ -130,7 +177,8 @@ def analyse_sync(text_or_hops, origin, settings: config.Settings, progress=None)
 # -------------------------------------------------------------------- export ---
 
 def export_json(route: Route | dict, *, target: str | None, trace_text: str,
-                argv: list[str] | None, source: str, origin_how: str | None) -> str:
+                argv: list[str] | None, source: str, origin_how: str | None,
+                insight: dict | None = None, comparison: dict | None = None) -> str:
     """The JSON export: the route model plus how the trace was made."""
     body = route.to_dict() if isinstance(route, Route) else dict(route)
     document = {
@@ -144,8 +192,14 @@ def export_json(route: Route | dict, *, target: str | None, trace_text: str,
                   "argv": [os.path.basename(argv[0])] + list(argv[1:]) if argv else None,
                   "text": trace_text},
         "route": body,
-        "schema": "https://github.com/" + REPO_SLUG + "/blob/main/routemap_engine/route.schema.json",
+        "schema": "https://github.com/osintph/routemap-engine/blob/main/routemap_engine/route.schema.json",
     }
+    if insight:
+        from routemap import insight as _insight
+        document["insight"] = insight
+        document["attributions"] = _insight.attributions(insight)
+    if comparison:
+        document["comparison"] = comparison
     return json.dumps(document, indent=2, ensure_ascii=False) + "\n"
 
 

@@ -28,6 +28,8 @@ from __future__ import annotations
 import html
 import math
 
+from PySide6.QtCore import QTimer
+
 from PySide6.QtCore import QPointF, QRectF, QSize, Qt, Signal
 from PySide6.QtGui import (QBrush, QColor, QFont, QFontMetricsF, QImage, QPainter, QPainterPath,
                            QPen, QPolygonF)
@@ -35,9 +37,17 @@ from PySide6.QtWidgets import (QFrame, QGraphicsItem, QGraphicsObject, QGraphics
                                QGraphicsScene, QGraphicsView, QHBoxLayout, QLabel, QToolButton,
                                QVBoxLayout, QWidget)
 
-from routemap.gui import geometry, theme
+from routemap.gui import arcs, geometry, theme
 
 SCALE = 4.0           # scene units per degree
+ATTRIBUTION_BASE = "Natural Earth · GeoNames"
+ATTRIBUTION_DBIP = "IP Geolocation by DB-IP"
+
+
+def uses_dbip(route: dict | None) -> bool:
+    """True when DB-IP data is on screen: a placement or an ASN from it."""
+    return any(h.get("ip_provider") == "dbip" or h.get("asn_source") == "dbip"
+               for h in (route or {}).get("hops") or [])
 WORLD_W = 360 * SCALE
 MIN_SPAN_DEG = 6.0    # never zoom a fit tighter than this many degrees
 
@@ -122,6 +132,10 @@ def place_label(hop: dict) -> str:
 
 def source_label(hop: dict) -> str:
     short = theme.SOURCE_SHORT.get(hop.get("source"), hop.get("source") or "")
+    if hop.get("source") == "ip-db":
+        # Which tier answered: the offline file, or RIPEstat because the file
+        # is not installed (or did not know the address).
+        short += " (DB-IP)" if hop.get("ip_provider") == "dbip" else " (RIPEstat, online)"
     return f"{short}, country only" if is_country_only(hop) else short
 
 
@@ -231,6 +245,7 @@ class MarkerItem(QGraphicsObject):
         self.hollow, self.silent = hollow, silent
         self.hops = list(hops or [])
         self.selected = False
+        self.diff_mark: str | None = None     # set by a comparison: "added", "moved", "rtt", ...
         self.label, self.color, self.palette = label, color, palette
         self.origin, self.caption = origin, caption
         self.hovered = False
@@ -326,6 +341,13 @@ class MarkerItem(QGraphicsObject):
             painter.setFont(self.font)
             painter.setPen(self.palette.marker_text)
             painter.drawText(rect, Qt.AlignCenter, self.label)
+        if self.diff_mark and self.diff_mark != "silent":
+            painter.setBrush(Qt.NoBrush)
+            mark_pen = QPen(theme.diff_color(self.palette, self.diff_mark), 2.0 * self.size)
+            mark_pen.setStyle(Qt.DotLine if self.diff_mark == "removed" else Qt.SolidLine)
+            painter.setPen(mark_pen)
+            g = 7 * self.size
+            painter.drawRoundedRect(rect.adjusted(-g, -g, g, g), h / 2 + g, h / 2 + g)
         if self.selected:
             painter.setBrush(Qt.NoBrush)
             painter.setPen(QPen(self.palette.route, 2.5 * self.size))
@@ -371,8 +393,8 @@ class MarkerItem(QGraphicsObject):
         self.update()
 
 
-def _world_paths() -> tuple[QPainterPath, QPainterPath, QPainterPath]:
-    world = geometry.world()
+def _world_paths(scale: str = "50m") -> tuple[QPainterPath, QPainterPath, QPainterPath]:
+    world = geometry.world(scale)
 
     def rings(polys, close: bool) -> QPainterPath:
         path = QPainterPath()
@@ -391,21 +413,60 @@ def _world_paths() -> tuple[QPainterPath, QPainterPath, QPainterPath]:
     return rings(world["land"], True), rings(world["lakes"], True), rings(world["borders"], False)
 
 
-_PATHS = None
+_PATHS: dict = {}
 
 
-def world_paths():
-    global _PATHS
-    if _PATHS is None:
-        _PATHS = _world_paths()
-    return _PATHS
+def world_paths(scale: str = "50m"):
+    if scale not in _PATHS:
+        _PATHS[scale] = _world_paths(scale)
+    return _PATHS[scale]
 
 
-def build_scene(palette: theme.Palette) -> QGraphicsScene:
+def web_zoom(pixels_per_degree: float) -> float:
+    """The web-map zoom level with the same pixel density (zoom 0 is the world
+    in 256 pixels), which is the scale Natural Earth's ``min_zoom`` is set in."""
+    return math.log2(max(1e-6, pixels_per_degree * 360.0 / 256.0))
+
+
+DETAIL_ZOOM = 3.2        # from here the 1:10m coastline and city labels show
+LABEL_SLACK = 0.7        # show a place a little before its own min_zoom
+MAX_LABELS = 70
+
+
+def visible_places(rect_deg: tuple[float, float, float, float], zoom: float,
+                   limit: int = MAX_LABELS) -> list[dict]:
+    """Natural Earth places inside (lon0, lat0, lon1, lat1), largest first, that
+    Natural Earth labels at *zoom*. Longitudes may run past 180 (the flat map
+    repeats); each place is returned at the copy that falls inside."""
+    lon0, lat0, lon1, lat1 = rect_deg
+    out = []
+    for place in geometry.places():
+        if place["min_zoom"] > zoom + LABEL_SLACK:
+            continue
+        if not lat0 <= place["lat"] <= lat1:
+            continue
+        for k in (-360.0, 0.0, 360.0):
+            lon = place["lon"] + k
+            if lon0 <= lon <= lon1:
+                out.append(dict(place, lon=lon))
+                break
+        if len(out) >= limit:
+            break
+    return out
+
+
+def build_scene(palette: theme.Palette, scale: str = "50m") -> QGraphicsScene:
     scene = QGraphicsScene()
     scene.setBackgroundBrush(palette.ocean)
     scene.setSceneRect(QRectF(-540 * SCALE, -90 * SCALE, 1080 * SCALE, 180 * SCALE))
-    land, lakes, borders = world_paths()
+    scene.world_items = add_world(scene, palette, scale)
+    return scene
+
+
+def add_world(scene: QGraphicsScene, palette: theme.Palette, scale: str = "50m") -> list:
+    """Land, lakes and borders at *scale*, three copies side by side."""
+    land, lakes, borders = world_paths(scale)
+    items = []
     coast_pen = QPen(palette.coast, 0.8)
     coast_pen.setCosmetic(True)
     border_pen = QPen(palette.border, 0.7)
@@ -425,16 +486,25 @@ def build_scene(palette: theme.Palette) -> QGraphicsScene:
         line.setPen(border_pen)
         line.setPos(offset, 0)
         scene.addItem(line)
-    return scene
+        items += [item, lake, line]
+    return items
 
 
 def draw_route(scene: QGraphicsScene, route: dict, palette: theme.Palette,
-               destination_label: str | None = None, size: float = 1.0) -> tuple[QRectF, list]:
+               destination_label: str | None = None, size: float = 1.0, *,
+               quiet_ms: float = 15.0, hot_ms: float = 60.0, ghost: bool = False,
+               marks: dict | None = None) -> tuple[QRectF, list]:
     """Add the route to *scene*. Returns (the rect to fit, the items added).
 
     The rect covers the origin and every city-level hop. Country-only hops and
     silent hops do not stretch it: a country centroid is not a place the packet
     is known to have been.
+
+    Each segment is a great-circle arc, coloured by the RTT the step added:
+    grey under *quiet_ms*, warming to the hot colour at *hot_ms*. A segment
+    into a gap or a country-only hop is dashed. *ghost* draws the whole route
+    faint (the earlier run in a comparison); *marks* maps hop numbers to a
+    diff mark ("added", "moved", "rtt", ...) shown as a ring.
     """
     items: list = []
     origin = route.get("origin") or {}
@@ -445,26 +515,37 @@ def draw_route(scene: QGraphicsScene, route: dict, palette: theme.Palette,
         fit_points.append(start)
         points.append(start)
 
-    pen = QPen(palette.route, 2.0)
-    pen.setCosmetic(True)
-    pen.setCapStyle(Qt.RoundCap)
-    gap_pen = QPen(palette.route_gap, 1.6, Qt.DashLine)
-    gap_pen.setCosmetic(True)
-
-    prev = points[0] if points else None
-    for group in groups:
+    steps = {st["to"]: st for st in arcs.segment_steps(groups, origin, quiet_ms, hot_ms)}
+    prev_ll = (origin["lat"], origin["lon"]) if origin.get("lat") is not None else None
+    for index, group in enumerate(groups):
         if group["silent"]:
             continue
         here = to_scene(group["lon"], group["lat"])
-        if prev is not None and here != prev:
-            path = QPainterPath(prev)
+        if prev_ll is not None and (prev_ll[0], prev_ll[1]) != (group["lat"], group["lon"]):
+            line = arcs.great_circle(prev_ll[0], prev_ll[1], group["lat"], group["lon"])
+            path = QPainterPath(to_scene(line[0][1], line[0][0]))
+            for lat, lon in line[1:-1]:
+                path.lineTo(to_scene(lon, lat))
+            # End exactly on the marker, which route_groups has unwrapped.
             path.lineTo(here)
+            step = steps.get(index) or {"class": "unknown", "intensity": 0.0}
+            dashed = group["gap_before"] or group["country_only"]
+            color = theme.step_color(palette, step["class"], step["intensity"])
+            if ghost:
+                color = QColor(palette.route_gap)
+                color.setAlpha(150)
+            seg_pen = QPen(color, 1.6 if ghost else (2.4 if step["class"] in ("warm", "hot") else 2.0),
+                           Qt.DashLine if (dashed or ghost) else Qt.SolidLine)
+            seg_pen.setCosmetic(True)
+            seg_pen.setCapStyle(Qt.RoundCap)
             item = QGraphicsPathItem(path)
-            item.setPen(gap_pen if (group["gap_before"] or group["country_only"]) else pen)
-            item.setZValue(5)
+            item.setPen(seg_pen)
+            item.setZValue(4 if ghost else 5)
+            item.setToolTip("" if step.get("step_ms") is None else
+                            f"+{step['step_ms']:.0f} ms RTT on this step")
             scene.addItem(item)
             items.append(item)
-        prev = here
+        prev_ll = (group["lat"], group["lon"])
         points.append(here)
         if not group["country_only"]:
             fit_points.append(here)
@@ -491,6 +572,13 @@ def draw_route(scene: QGraphicsScene, route: dict, palette: theme.Palette,
             marker = MarkerItem(label, color, palette, caption=caption, tooltip=tip, size=size,
                                 hollow=group["country_only"], silent=group["silent"], hops=hops)
         marker.order = group["hops"][0]["hop"] + (1000 if group["silent"] else 0)
+        if marks:
+            mark = next((marks[h] for h in hops if h in marks), None)
+            if mark:
+                marker.diff_mark = mark
+        if ghost:
+            marker.setOpacity(0.45)
+            marker.setZValue(marker.zValue() - 3)
         marker.setPos(to_scene(group["lon"], group["lat"]))
         scene.addItem(marker)
         markers.append(marker)
@@ -617,6 +705,16 @@ class MapView(QGraphicsView):
         self.picking = False
         self.user_moved = False
         self._press_pos = None
+        self.quiet_ms, self.hot_ms = 15.0, 60.0
+        self.ghost: dict | None = None        # an earlier run, drawn faint under the route
+        self.marks: dict | None = None        # hop -> diff mark, for the route
+        self.detail_items: list = []          # the 1:10m world, built on first zoom-in
+        self.ghost_markers: list = []
+        self.label_items: list = []
+        self._detail_timer = QTimer(self)
+        self._detail_timer.setSingleShot(True)
+        self._detail_timer.setInterval(80)
+        self._detail_timer.timeout.connect(self._update_detail)
         self.setRenderHints(QPainter.Antialiasing | QPainter.SmoothPixmapTransform)
         self.setDragMode(QGraphicsView.ScrollHandDrag)
         self.setTransformationAnchor(QGraphicsView.AnchorUnderMouse)
@@ -646,7 +744,7 @@ class MapView(QGraphicsView):
         self.legend_layout.setContentsMargins(10, 8, 10, 8)
         self.legend_layout.setSpacing(3)
 
-        self.attribution = QLabel("Natural Earth · GeoNames", self)
+        self.attribution = QLabel(ATTRIBUTION_BASE, self)
         self.attribution.setObjectName("attribution")
 
         self.card = _Overlay(self)
@@ -690,11 +788,17 @@ class MapView(QGraphicsView):
         for widget in (self.controls, self.legend, self.card, self.attribution):
             widget.setStyleSheet(css)
 
-    def _fill_legend(self, sources: list[str], extra: list[str] | None = None):
+    def _fill_legend(self, sources: list[str], extra: list[str] | None = None, rtt: bool = False):
         while self.legend_layout.count():
             item = self.legend_layout.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
+            old = item.widget()
+            if old is not None:
+                # Hidden and detached now: deleteLater alone leaves the old
+                # rows painted under the new ones when the legend is refilled
+                # twice in one pass (a route, then its comparison).
+                old.hide()
+                old.setParent(None)
+                old.deleteLater()
         title = QLabel("<b>Placed by</b>")
         self.legend_layout.addWidget(title)
         for source in sources:
@@ -727,6 +831,36 @@ class MapView(QGraphicsView):
                                   else "Not placed (yet)"))
             line.addStretch(1)
             self.legend_layout.addWidget(row)
+        if rtt:
+            head = QLabel("<b>RTT added per step</b>")
+            self.legend_layout.addWidget(head)
+            q, hot = self.quiet_ms, self.hot_ms
+            for color, text in ((self.palette_.route_quiet, f"under {q:.0f} ms"),
+                                (theme.mix(self.palette_.route_warm, self.palette_.route_hot, 0.3),
+                                 f"{q:.0f} to {hot:.0f} ms"),
+                                (self.palette_.route_hot, f"{hot:.0f} ms or more")):
+                row = QWidget()
+                line = QHBoxLayout(row)
+                line.setContentsMargins(0, 0, 0, 0)
+                line.setSpacing(6)
+                swatch = QLabel()
+                swatch.setFixedSize(18, 4)
+                swatch.setStyleSheet(f"background: {color.name()}; border-radius: 2px;")
+                line.addWidget(swatch)
+                line.addWidget(QLabel(text))
+                line.addStretch(1)
+                self.legend_layout.addWidget(row)
+            dash = QWidget()
+            line = QHBoxLayout(dash)
+            line.setContentsMargins(0, 0, 0, 0)
+            line.setSpacing(6)
+            swatch = QLabel("- - -")
+            swatch.setFixedWidth(18)
+            swatch.setStyleSheet(f"color: {self.palette_.route_gap.name()}; font-weight: 700;")
+            line.addWidget(swatch)
+            line.addWidget(QLabel("silent stretch or country only"))
+            line.addStretch(1)
+            self.legend_layout.addWidget(dash)
         # Children added to a visible widget are only shown on the next event
         # loop pass, so size the legend after showing them now, or it measures
         # itself empty (found with a live trace redrawing it once per hop).
@@ -745,6 +879,7 @@ class MapView(QGraphicsView):
         if self.markers:
             declutter(self.markers,
                       lambda point: QPointF(self.mapFromScene(point)))
+        self._detail_timer.start()
 
     def _place_overlays(self):
         m = 12
@@ -767,9 +902,11 @@ class MapView(QGraphicsView):
         """The world for the current theme, then the route layer on top."""
         self.palette_ = theme.current()
         self.setScene(build_scene(self.palette_))
+        self.detail_items, self.label_items = [], []
         self._style_overlays()
         self.items_, self.markers = [], []
         self._draw_route_layer()
+        self._detail_timer.start()
 
     def _clear_route_layer(self):
         scene = self.scene()
@@ -784,9 +921,24 @@ class MapView(QGraphicsView):
     def _draw_route_layer(self):
         self._clear_route_layer()
         self.route_rect = QRectF()
+        self.ghost_markers = []
         if self.route is not None:
+            ghost_items = []
+            if self.ghost is not None:
+                ghost_rect, ghost_items = draw_route(self.scene(), self.ghost, self.palette_, None,
+                                                     quiet_ms=self.quiet_ms, hot_ms=self.hot_ms,
+                                                     ghost=True)
             self.route_rect, self.items_ = draw_route(self.scene(), self.route, self.palette_,
-                                                      self.destination)
+                                                      self.destination, quiet_ms=self.quiet_ms,
+                                                      hot_ms=self.hot_ms, marks=self.marks)
+            if self.ghost is not None:
+                self.route_rect = self.route_rect.united(ghost_rect) if not ghost_rect.isNull() \
+                    else self.route_rect
+                self.ghost_markers = markers_of(ghost_items)
+                for item in self.ghost_markers:
+                    item.setAcceptHoverEvents(False)
+                    item.setAcceptedMouseButtons(Qt.NoButton)
+                self.items_ = ghost_items + self.items_
             hops = self.route.get("hops") or []
             used = [s for s in ("hoiho", "site-code", "ip-db", "local")
                     if any(h.get("source") == s for h in hops)]
@@ -795,7 +947,7 @@ class MapView(QGraphicsView):
                 extra.append("country")
             if any(g["silent"] for g in route_groups(self.route)):
                 extra.append("silent")
-            self._fill_legend(used, extra)
+            self._fill_legend(used, extra, rtt=any(h.get("min_rtt_ms") is not None for h in hops))
             self.legend.show()
         else:
             self.legend.hide()
@@ -803,11 +955,73 @@ class MapView(QGraphicsView):
                 lat, lon, label = self.origin_only
                 fake = {"origin": {"lat": lat, "lon": lon, "label": label}, "hops": []}
                 self.route_rect, self.items_ = draw_route(self.scene(), fake, self.palette_)
-        self.markers = markers_of(self.items_)
+        self.attribution.setText(ATTRIBUTION_BASE + (f" · {ATTRIBUTION_DBIP}" if uses_dbip(self.route)
+                                                     else ""))
+        ghosts = set(self.ghost_markers)
+        self.markers = [m for m in markers_of(self.items_) if m not in ghosts]
         for marker in self.markers:
             marker.clicked.connect(self.markerClicked)
             marker.set_selected(bool(self.selected_hops & set(marker.hops)))
         self._place_overlays()
+
+    def _update_detail(self):
+        """1:10m land and city labels when zoomed in; 1:50m and no labels otherwise."""
+        scene = self.scene()
+        if scene is None:
+            return
+        zoom = web_zoom(self.transform().m11() * SCALE)
+        detailed = zoom >= DETAIL_ZOOM
+        if detailed and not self.detail_items:
+            self.detail_items = add_world(scene, self.palette_, "10m")
+            for item in self.detail_items:
+                item.setZValue(0.5)
+        for item in getattr(scene, "world_items", []):
+            item.setVisible(not detailed)
+        for item in self.detail_items:
+            item.setVisible(detailed)
+        for item in self.label_items:
+            if item.scene() is scene:
+                scene.removeItem(item)
+        self.label_items = []
+        if not detailed:
+            return
+        rect = self.mapToScene(self.viewport().rect()).boundingRect()
+        box = (rect.left() / SCALE, -rect.bottom() / SCALE, rect.right() / SCALE, -rect.top() / SCALE)
+        font = QFont()
+        font.setPointSizeF(8.0)
+        metrics = QFontMetricsF(font)
+        taken = [QRectF(QPointF(self.mapFromScene(m.pos())) + m.offset - QPointF(m.w / 2 + 6, m.h / 2 + 6),
+                        QSize(int(m.w + 12), int(m.h + 12))) for m in self.markers]
+        color = self.palette_.overlay_muted
+        for place in visible_places(box, zoom):
+            point = QPointF(self.mapFromScene(to_scene(place["lon"], place["lat"])))
+            w = metrics.horizontalAdvance(place["name"]) + 8
+            area = QRectF(point.x() + 3, point.y() - metrics.height() / 2, w, metrics.height())
+            if any(area.intersects(t) for t in taken):
+                continue
+            taken.append(area)
+            text = scene.addSimpleText(place["name"], font)
+            text.setBrush(color)
+            text.setFlag(QGraphicsItem.ItemIgnoresTransformations, True)
+            text.setPos(to_scene(place["lon"], place["lat"]))
+            text.setZValue(3)
+            dot = scene.addEllipse(-1.6, -1.6, 3.2, 3.2, QPen(Qt.NoPen), QBrush(color))
+            dot.setFlag(QGraphicsItem.ItemIgnoresTransformations, True)
+            dot.setPos(to_scene(place["lon"], place["lat"]))
+            dot.setZValue(3)
+            text.setTransform(text.transform().translate(4, -metrics.height() / 2))
+            self.label_items += [text, dot]
+
+    def set_thresholds(self, quiet_ms: float, hot_ms: float):
+        if (quiet_ms, hot_ms) != (self.quiet_ms, self.hot_ms):
+            self.quiet_ms, self.hot_ms = quiet_ms, hot_ms
+            self._draw_route_layer()
+
+    def set_comparison(self, ghost: dict | None, marks: dict | None):
+        """Draw *ghost* (an earlier run) faint under the route, and ring the
+        route's markers by *marks*. None, None ends the comparison."""
+        self.ghost, self.marks = ghost, marks
+        self._draw_route_layer()
 
     def theme_changed(self):
         self._rebuild()
@@ -935,11 +1149,22 @@ class MapView(QGraphicsView):
 # ------------------------------------------------------------------ export ---
 
 def render_png(route: dict, *, width: int = 1600, height: int = 900, dark: bool = False,
-               title: str = "", provenance: str = "", destination: str | None = None) -> QImage:
-    """The full route extent rendered off-screen, with legend and provenance."""
+               title: str = "", provenance: str = "", destination: str | None = None,
+               quiet_ms: float = 15.0, hot_ms: float = 60.0, ghost: dict | None = None,
+               marks: dict | None = None) -> QImage:
+    """The full route extent rendered off-screen, with legend and provenance.
+    *ghost* and *marks* draw a comparison, as on screen."""
     palette = theme.DARK if dark else theme.LIGHT
     scene = build_scene(palette)
-    rect, markers = draw_route(scene, route, palette, destination, size=1.35)
+    markers = []
+    rect = QRectF()
+    if ghost is not None:
+        rect, ghost_items = draw_route(scene, ghost, palette, None, size=1.35, quiet_ms=quiet_ms,
+                                       hot_ms=hot_ms, ghost=True)
+    main_rect, items = draw_route(scene, route, palette, destination, size=1.35, quiet_ms=quiet_ms,
+                                  hot_ms=hot_ms, marks=marks)
+    rect = main_rect if rect.isNull() else rect.united(main_rect)
+    markers = markers_of(items)
     source = padded(rect, width / height)
     k = min(width / source.width(), height / source.height())
     ox = (width - source.width() * k) / 2
@@ -952,33 +1177,8 @@ def render_png(route: dict, *, width: int = 1600, height: int = 900, dark: bool 
     painter.setRenderHints(QPainter.Antialiasing | QPainter.TextAntialiasing)
     scene.render(painter, QRectF(0, 0, width, height), source, Qt.KeepAspectRatio)
 
-    # Legend, bottom left.
-    used = [s for s in ("hoiho", "site-code", "ip-db", "local")
-            if any(h.get("source") == s for h in route.get("hops") or [])]
-    font = QFont()
-    font.setPointSizeF(13)
-    painter.setFont(font)
-    metrics = QFontMetricsF(font)
-    line_h = metrics.height() + 6
-    box_w = max([metrics.horizontalAdvance(theme.SOURCE_LABELS[s]) for s in used] + [120]) + 52
-    box_h = line_h * (len(used) + 1) + 18
-    box = QRectF(24, height - box_h - 24, box_w, box_h)
-    painter.setPen(QPen(palette.coast, 1))
-    painter.setBrush(palette.overlay_bg)
-    painter.drawRoundedRect(box, 10, 10)
-    painter.setPen(palette.overlay_fg)
-    bold = QFont(font)
-    bold.setBold(True)
-    painter.setFont(bold)
-    painter.drawText(QPointF(box.left() + 16, box.top() + 12 + metrics.ascent()), "Placed by")
-    painter.setFont(font)
-    for i, source in enumerate(used):
-        y = box.top() + 12 + line_h * (i + 1)
-        painter.setPen(Qt.NoPen)
-        painter.setBrush(palette.sources[source])
-        painter.drawEllipse(QPointF(box.left() + 22, y + metrics.height() / 2), 6, 6)
-        painter.setPen(palette.overlay_fg)
-        painter.drawText(QPointF(box.left() + 38, y + metrics.ascent()), theme.SOURCE_LABELS[source])
+    from routemap.gui.globeview import paint_legend
+    paint_legend(painter, QPointF(24, height - 24), palette, route, quiet_ms, hot_ms, size=1.35)
 
     # Title top left, provenance bottom right.
     if title:

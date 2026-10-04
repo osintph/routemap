@@ -55,3 +55,22 @@ The desktop app has no telemetry. The website, getroutemap.app, counts visits
 with Cloudflare Web Analytics, which sets no cookies and does not track
 individuals across sites; it records page views, referrers, countries,
 browsers and devices as totals. The site's privacy page has the details.
+
+## Why are there no submarine cables on the map?
+
+The well-known cable map is TeleGeography's. Its map images are licensed CC
+BY-SA 4.0, but the cable and landing-point data behind them is sold under an
+annual licence, so a free application cannot ship it. The overlay will come
+back if an openly licensed source appears.
+
+## Why no internet exchange points?
+
+PeeringDB has the list of exchange prefixes, but its terms do not allow
+reproducing or redistributing it without permission. Permission is being asked;
+until PeeringDB agrees, hops at an exchange are shown like any other hop.
+
+## Where does the AS number come from?
+
+From DB-IP Lite ASN, bundled with the app (CC BY 4.0, IP Geolocation by
+DB-IP), so the AS path works offline. With Online lookups on, RIPEstat adds the
+routed prefix, RPKI state and the rest of the route summary.

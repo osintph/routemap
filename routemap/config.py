@@ -88,6 +88,17 @@ class Settings:
     atlas_acknowledged: bool = False
     history_enabled: bool = True
     window_geometry: str = ""
+    # 0.2.0
+    # One switch for every online lookup the app makes beyond the trace itself:
+    # Hoiho, the RIPEstat IP database tier and route details, the RIPE Atlas
+    # baseline, and reverse DNS. Off: nothing new leaves the machine.
+    online_lookups: bool = True
+    projection: str = "flat"                 # "flat" or "globe"
+    rtt_quiet_ms: float = 15.0               # RTT steps below this draw grey
+    rtt_hot_ms: float = 60.0                 # and at or above this, fully warm
+    sensitive_countries: list = field(default_factory=list)   # ISO codes, upper case
+    falconeye_url: str = "https://falconeye.osintph.info"
+    city_db_declined: bool = False           # "Not now" on the first-run download offer
 
     def origin(self) -> tuple[float, float, str] | None:
         """The chosen origin, or None when it is to come from the public IP."""
@@ -122,7 +133,7 @@ def load_settings() -> Settings:
         merged.update({k: v for k, v in settings.flags.items()
                        if k in merged and isinstance(v, list) and all(isinstance(x, str) for x in v)})
     settings.flags = merged
-    return settings
+    return normalise(settings)
 
 
 def save_settings(settings: Settings) -> None:
@@ -191,6 +202,34 @@ def cache_path() -> Path:
 def ip_cache_path() -> Path:
     """IP database answers (hop address -> location), kept as long as Hoiho's."""
     return config_dir() / "ipgeo-cache.sqlite3"
+
+
+def ripe_cache_path() -> Path:
+    """RIPEstat route details and the Atlas baseline, each with its own lifetime."""
+    return config_dir() / "ripe-cache.sqlite3"
+
+
+PROJECTIONS = ("flat", "globe")
+
+
+def normalise(settings: Settings) -> Settings:
+    """Clamp values a hand-edited file could break."""
+    if settings.projection not in PROJECTIONS:
+        settings.projection = "flat"
+    try:
+        quiet = max(0.0, float(settings.rtt_quiet_ms))
+        hot = max(quiet + 1.0, float(settings.rtt_hot_ms))
+    except (TypeError, ValueError):
+        quiet, hot = 15.0, 60.0
+    settings.rtt_quiet_ms, settings.rtt_hot_ms = quiet, hot
+    if not isinstance(settings.sensitive_countries, list):
+        settings.sensitive_countries = []
+    settings.sensitive_countries = sorted({str(c).strip().upper() for c in settings.sensitive_countries
+                                           if len(str(c).strip()) == 2 and str(c).strip().isalpha()})
+    url = str(settings.falconeye_url or "").strip().rstrip("/")
+    settings.falconeye_url = url if url.startswith(("https://", "http://")) else \
+        "https://falconeye.osintph.info"
+    return settings
 
 
 def site_codes_path() -> Path:

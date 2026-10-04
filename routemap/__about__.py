@@ -35,7 +35,7 @@ DONATIONS_PAY_FOR = "code signing, hosting, the RIPE Atlas probe, and maintenanc
 # then says so.
 WINDOWS_SIGNED = False
 
-__version__ = "0.1.0b5"
+__version__ = "0.2.0b1"
 
 # Upstreams see this product token, so a complaint about our traffic reaches
 # the project rather than whoever happens to be running it.

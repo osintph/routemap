@@ -1,15 +1,23 @@
 """
-Build the bundled world map from Natural Earth 1:50m vectors.
+Build the bundled world maps from Natural Earth vectors.
 
-    python -m routemap.gui.naturalearth SRC_DIR [--out routemap/gui/data/world_50m.json.gz]
+    python -m routemap.gui.naturalearth SRC_DIR                 # 1:50m
+    python -m routemap.gui.naturalearth SRC_DIR --scale 10m     # 1:10m and places
 
-SRC_DIR holds the three GeoJSON files from Natural Earth's own repository at a
-release tag (v5.1.2 for the shipped copy):
+SRC_DIR holds the GeoJSON files from Natural Earth's own repository at a
+release tag (v5.1.2 for the shipped copies):
 
     https://github.com/nvkelso/natural-earth-vector/tree/v5.1.2/geojson
-      ne_50m_land.geojson
-      ne_50m_lakes.geojson
-      ne_50m_admin_0_boundary_lines_land.geojson
+      ne_{50m,10m}_land.geojson
+      ne_{50m,10m}_lakes.geojson
+      ne_{50m,10m}_admin_0_boundary_lines_land.geojson
+      ne_10m_populated_places_simple.geojson     (10m only: the city labels)
+
+Two scales because they do different jobs. 1:50m draws the whole world and the
+globe while it is dragged, where a finer coastline is below a pixel and costs
+frame rate. 1:10m takes over when the flat map is zoomed in to a region, and
+carries the populated places with Natural Earth's own ``min_zoom``, so a label
+appears at the zoom its cartographers chose for it.
 
 Natural Earth is public domain ("No permission is needed to use Natural Earth.
 Crediting the authors is unnecessary."); the app credits it anyway.
@@ -34,10 +42,14 @@ import json
 import pathlib
 import sys
 
-TOLERANCE_DEG = 0.02
-QUANT = 100  # 0.01 degree steps
-DEFAULT_OUT = pathlib.Path(__file__).resolve().parent / "data" / "world_50m.json.gz"
+DATA = pathlib.Path(__file__).resolve().parent / "data"
 SOURCE_TAG = "v5.1.2"
+# scale: (tolerance in degrees, quantisation steps per degree, output file)
+SCALES = {
+    "50m": (0.02, 100, DATA / "world_50m.json.gz"),     # 0.01 degree steps
+    "10m": (0.004, 500, DATA / "world_10m.json.gz"),    # 0.002 degree steps, about 200 m
+}
+TOLERANCE_DEG, QUANT, DEFAULT_OUT = SCALES["50m"]
 
 
 def _perp(p, a, b) -> float:
@@ -69,11 +81,11 @@ def simplify(points: list, tol: float) -> list:
     return [p for p, k in zip(points, keep) if k]
 
 
-def _encode(points: list) -> list[int]:
+def _encode(points: list, quant: int = QUANT) -> list[int]:
     """Quantise and delta-encode to a flat int list: x0, y0, dx1, dy1, ..."""
     out, px, py = [], 0, 0
     for lon, lat in points:
-        x, y = round(lon * QUANT), round(lat * QUANT)
+        x, y = round(lon * quant), round(lat * quant)
         if out and x == px and y == py:
             continue
         out += [x - px, y - py]
@@ -89,31 +101,55 @@ def _rings(geometry: dict, polygons: bool) -> list:
     return [coords] if kind == "LineString" else coords
 
 
-def _layer(path: pathlib.Path, polygons: bool, min_points: int) -> list:
+def _layer(path: pathlib.Path, polygons: bool, min_points: int,
+           tolerance: float = TOLERANCE_DEG, quant: int = QUANT) -> list:
     data = json.loads(path.read_text(encoding="utf-8"))
     out = []
     for feature in data["features"]:
         for ring in _rings(feature["geometry"], polygons):
-            simple = simplify([tuple(p[:2]) for p in ring], TOLERANCE_DEG)
+            simple = simplify([tuple(p[:2]) for p in ring], tolerance)
             if len(simple) >= min_points:
-                out.append(_encode(simple))
+                out.append(_encode(simple, quant))
     return out
+
+
+def _places(path: pathlib.Path) -> list:
+    """[name, cc, lat, lon, min_zoom, population], largest first."""
+    data = json.loads(path.read_text(encoding="utf-8"))
+    rows = []
+    for feature in data["features"]:
+        p = feature["properties"]
+        name = p.get("nameascii") or p.get("name")
+        if not name:
+            continue
+        rows.append([name, p.get("iso_a2") or "", round(float(p["latitude"]), 3),
+                     round(float(p["longitude"]), 3), round(float(p.get("min_zoom") or 10), 1),
+                     int(p.get("pop_max") or 0)])
+    rows.sort(key=lambda r: (-r[5], r[0]))
+    return rows
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Build the bundled Natural Earth world map.")
     parser.add_argument("src", type=pathlib.Path)
-    parser.add_argument("--out", type=pathlib.Path, default=DEFAULT_OUT)
+    parser.add_argument("--scale", choices=sorted(SCALES), default="50m")
+    parser.add_argument("--out", type=pathlib.Path)
     args = parser.parse_args(argv)
+    tolerance, quant, default_out = SCALES[args.scale]
+    args.out = args.out or default_out
+    sc = args.scale
 
     body = {
-        "source": f"Natural Earth 1:50m {SOURCE_TAG} (public domain), naturalearthdata.com",
-        "quant": QUANT,
-        "tolerance_deg": TOLERANCE_DEG,
-        "land": _layer(args.src / "ne_50m_land.geojson", True, 4),
-        "lakes": _layer(args.src / "ne_50m_lakes.geojson", True, 4),
-        "borders": _layer(args.src / "ne_50m_admin_0_boundary_lines_land.geojson", False, 2),
+        "source": f"Natural Earth 1:{sc} {SOURCE_TAG} (public domain), naturalearthdata.com",
+        "quant": quant,
+        "tolerance_deg": tolerance,
+        "land": _layer(args.src / f"ne_{sc}_land.geojson", True, 4, tolerance, quant),
+        "lakes": _layer(args.src / f"ne_{sc}_lakes.geojson", True, 4, tolerance, quant),
+        "borders": _layer(args.src / f"ne_{sc}_admin_0_boundary_lines_land.geojson", False, 2,
+                          tolerance, quant),
     }
+    if sc == "10m":
+        body["places"] = _places(args.src / "ne_10m_populated_places_simple.geojson")
     raw = json.dumps(body, separators=(",", ":")).encode()
     args.out.parent.mkdir(parents=True, exist_ok=True)
     # mtime=0 so rebuilding from the same source gives a byte-identical file.

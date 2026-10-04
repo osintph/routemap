@@ -18,10 +18,12 @@ from routemap.gui import theme
 
 # Ordered by what a reader needs first: where each hop is and how we know, then
 # the evidence. At a 1440-pixel window the first seven are always visible.
-COLUMNS = ["#", "Location", "Source", "Hostname", "IP address", "RTT min", "RTT avg", "Loss",
-           "Notes"]
-KEYS = ["hop", "place", "source", "hostname", "address", "min", "avg", "loss", "notes"]
-WIDTHS = [32, 132, 142, 186, 112, 76, 76, 50]
+COLUMNS = ["#", "Location", "Source", "ASN", "RPKI", "Hostname", "IP address", "RTT min", "RTT avg",
+           "Loss", "Notes"]
+KEYS = ["hop", "place", "source", "asn", "rpki", "hostname", "address", "min", "avg", "loss", "notes"]
+WIDTHS = [32, 132, 150, 78, 64, 186, 112, 76, 76, 50]
+RPKI_SHORT = {"valid": "valid", "unknown": "no ROA", "invalid": "INVALID", "invalid_asn": "INVALID",
+              "invalid_length": "INVALID"}
 NUMERIC = {"hop", "min", "avg", "loss"}
 
 # Short forms of the engine's annotation labels, for a narrow column. The full
@@ -58,10 +60,14 @@ class HopModel(QAbstractTableModel):
         super().__init__(parent)
         self.hops: list[dict] = []
         self.icons: dict = {}
+        self.details: dict = {}       # str(hop) -> {"prefix", "rpki"} from the online insight
+        self.marks: dict = {}         # hop -> diff mark
 
-    def set_hops(self, hops: list[dict]):
+    def set_hops(self, hops: list[dict], details: dict | None = None, marks: dict | None = None):
         self.beginResetModel()
         self.hops = list(hops)
+        self.details = dict(details or {})
+        self.marks = dict(marks or {})
         palette = theme.current()
         self.icons = {k: _dot(v) for k, v in palette.sources.items()}
         self.icons["country"] = _dot(palette.sources["ip-db"], hollow=True)
@@ -101,7 +107,15 @@ class HopModel(QAbstractTableModel):
             from routemap.gui.mapview import source_label
             return source_label(hop)
         if key == "notes":
-            return ", ".join(NOTE_SHORT.get(a, a) for a in hop.get("annotations") or [])
+            notes = [NOTE_SHORT.get(a, a) for a in hop.get("annotations") or []]
+            if hop.get("hop") in self.marks:
+                notes.insert(0, theme.DIFF_LABELS.get(self.marks[hop["hop"]], ""))
+            return ", ".join(n for n in notes if n)
+        if key == "asn":
+            return f"AS{hop['asn']}" if hop.get("asn") else ""
+        if key == "rpki":
+            state = (self.details.get(str(hop["hop"])) or {}).get("rpki")
+            return RPKI_SHORT.get(state, "") if state else ""
         return ""
 
     def sort_key(self, hop: dict, column: int):
@@ -131,6 +145,15 @@ class HopModel(QAbstractTableModel):
         if hop.get("carrier"):
             lines.append(f"Site code {html.escape(hop.get('site_code') or '')} in "
                          f"{html.escape(hop['carrier'])}'s published list")
+        if hop.get("source") == "ip-db":
+            lines.append("IP database: " + ("DB-IP Lite City, on this machine" if hop.get("ip_provider") == "dbip"
+                                            else "RIPEstat, online"))
+        if hop.get("asn"):
+            lines.append(f"AS{hop['asn']} " + html.escape(hop.get("as_org") or ""))
+        detail = self.details.get(str(hop["hop"])) or {}
+        if detail.get("prefix"):
+            lines.append(f"Routed prefix {html.escape(detail['prefix'])}, RPKI "
+                         f"{html.escape(RPKI_SHORT.get(detail.get('rpki'), detail.get('rpki') or 'unavailable'))}")
         if hop.get("reason") and hop.get("lat") is None:
             lines.append("Not placed: " + html.escape(hop["reason"]))
         for note in hop.get("annotation_details") or []:
@@ -153,8 +176,16 @@ class HopModel(QAbstractTableModel):
             return self.tooltip(hop)
         if role == Qt.TextAlignmentRole and KEYS[column] in NUMERIC:
             return int(Qt.AlignRight | Qt.AlignVCenter)
+        if role == Qt.ForegroundRole and KEYS[column] == "rpki":
+            state = (self.details.get(str(hop["hop"])) or {}).get("rpki") or ""
+            if state.startswith("invalid"):
+                return QColor("#c0392b")
         if role == Qt.ForegroundRole and hop.get("lat") is None:
             return QColor(theme.current().overlay_muted)
+        if role == Qt.BackgroundRole and hop.get("hop") in self.marks:
+            color = QColor(theme.diff_color(theme.current(), self.marks[hop["hop"]]))
+            color.setAlpha(40)
+            return color
         return None
 
 
@@ -223,13 +254,13 @@ class HopTable(QTableView):
         finally:
             self._syncing = False
 
-    def set_hops(self, hops: list[dict]):
+    def set_hops(self, hops: list[dict], details: dict | None = None, marks: dict | None = None):
         """Replace the rows, keeping the selection (by hop number) and scroll position."""
         keep = self.selected_hops()
         scroll = self.verticalScrollBar().value()
         self._syncing = True
         try:
-            self.model_.set_hops(hops)
+            self.model_.set_hops(hops, details, marks)
             self.sortByColumn(self.horizontalHeader().sortIndicatorSection(),
                               self.horizontalHeader().sortIndicatorOrder())
         finally:

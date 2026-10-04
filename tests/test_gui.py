@@ -11,7 +11,7 @@ import pytest
 
 pytest.importorskip("PySide6")
 
-from PySide6.QtCore import QRectF  # noqa: E402
+from PySide6.QtCore import QRectF, Qt  # noqa: E402
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
 from routemap.gui import geometry, mapview  # noqa: E402
@@ -174,7 +174,10 @@ def test_country_only_hops_are_hollow_labelled_and_not_in_the_fit(app):
     model = HopModel()
     model.set_hops(route["hops"])
     hop = country[0]
-    assert model.text(hop, 2) == "ip-db, country only"
+    # The Source column names the tier that answered: RIPEstat online when the
+    # DB-IP City file is not installed, DB-IP when it is.
+    assert model.text(hop, 2) == "ip-db (RIPEstat, online), country only"
+    assert model.text(dict(hop, ip_provider="dbip"), 2) == "ip-db (DB-IP), country only"
     assert model.text(hop, 1).endswith("(country only)")
 
 
@@ -239,3 +242,151 @@ def test_the_app_does_not_link_the_site_until_it_is_approved(app, monkeypatch):
         text = " ".join(label.text() for label in dialogs.SupportDialog(window).findChildren(dialogs.QLabel))
         assert __about__.SITE_URL not in text and "getroutemap.app/" not in text
     window.close()
+
+
+# ------------------------------------------------------------------- 0.2.0 ---
+
+def _sample_route():
+    from importlib import resources
+
+    from routemap_engine import OFFLINE, analyse_sync
+    text = resources.files("routemap.gui").joinpath("data/sample_trace.txt").read_text("utf-8")
+    return analyse_sync(text, (14.6, 121.0), sources=OFFLINE).to_dict()
+
+
+def test_both_projections_draw_the_same_route_and_switching_keeps_it(app):
+    from routemap.gui.mappane import MapPane
+    route = _sample_route()
+    pane = MapPane()
+    pane.resize(900, 600)
+    pane.show()
+    pane.set_route(route, "heise.de")
+    app.processEvents()
+    assert pane.flat.markers and not pane.flat.ghost_markers
+    pane.set_projection("globe")
+    app.processEvents()
+    image = pane.grab()
+    assert not image.isNull()
+    pane.globe.grab()
+    assert pane.globe._hits, "the globe drew no clickable markers"
+    hit_hops = {n for _, hops, _ in pane.globe._hits for n in hops}
+    assert hit_hops <= {h["hop"] for h in route["hops"]}
+    pane.set_projection("flat")
+    assert pane.flat.route is route and pane.globe.route is route
+
+
+def test_a_globe_marker_click_reports_its_hops(app):
+    from PySide6.QtCore import QEvent, QPointF, Qt
+    from PySide6.QtGui import QMouseEvent
+    from routemap.gui.globeview import GlobeView
+    view = GlobeView()
+    view.resize(800, 600)
+    view.show()
+    view.set_route(_sample_route(), "heise.de")
+    view.grab()                     # paints, which records where each marker is
+    rect, hops, _ = view._hits[-1]
+    got = []
+    view.markerClicked.connect(got.append)
+    for kind in (QEvent.MouseButtonPress, QEvent.MouseButtonRelease):
+        view.event(QMouseEvent(kind, rect.center(), rect.center(), Qt.LeftButton, Qt.LeftButton, Qt.NoModifier))
+    assert got == [hops]
+
+
+def test_the_orthographic_projection_round_trips_and_hides_the_far_side():
+    from routemap.gui.globeview import Ortho
+    proj = Ortho(20.0, 100.0, 400, 300, 250)
+    x, y, vis = proj.project(14.6, 121.0)
+    assert vis
+    lat, lon = proj.invert(x, y)
+    assert lat == pytest.approx(14.6, abs=1e-6) and lon == pytest.approx(121.0, abs=1e-6)
+    x, y, vis = proj.project(-20.0, -80.0)
+    assert not vis and ((x - 400) ** 2 + (y - 300) ** 2) ** 0.5 == pytest.approx(250, abs=1e-6)
+
+
+def test_replay_ends_with_the_whole_route_and_the_view_untouched(app):
+    import time
+
+    from routemap.gui import mappane
+    route = _sample_route()
+    pane = mappane.MapPane()
+    pane.resize(900, 600)
+    pane.show()
+    pane.set_route(route, "heise.de")
+    app.processEvents()
+    before = pane.flat.transform()
+    moved_before = pane.flat.user_moved
+    pane.replay()
+    assert pane.replaying
+    deadline = time.time() + mappane.REPLAY_SECONDS + 4
+    while pane.replaying and time.time() < deadline:
+        app.processEvents()
+        time.sleep(0.02)
+    assert not pane.replaying
+    assert len(pane.flat.route["hops"]) == len(route["hops"])
+    assert pane.flat.transform() == before and pane.flat.user_moved == moved_before
+
+
+def test_a_comparison_ghosts_the_old_run_and_rings_changed_hops(app):
+    from routemap.gui.mappane import MapPane
+    from routemap_engine import diff
+    old = _sample_route()
+    new = json.loads(json.dumps(old))
+    new["hops"] = [h for h in new["hops"] if h["hop"] not in (8, 9)]   # Marseille and Paris gone
+    d = diff.diff_routes(old, new)
+    assert "Marseille" in d["summary"] and "gone" in d["summary"]
+    pane = MapPane()
+    pane.set_route(new, "heise.de")
+    pane.set_comparison(old, d["new_marks"])
+    assert pane.flat.ghost_markers and all(m.opacity() < 1 for m in pane.flat.ghost_markers)
+    assert not set(pane.flat.ghost_markers) & set(pane.flat.markers)
+    pane.set_comparison(None, None)
+    assert not pane.flat.ghost_markers
+
+
+def test_rtt_colours_follow_the_thresholds(app):
+    from routemap.gui import theme
+    scene = mapview.build_scene(theme.LIGHT)
+    route = _sample_route()
+    _, items = mapview.draw_route(scene, route, theme.LIGHT, quiet_ms=1000, hot_ms=2000)
+    lines = [i for i in items if not isinstance(i, mapview.MarkerItem)]
+    solid = [i.pen().color().name() for i in lines if i.pen().style() == Qt.SolidLine]
+    assert solid and set(solid) == {theme.LIGHT.route_quiet.name()}, "every step is quiet at 1000 ms"
+
+
+def test_settings_round_trip_the_new_fields(app):
+    from routemap.config import Settings
+    from routemap.gui.dialogs import SettingsDialog
+    s = Settings()
+    dialog = SettingsDialog(None, s)
+    dialog.online.setChecked(False)
+    assert not dialog.use_hoiho.isEnabled() and not dialog.use_ptr.isEnabled()
+    dialog.projection.setCurrentIndex(1)
+    dialog.rtt_quiet.setValue(20)
+    dialog.rtt_hot.setValue(80)
+    dialog.sensitive.setText("sg, xx1, cn")
+    dialog.falconeye.setText("https://falcon.example.org/")
+    problems = dialog.values_into(s)
+    assert (s.online_lookups, s.projection, s.rtt_quiet_ms, s.rtt_hot_ms) == (False, "globe", 20, 80)
+    assert s.sensitive_countries == ["CN", "SG"] and any("XX1" in p for p in problems)
+    assert s.falconeye_url == "https://falcon.example.org"
+    assert "not installed" in dialog.data_label.text()
+
+
+def test_the_summary_panel_and_hop_details_show_offline_insight(app):
+    from routemap import config, insight
+    from routemap.gui.insightpanel import HopDetails, InsightPanel
+    route = _sample_route()
+    ins = insight.offline(route, config.Settings(sensitive_countries=["SG"]))
+    ins["online"] = {"status": insight.OFF}
+    panel = InsightPanel()
+    panel.show_summary(route, ins, origin_cc="PH")
+    assert "AS1299" in panel.sections["path"][1].text()
+    assert "sensitive" in panel.sections["countries"][1].text()
+    assert "Online lookups" in panel.sections["status"][1].text()
+    details = HopDetails()
+    hop = next(h for h in route["hops"] if h["hop"] == 7)
+    details.show_hop(hop, ins, {"rir": None, "abuse": None, "status": insight.OFF})
+    assert "AS1299" in details.rows["ASN"].text() and details.falcon.isEnabled()
+    local = route["hops"][0]
+    details.show_hop(local, ins, None)
+    assert not details.falcon.isEnabled()

@@ -20,7 +20,8 @@ from PySide6.QtWidgets import (QDockWidget, QHBoxLayout, QLabel, QLineEdit, QMai
 
 from routemap.__about__ import DISPLAY_NAME
 from routemap.gui.hoptable import HopTable
-from routemap.gui.mapview import MapView
+from routemap.gui.insightpanel import HopDetails, InsightPanel
+from routemap.gui.mappane import MapPane
 from routemap.gui.panels import HistoryPanel, LiveOutput, SourceStatus, UnplacedPanel
 
 ORIGIN_APPROX = "approximate; wrong on a VPN or exit node"
@@ -69,18 +70,33 @@ class MainWindow(QMainWindow):
         outer.addLayout(bar)
 
         self.splitter = QSplitter(Qt.Horizontal, central)
-        self.map = MapView(self.splitter)
+        self.map = MapPane(self.splitter)
         right = QWidget(self.splitter)
         right_layout = QVBoxLayout(right)
         right_layout.setContentsMargins(0, 0, 0, 0)
         right_layout.setSpacing(6)
         self.summary = QLabel(right)
         self.summary.setTextFormat(Qt.RichText)
-        self.table = HopTable(right)
+        self.summary.setWordWrap(True)
+        self.right_split = QSplitter(Qt.Vertical, right)
+        self.insight = InsightPanel(self.right_split)
+        table_box = QWidget(self.right_split)
+        table_layout = QVBoxLayout(table_box)
+        table_layout.setContentsMargins(0, 0, 0, 0)
+        table_layout.setSpacing(6)
+        self.table = HopTable(table_box)
+        self.details = HopDetails(table_box)
+        table_layout.addWidget(self.table, 1)
+        table_layout.addWidget(self.details)
+        self.right_split.addWidget(self.insight)
+        self.right_split.addWidget(table_box)
+        self.right_split.setStretchFactor(0, 2)
+        self.right_split.setStretchFactor(1, 3)
+        self.right_split.setSizes([300, 460])
         self.live = LiveOutput(right)
         self.unplaced = UnplacedPanel(right)
         right_layout.addWidget(self.summary)
-        right_layout.addWidget(self.table, 1)
+        right_layout.addWidget(self.right_split, 1)
         right_layout.addWidget(self.live)
         right_layout.addWidget(self.unplaced)
         self.splitter.addWidget(self.map)
@@ -145,7 +161,14 @@ class MainWindow(QMainWindow):
         fit.triggered.connect(lambda: self.map.fit_route())
         world = QAction("Whole World", self, shortcut=QKeySequence("Ctrl+9"))
         world.triggered.connect(lambda: self.map.reset_view())
+        self.act_globe = QAction("Globe", self, checkable=True, shortcut=QKeySequence("Ctrl+G"))
+        self.act_globe.toggled.connect(lambda on: self.map.set_projection("globe" if on else "flat", user=True))
+        self.map.projectionChanged.connect(lambda proj: self.act_globe.setChecked(proj == "globe"))
+        replay = QAction("Replay Route", self, shortcut=QKeySequence("Ctrl+R"))
+        replay.triggered.connect(self.map.replay)
         view_menu.addSeparator()
+        view_menu.addAction(self.act_globe)
+        view_menu.addAction(replay)
         view_menu.addAction(fit)
         view_menu.addAction(world)
 
@@ -154,8 +177,18 @@ class MainWindow(QMainWindow):
         self.act_trace.triggered.connect(self.trace_button.click)
         self.act_stop = QAction("Stop", self, shortcut=QKeySequence("Ctrl+."))
         self.act_atlas = QAction("Trace from a RIPE Atlas Probe…", self)
+        self.act_again = QAction("Trace Again and Compare", self, shortcut=QKeySequence("Ctrl+Shift+R"))
+        self.act_compare_file = QAction("Compare with an Export…", self)
+        self.act_compare_atlas = QAction("Compare with an Earlier Atlas Measurement…", self)
+        self.act_end_compare = QAction("End Comparison", self)
+        self.act_end_compare.setEnabled(False)
         trace_menu.addAction(self.act_trace)
         trace_menu.addAction(self.act_stop)
+        trace_menu.addSeparator()
+        trace_menu.addAction(self.act_again)
+        trace_menu.addAction(self.act_compare_file)
+        trace_menu.addAction(self.act_compare_atlas)
+        trace_menu.addAction(self.act_end_compare)
         trace_menu.addSeparator()
         trace_menu.addAction(self.act_atlas)
 
@@ -195,7 +228,10 @@ class MainWindow(QMainWindow):
 
     def _theme_changed(self):
         self.map.theme_changed()
-        self.table.set_hops(self.table.model_.hops)
+        m = self.table.model_
+        self.table.set_hops(m.hops, m.details, m.marks)
+        if callable(getattr(self, "refresh_panels", None)):
+            self.refresh_panels()
 
     # --------------------------------------------------------------- status ---
     def set_origin_status(self, label: str, how: str):
@@ -230,6 +266,8 @@ class MainWindow(QMainWindow):
         self.sources.hide()
         self.table.set_hops([])
         self.unplaced.set_hops([])
+        self.insight.clear()
+        self.details.hide()
         self.live.start([])
         self.summary.setText("<span style='color:gray'>No route yet.</span>")
         if origin:
@@ -257,6 +295,8 @@ class MainWindow(QMainWindow):
         self.map.hide_card()
         self.table.set_hops([])
         self.unplaced.set_hops([])
+        self.insight.clear()
+        self.details.hide()
         self.live.start(argv)
         for line in lines or []:
             self.live.append(line)

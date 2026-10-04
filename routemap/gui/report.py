@@ -25,11 +25,14 @@ ZEBRA = QColor("#f4f6f8")
 METHOD = (
     "Each hop is placed from the router's own hostname first: CAIDA Hoiho's published "
     "naming rules, then the carrier site-code table built from each carrier's own router "
-    "list. The IP geolocation database is used only when neither places the hop. Every "
-    "candidate location is checked against the speed of light in fibre: a place further "
-    "away than the hop's fastest round trip allows (about 100 km per millisecond, plus "
-    "300 km for the origin's city-level precision) is rejected, whichever source claimed "
-    "it. Private, CGNAT and reserved addresses are shown at the origin and never looked up."
+    "list. An IP geolocation database is used only when neither places the hop: DB-IP Lite "
+    "City on this machine when it is installed, RIPEstat online otherwise; the Source "
+    "column says which. Every candidate location is checked against the speed of light in "
+    "fibre: a place further away than the hop's fastest round trip allows (about 100 km per "
+    "millisecond, plus 300 km for the origin's city-level precision) is rejected, whichever "
+    "source claimed it, and so is a database answer between two hops in one area when the "
+    "RTT did not rise enough to pay for the detour. Private, CGNAT and reserved addresses are "
+    "shown at the origin and never looked up."
 )
 
 
@@ -166,7 +169,9 @@ def _fmt(value, unit: str = " ms") -> str:
 
 def write_pdf(path: str, route: dict, *, target: str, trace_text: str, tool_label: str,
               origin_how: str | None, source: str, when: _dt.datetime | None = None,
-              include_trace: bool = True) -> None:
+              include_trace: bool = True, insight: dict | None = None,
+              comparison: dict | None = None, quiet_ms: float = 15.0, hot_ms: float = 60.0,
+              origin_cc: str | None = None) -> None:
     when = when or _dt.datetime.now().astimezone()
     writer = QPdfWriter(path)
     writer.setResolution(300)
@@ -207,10 +212,14 @@ def write_pdf(path: str, route: dict, *, target: str, trace_text: str, tool_labe
     for warning in route.get("warnings") or []:
         flow.text(f"Note: {warning}", 8.5, color=QColor("#a35a00"))
 
-    image = mapview.render_png(route, width=1800, height=1013, title="",
-                               provenance=f"{geometry.ATTRIBUTION} · GeoNames CC BY 4.0",
-                               destination=target)
+    credit = f"{geometry.ATTRIBUTION} · GeoNames CC BY 4.0" + (
+        " · IP Geolocation by DB-IP" if mapview.uses_dbip(route) else "")
+    image = mapview.render_png(route, width=1800, height=1013, title="", provenance=credit,
+                               destination=target, quiet_ms=quiet_ms, hot_ms=hot_ms)
     flow.image(image, (flow.width / flow.dpi * 25.4) * 1013 / 1800)
+
+    if insight:
+        _summary_section(flow, route, insight, origin_cc)
 
     flow.heading("Hops")
     rows = []
@@ -221,12 +230,20 @@ def write_pdf(path: str, route: dict, *, target: str, trace_text: str, tool_labe
         address = h.get("address") or "*"
         if len(h.get("addresses") or []) > 1:
             address += f" (+{len(h['addresses']) - 1})"
-        rows.append([str(h["hop"]), h.get("place") or "not placed",
-                     theme.SOURCE_SHORT.get(h.get("source"), ""), name, address,
+        detail = (((insight or {}).get("online") or {}).get("hops") or {}).get(str(h["hop"])) or {}
+        src = theme.SOURCE_SHORT.get(h.get("source"), "")
+        if h.get("source") == "ip-db":
+            src += " DB-IP" if h.get("ip_provider") == "dbip" else " RIPEstat"
+        rows.append([str(h["hop"]), h.get("place") or "not placed", src,
+                     f"AS{h['asn']}" if h.get("asn") else "", RPKI_SHORT.get(detail.get("rpki"), ""),
+                     name, address,
                      _fmt(h.get("min_rtt_ms")), "" if h.get("loss_pct") is None else f"{h['loss_pct']:.0f}%",
                      ", ".join(NOTE_SHORT.get(a, a) for a in h.get("annotations") or [])])
-    flow.table(["#", "Location", "Source", "Hostname", "IP address", "RTT min", "Loss", "Notes"],
-               rows, [7, 27, 15, 44, 25, 15, 10, 30], align_right={0, 5, 6})
+    flow.table(["#", "Location", "Source", "ASN", "RPKI", "Hostname", "IP address", "RTT min", "Loss",
+                "Notes"], rows, [7, 25, 18, 14, 12, 34, 22, 14, 9, 18], align_right={0, 7, 8})
+
+    if comparison:
+        _comparison_section(flow, route, comparison, target, quiet_ms, hot_ms)
 
     flow.heading("Unplaced hops")
     if unplaced:
@@ -250,10 +267,14 @@ def write_pdf(path: str, route: dict, *, target: str, trace_text: str, tool_labe
 
     flow.heading("How locations were decided")
     flow.text(METHOD, 8.5, color=MUTED)
+    from routemap import insight as _insight
+    extra = "".join(f" {line}." for line in _insight.attributions(insight) if "DB-IP" not in line)
     flow.text("Map: Natural Earth (public domain). Cities: GeoNames, CC BY 4.0. Hostname "
               f"rules: The CAIDA UCSD Hoiho - {when.strftime('%Y-%m-%d')}, "
-              "https://catalog.caida.org/dataset/hoiho. IP geolocation: RIPEstat (RIPE NCC).",
-              8, color=MUTED)
+              "https://catalog.caida.org/dataset/hoiho. IP geolocation: RIPEstat (RIPE NCC)"
+              + (" and IP Geolocation by DB-IP (db-ip.com, CC BY 4.0)"
+                 if mapview.uses_dbip(route) or (insight or {}).get("as_path") else "")
+              + "." + extra, 8, color=MUTED)
 
     if include_trace and trace_text.strip():
         flow.new_page()
@@ -263,3 +284,77 @@ def write_pdf(path: str, route: dict, *, target: str, trace_text: str, tool_labe
             flow.text(line or " ", 7.5, mono=True, gap=0.2)
     flow.finish()
     painter.end()
+
+
+RPKI_SHORT = {"valid": "valid", "unknown": "no ROA", "invalid": "INVALID", "invalid_asn": "INVALID",
+              "invalid_length": "INVALID"}
+
+
+def _summary_section(flow: "_Flow", route: dict, ins: dict, origin_cc: str | None) -> None:
+    from routemap import insight as _insight
+    s = _insight.summary(route, ins, origin_cc)
+    flow.heading("Route summary")
+    rows = []
+    if s["as_path"]:
+        rows.append(["AS path", " > ".join(
+            f"AS{p['asn']} {p['short']}".strip() + (f" ({p['rpki']['label']})" if p.get("rpki") else "")
+            for p in s["as_path"])])
+    if s["countries"]:
+        cs = ([f"{s['origin_cc']} (origin)"] if s["origin_cc"] else []) + [
+            c["cc"] + (" (country only)" if c["country_only"] else "") + (" (sensitive)" if c["sensitive"] else "")
+            for c in s["countries"]]
+        rows.append(["Countries", " > ".join(cs)])
+    if s["anycast"]:
+        rows.append(["Destination", s["anycast"]])
+    if isinstance(s["baseline"], dict):
+        rows.append(["Typical latency", f"{s['baseline']['text']} ({s['baseline']['delta']}); "
+                                        f"{s['baseline']['detail']}"])
+    if s["ris"]:
+        r = s["ris"]
+        rows.append([f"BGP view of {r['prefix']}", "; ".join(r["lines"] + ([r["visibility"]] if r["visibility"] else [])
+                                                           + ([r["rpki"]["label"]] if r.get("rpki") else []))])
+    if s["updates"]:
+        u = s["updates"]
+        rows.append(["BGP updates", f"{u['total']} in the 48 hours before the trace"
+                                    + (f", a burst of {u['burst']} at trace time" if u.get("burst") else "")])
+    status = s["status"]
+    if status == _insight.OFF:
+        rows.append(["Online details", "off (Online lookups switched off)"])
+    elif status and status.startswith(_insight.UNAVAILABLE):
+        rows.append(["Online details", "unavailable: RIPEstat did not answer in time"])
+    flow.table(None, rows, [30, 148], size=8.5)
+
+
+def _comparison_section(flow: "_Flow", route: dict, cmp: dict, target: str,
+                        quiet_ms: float, hot_ms: float) -> None:
+    flow.heading(f"Compared with {cmp.get('label', 'an earlier run')}")
+    flow.text(cmp.get("summary") or "", 9, gap=2)
+    image = mapview.render_png(route, width=1800, height=1013, title="",
+                               provenance="Earlier run dashed and faint; changed hops ringed",
+                               destination=target, quiet_ms=quiet_ms, hot_ms=hot_ms,
+                               ghost=cmp.get("old_route"), marks={int(k): v for k, v in
+                                                                  (cmp.get("new_marks") or {}).items()})
+    flow.image(image, (flow.width / flow.dpi * 25.4) * 1013 / 1800)
+    rows = []
+    for c in cmp.get("changes") or []:
+        kind = c["kind"]
+        if kind == "removed":
+            rows.append(["gone", ", ".join(c["places"]), f"hops {c['old_hops'][0]} to {c['old_hops'][-1]} then"
+                         if len(c["old_hops"]) > 1 else f"hop {c['old_hops'][0]} then"])
+        elif kind == "added":
+            rows.append(["new", ", ".join(c["places"]), ", ".join(str(n) for n in c["new_hops"])])
+        elif kind == "moved":
+            rows.append(["moved", ", ".join(c["old_places"]) + " then", ", ".join(c["new_places"]) + " now"])
+        elif kind == "rtt":
+            rows.append(["RTT", c["place"], f"{c['old_ms']:.0f} ms then, {c['new_ms']:.0f} ms now"])
+        elif kind == "asn":
+            rows.append(["network", c["place"], f"AS{c['old_asn']} then, AS{c['new_asn']} now"])
+    if rows:
+        flow.table(["Change", "Where", "Detail"], rows, [20, 60, 98], size=8.5)
+    old = cmp.get("old_route") or {}
+    if old.get("hops"):
+        flow.text("The earlier run", 9.5, bold=True, gap=1)
+        flow.table(["#", "Location", "Source", "RTT min"],
+                   [[str(h["hop"]), h.get("place") or "not placed", theme.SOURCE_SHORT.get(h.get("source"), ""),
+                     _fmt(h.get("min_rtt_ms"))] for h in old["hops"]], [8, 70, 40, 20], size=8,
+                   align_right={0, 3})

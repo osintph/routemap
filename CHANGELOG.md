@@ -6,6 +6,61 @@ uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.0-beta.1] - 2026-10-04
+
+### Added
+
+- **Globe.** Flat or globe (View > Globe, Ctrl+G, or Settings > Map). The
+  globe is centred on the route and turns when dragged.
+- **Great-circle lines coloured by RTT step**: grey under 15 ms, warming to
+  the hot colour at 60 ms, both thresholds in Settings > Map. Dashed across
+  silent hops and country-only placements. A legend says which is which.
+- **Replay** (Ctrl+R) draws the route again hop by hop.
+- **Finer map when zoomed in**: Natural Earth 1:10m coastlines and borders,
+  and city labels from Natural Earth's own zoom levels.
+- **Route summary** beside the table: AS path with RPKI badges, countries
+  transited with your sensitive countries flagged, a likely-anycast note, a
+  typical latency for the trip from RIPE Atlas anchors, what RIPE RIS peers see
+  for the destination prefix (path agreement, visibility), and the last 48
+  hours of BGP updates for it.
+- **RTT sparkline** against the lowest RTT each placement allows.
+- **Hop details**: AS, routed prefix, RIR, RPKI, abuse contact with Copy, AS
+  overview, and **Open in FalconEye** (IP Reputation, address on the
+  clipboard; also on the table's right-click menu).
+- **ASN and RPKI columns** in the hop table.
+- **Compare two runs**: Trace Again and Compare, Compare with an Export, and
+  Compare with an Earlier Atlas Measurement (your own, no credits). Hops are
+  matched by place; the PDF and JSON include the comparison.
+- **Offline IP databases**: DB-IP Lite ASN ships with the app; DB-IP Lite City
+  is offered on first run (about 60 MB), or imported from a file on a machine
+  with no internet, and updated from Settings or `routemap data update`.
+  While City is not installed, IP database placements come from RIPEstat and
+  the Source column says so. IP Geolocation by DB-IP, CC BY 4.0.
+- **One Online lookups switch** (Settings > Sources): off, nothing new leaves
+  the machine.
+- Command line: `routemap data update|import|status`, `--compare FILE`; PDF
+  and `--envelope` JSON carry the route summary.
+
+### Changed
+
+- An IP database placement between two hops in one area is rejected when the
+  RTT did not rise enough for the detour (engine 0.3.0). It showed on the
+  sample: DB-IP put heise's hop 12 in Chicago between two Frankfurt hops.
+- JSON export format version 2 (adds `insight`, `attributions` and
+  `comparison`; version 1 files still open). Its `schema` link now points at
+  the engine repository, where the schema lives.
+- PRIVACY.md and Help > Privacy list the new lookups: RIPEstat route details,
+  RIPE Atlas anchor baselines, DB-IP downloads.
+- Engine: routemap-engine 0.3.0 from PyPI.
+
+### Not in this release
+
+- **Submarine cables**: TeleGeography's cable data is sold under licence (only
+  its map images are CC BY-SA), so there is no cable overlay.
+- **Internet exchange points**: PeeringDB's terms do not allow bundling its
+  prefix list; permission is being asked and the code is switched off
+  until then.
+
 ## [0.1.0-beta.5] - 2026-10-04
 
 ### Changed

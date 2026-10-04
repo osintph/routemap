@@ -17,7 +17,7 @@ from PySide6.QtCore import QByteArray, QObject, Qt, QTimer
 from PySide6.QtGui import QGuiApplication, QIcon
 from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox
 
-from routemap import config, service
+from routemap import config, dbip, insight, service
 from routemap.__about__ import (DISPLAY_NAME, NAME, REPO_URL,
                                 CONTACT_EMAIL, WINDOWS_SIGNED, SITE_LINKED, SITE_URL,
                                 __version__)
@@ -25,6 +25,7 @@ from routemap_engine import (InvalidTarget, Route, SqliteCache, TraceParseError,
                              available_tools, install_hint, validate_target, whereami)
 from routemap_engine.runner import TraceToolMissing, pick_tool
 from routemap.gui import dialogs, mapview, report
+from routemap_engine import diff as route_diff
 from routemap.gui.mainwindow import MainWindow
 from routemap.gui.workers import Task
 
@@ -44,6 +45,11 @@ class Controller(QObject):
         self.current: dict | None = None      # {"route", "target", "trace_text", "argv", "source", ...}
         self.history: list[dict] = []
         self.picking_from: dialogs.SettingsDialog | None = None
+        self.insight_task: Task | None = None
+        self.detail_task: Task | None = None
+        self.generation = 0               # bumps per shown result; stale background answers are dropped
+        self.compare_next: dict | None = None   # the route to compare the next result with
+        self.comparison: dict | None = None     # {"old", "diff", "label"} while one is shown
         self._wire()
 
     # ------------------------------------------------------------- wiring ---
@@ -67,6 +73,16 @@ class Controller(QObject):
         w.history.cleared.connect(self.clear_history)
         w.map.originPicked.connect(self._picked)
         w.closing = self.save_window
+        w.act_again.triggered.connect(self.trace_again)
+        w.act_compare_file.triggered.connect(self.compare_with_file)
+        w.act_compare_atlas.triggered.connect(self.compare_with_atlas)
+        w.act_end_compare.triggered.connect(self.end_comparison)
+        w.table.hopsSelected.connect(self._hops_selected)
+        w.details.openFalconEye.connect(self.open_falconeye)
+        w.table.setContextMenuPolicy(Qt.CustomContextMenu)
+        w.table.customContextMenuRequested.connect(self._table_menu)
+        w.map.projectionChanged.connect(self._projection_changed)
+        w.refresh_panels = self.refresh_panels
 
     def start(self):
         if self.settings.window_geometry:
@@ -80,9 +96,14 @@ class Controller(QObject):
         chosen = self.settings.origin()
         if chosen is not None:
             self.origin, self.origin_how = chosen, self.settings.origin_mode
+        self.w.map.set_thresholds(self.settings.rtt_quiet_ms, self.settings.rtt_hot_ms)
+        self.w.map.set_projection(self.settings.projection)
+        self.w.act_globe.setChecked(self.settings.projection == "globe")
+        self._refresh_compare_actions()
         self.show_idle()
         if self.origin is None:
             self.lookup_origin()
+        QTimer.singleShot(700, self.offer_city_database)
 
     # --------------------------------------------------------------- state ---
     def show_idle(self):
@@ -126,7 +147,7 @@ class Controller(QObject):
     # -------------------------------------------------------------- origin ---
     def lookup_origin(self):
         from routemap import policy
-        if not policy.RIPESTAT_ALLOWED:
+        if not (policy.RIPESTAT_ALLOWED and self.settings.online_lookups):
             self._refresh_origin_status()
             return
 
@@ -190,6 +211,12 @@ class Controller(QObject):
         self.w.show_tracing(target, argv)
         if origin:
             self.w.map.set_origin(*origin)
+        if self.compare_next is not None:
+            # Trace again: the earlier run stays on the map, faint, while this one grows.
+            self.comparison = None
+            self.w.map.set_comparison(self.compare_next["route"], None)
+        else:
+            self._end_comparison_quietly()
         self._run(job, target=target, source=LOCAL)
 
     def _run(self, job, *, target: str, source: str):
@@ -233,6 +260,7 @@ class Controller(QObject):
         if result.get("timed_out"):
             self.w.statusBar().showMessage("The trace hit its time limit; the hops it reached "
                                            "are shown.", 10000)
+        self._after_result()
         entry = config.history_entry(body, target=target, trace_text=result["text"],
                                      argv=result.get("argv"), source=source)
         entry["origin_how"] = self.current["origin_how"]
@@ -240,6 +268,7 @@ class Controller(QObject):
         self.refresh_history()
 
     def _failed(self, message: str):
+        self.compare_next = None
         self.w.set_running(False)
         self.w.set_state("")
         self.w.sources.hide()
@@ -291,6 +320,7 @@ class Controller(QObject):
                             "origin_how": document.get("origin_how"), "when": _dt.datetime.now().astimezone()}
             self.w.show_result(route, self.current["target"], self.current["argv"],
                                trace_text=self.current["trace_text"])
+            self._after_result(saved=document.get("insight"))
             return
         self.analyse_text(text, os.path.basename(path), FILE)
 
@@ -340,7 +370,7 @@ class Controller(QObject):
             path += "." + fmt
         try:
             write_export(fmt, path, c, dark_png=dialog.png_dark.isChecked(),
-                         include_trace=dialog.appendix.isChecked())
+                         include_trace=dialog.appendix.isChecked(), settings=self.settings)
         except Exception as exc:  # noqa: BLE001
             self.error("Export failed", str(exc))
             return
@@ -349,8 +379,8 @@ class Controller(QObject):
     # ------------------------------------------------------------ settings ---
     def open_settings(self, tab: int = 0):
         cache_count = 0
-        # Both caches: Hoiho hostnames and IP database addresses.
-        for path in (config.cache_path(), config.ip_cache_path()):
+        # Every answer cache: Hoiho hostnames, IP database addresses, RIPE details.
+        for path in (config.cache_path(), config.ip_cache_path(), config.ripe_cache_path()):
             try:
                 if os.path.exists(path):
                     cache_count += len(SqliteCache(path))
@@ -364,6 +394,8 @@ class Controller(QObject):
         dialog.pickRequested.connect(lambda: self._start_pick(dialog))
         dialog.clearCacheRequested.connect(lambda: self._clear_cache(dialog))
         dialog.clearHistoryRequested.connect(lambda: self._clear_history(dialog))
+        dialog.updateDataRequested.connect(lambda: self.update_databases(dialog))
+        dialog.importDataRequested.connect(lambda: self.import_city_database(dialog))
         if not dialog.exec():
             return
         problems = dialog.values_into(self.settings)
@@ -379,7 +411,16 @@ class Controller(QObject):
         self._refresh_origin_status()
         self._refresh_tool_status()
         self._refresh_atlas_action()
+        self._refresh_compare_actions()
         self.refresh_history()
+        self.w.map.set_thresholds(self.settings.rtt_quiet_ms, self.settings.rtt_hot_ms)
+        if self.settings.projection != self.w.map.projection:
+            self.w.map.set_projection(self.settings.projection)
+            self.w.act_globe.setChecked(self.settings.projection == "globe")
+        if self.current is not None:
+            # Sensitive countries and the online switch change what the panel says.
+            self.current["insight"] = None
+            self._after_result(keep_comparison=True)
         if self.current is None and self.origin:
             self.w.map.set_origin(*self.origin)
 
@@ -404,12 +445,13 @@ class Controller(QObject):
     def _clear_cache(self, dialog):
         try:
             removed = SqliteCache(config.cache_path()).clear()
-            if os.path.exists(config.ip_cache_path()):
-                removed += SqliteCache(config.ip_cache_path()).clear()
+            for extra in (config.ip_cache_path(), config.ripe_cache_path()):
+                if os.path.exists(extra):
+                    removed += SqliteCache(extra).clear()
         except Exception as exc:  # noqa: BLE001
             self.error("Clear cache", str(exc))
             return
-        dialog.clear_cache.setText(f"Cleared ({removed} hostnames)")
+        dialog.clear_cache.setText(f"Cleared ({removed} answers)")
         dialog.clear_cache.setEnabled(False)
 
     def _clear_history(self, dialog=None):
@@ -440,6 +482,7 @@ class Controller(QObject):
                         "origin_how": e.get("origin_how"),
                         "when": _dt.datetime.fromtimestamp(e["when"]).astimezone()}
         self.w.show_result(e["route"], e["target"], e.get("argv"), trace_text=e.get("trace_text", ""))
+        self._after_result()
 
     def clear_history(self):
         answer = QMessageBox.question(self.w, "Clear history",
@@ -474,7 +517,7 @@ class Controller(QObject):
                 from routemap import policy
                 from routemap_engine import cities as _cities
                 asn, cc = None, None
-                if policy.RIPESTAT_ALLOWED:
+                if policy.RIPESTAT_ALLOWED and s.online_lookups:
                     me = await whereami.locate_me(user_agent=service.user_agent(),
                                                   sourceapp=service.SOURCEAPP)
                     asn = await whereami.asn_of(me["ip"], user_agent=service.user_agent(),
@@ -511,6 +554,303 @@ class Controller(QObject):
         self.w.set_state(f"Tracing <b>{target}</b> from a RIPE Atlas probe (usually 30 to 90 s)")
         self._run(job, target=target, source=ATLAS)
 
+    # ------------------------------------------------------------- insight ---
+    def _after_result(self, saved: dict | None = None, keep_comparison: bool = False):
+        """A route is on screen: say what it is beyond places. Offline now,
+        online in the background. Also settles any pending comparison."""
+        c = self.current
+        if c is None:
+            return
+        self.generation += 1
+        generation = self.generation
+        settings = self.settings
+        if saved and isinstance(saved, dict):
+            c["insight"] = saved
+        else:
+            c["insight"] = insight.offline(c["route"], settings)
+        if self.compare_next is not None:
+            old, self.compare_next = self.compare_next, None
+            self._start_comparison(old["route"], old.get("label") or "the earlier run")
+        elif not keep_comparison:
+            self._end_comparison_quietly()
+        self.refresh_panels()
+        if saved or not insight.online_allowed(settings):
+            if not saved:
+                c["insight"]["online"] = {"status": insight.OFF}
+                self.refresh_panels()
+            return
+        route, ins = c["route"], c["insight"]
+
+        def job(on_line, on_progress, cancel, **_):
+            return asyncio.run(insight.online(route, ins, settings, user_agent=service.user_agent(),
+                                              sourceapp=service.SOURCEAPP))
+
+        task = Task(job, self)
+        task.succeeded.connect(lambda _r: self._insight_done(generation))
+        task.failed.connect(lambda _m: self._insight_done(generation))
+        self.insight_task = task
+        task.start()
+
+    def _insight_done(self, generation: int):
+        if generation != self.generation or self.current is None:
+            return
+        self.w.map.set_route(self.current["route"], self.current["target"], keep_view=True)
+        self.refresh_panels()
+
+    def _origin_cc(self) -> str | None:
+        from routemap_engine import cities as _cities
+        origin = (self.current or {}).get("route", {}).get("origin") or {}
+        if origin.get("lat") is None:
+            return None
+        return (_cities.nearest(origin["lat"], origin["lon"], max_km=400) or {}).get("cc")
+
+    def refresh_panels(self):
+        c = self.current
+        if c is None:
+            return
+        ins = c.get("insight")
+        details = ((ins or {}).get("online") or {}).get("hops") or {}
+        marks = (self.comparison or {}).get("diff", {}).get("new_marks")
+        self.w.table.set_hops(c["route"].get("hops") or [], details, marks)
+        cmp = self.comparison
+        self.w.insight.show_summary(c["route"], ins, origin_cc=self._origin_cc(),
+                                    diff=cmp["diff"] if cmp else None,
+                                    diff_label=cmp["label"] if cmp else "")
+        self._hops_selected(self.w.table.selected_hops())
+
+    def _hops_selected(self, hops: list):
+        c = self.current
+        if c is None or len(hops) != 1:
+            self.w.details.hide()
+            return
+        hop = next((h for h in c["route"].get("hops") or [] if h["hop"] == hops[0]), None)
+        if hop is None:
+            self.w.details.hide()
+            return
+        cache = c.setdefault("hop_extra", {})
+        extra = cache.get(hop["hop"])
+        self.w.details.show_hop(hop, c.get("insight"), extra)
+        if extra is not None:
+            return
+        settings, generation = self.settings, self.generation
+
+        def job(on_line, on_progress, cancel, **_):
+            return asyncio.run(insight.hop_details(hop, settings, user_agent=service.user_agent(),
+                                                   sourceapp=service.SOURCEAPP))
+
+        def done(result):
+            if generation != self.generation or self.current is not c:
+                return
+            cache[hop["hop"]] = result
+            if self.w.table.selected_hops() == [hop["hop"]]:
+                self.w.details.show_hop(hop, c.get("insight"), result)
+
+        task = Task(job, self)
+        task.succeeded.connect(done)
+        task.failed.connect(lambda _m: done({"rir": insight.UNAVAILABLE, "abuse": insight.UNAVAILABLE,
+                                             "status": insight.UNAVAILABLE}))
+        self.detail_task = task
+        task.start()
+
+    def open_falconeye(self, address: str):
+        """FalconEye's IP Reputation tab, with the address on the clipboard to
+        paste. The address is not put in the URL: nothing is sent to FalconEye
+        until the user runs the lookup there."""
+        from PySide6.QtCore import QUrl
+        from PySide6.QtGui import QDesktopServices
+        if not address:
+            return
+        QGuiApplication.clipboard().setText(address)
+        QDesktopServices.openUrl(QUrl(f"{self.settings.falconeye_url}/#ip"))
+        self.w.statusBar().showMessage(f"Opened FalconEye; {address} is on the clipboard to paste "
+                                       "into IP Reputation.", 8000)
+
+    def _table_menu(self, pos):
+        from PySide6.QtWidgets import QMenu
+        hops = self.w.table.selected_hops()
+        if self.current is None or len(hops) != 1:
+            return
+        hop = next((h for h in self.current["route"]["hops"] if h["hop"] == hops[0]), None)
+        address = next((a for a in (hop or {}).get("addresses") or []
+                        if mapview_public(a)), None)
+        menu = QMenu(self.w.table)
+        copy = menu.addAction("Copy Address")
+        copy.setEnabled(bool((hop or {}).get("addresses")))
+        abuse = menu.addAction("Copy Abuse Contact")
+        abuse.setEnabled(bool(self.w.details.abuse))
+        menu.addSeparator()
+        falcon = menu.addAction("Open in FalconEye")
+        falcon.setEnabled(bool(address))
+        chosen = menu.exec(self.w.table.viewport().mapToGlobal(pos))
+        if chosen is copy:
+            QGuiApplication.clipboard().setText(", ".join(hop.get("addresses") or []))
+        elif chosen is abuse:
+            QGuiApplication.clipboard().setText(", ".join(self.w.details.abuse))
+        elif chosen is falcon:
+            self.open_falconeye(address)
+
+    def _projection_changed(self, projection: str):
+        self.settings.projection = projection
+        try:
+            config.save_settings(self.settings)
+        except OSError:
+            pass
+
+    # ----------------------------------------------------------- compare ---
+    def _refresh_compare_actions(self):
+        s = self.settings
+        self.w.act_compare_atlas.setEnabled(bool(s.atlas_enabled and s.atlas_key and s.online_lookups))
+        self.w.act_compare_atlas.setToolTip("" if self.w.act_compare_atlas.isEnabled() else
+                                            "Needs RIPE Atlas with your key, and Online lookups on")
+
+    def _label_for(self, current: dict) -> str:
+        when = current.get("when")
+        return when.strftime("%-d %b %H:%M" if sys.platform != "win32" else "%d %b %H:%M") \
+            if when else "the earlier run"
+
+    def trace_again(self):
+        """Run the current target again, then show the two runs compared."""
+        c = self.current
+        if c is None or self.busy():
+            self.error("Trace again", "Trace a route first; the next run is compared with it.")
+            return
+        self.compare_next = {"route": c["route"], "label": self._label_for(c)}
+        self.w.target.setText(c["target"])
+        self.trace()
+        if not self.busy():
+            self.compare_next = None
+
+    def compare_with_file(self):
+        """Compare the route on screen with an earlier JSON export."""
+        if self.current is None:
+            self.error("Compare", "Trace or open a route first, then choose the export to compare with.")
+            return
+        path, _ = QFileDialog.getOpenFileName(self.w, "Compare with an export", os.path.expanduser("~"),
+                                              "Route exports (*.json)")
+        if not path:
+            return
+        try:
+            with open(path, encoding="utf-8") as handle:
+                document = json.load(handle)
+            old = document["route"]
+            Route.from_dict(old)
+        except (OSError, ValueError, KeyError, TypeError):
+            self.error("Not a route export", "That JSON file is not a routemap export.")
+            return
+        label = (document.get("exported_at") or os.path.basename(path))[:16].replace("T", " ")
+        self._start_comparison(old, label)
+        self.refresh_panels()
+
+    def compare_with_atlas(self):
+        """Compare with the newest of the user's own earlier Atlas traceroutes to
+        this target: no credits spent, the key and the target go to RIPE Atlas."""
+        c, s = self.current, self.settings
+        if c is None:
+            self.error("Compare", "Trace or open a route first.")
+            return
+        target = c["target"]
+        origin = self.origin
+
+        def job(on_line, on_progress, cancel, **_):
+            async def go():
+                client = atlas.Atlas(s.atlas_key, user_agent=service.user_agent())
+                found = await client.history(target, limit=3)
+                if not found:
+                    raise RuntimeError(f"No earlier Atlas traceroutes of yours to {target} were found.")
+                newest = found[0]
+                route = await analyse(newest["text"], origin[:2] if origin else None,
+                                      sources=service.sources_for(s))
+                return {"route": route.to_dict(), "label": f"Atlas msm {newest['msm']}"}
+            return asyncio.run(go())
+
+        task = Task(job, self)
+        task.succeeded.connect(lambda r: (self._start_comparison(r["route"], r["label"]), self.refresh_panels()))
+        task.failed.connect(lambda m: self.error("Compare with Atlas", m))
+        self._atlas_history_task = task
+        self.w.statusBar().showMessage("Asking RIPE Atlas for your earlier measurements…", 5000)
+        task.start()
+
+    def _start_comparison(self, old: dict, label: str):
+        c = self.current
+        if c is None:
+            return
+        result = route_diff.diff_routes(old, c["route"])
+        self.comparison = {"old": old, "diff": result, "label": label}
+        self.w.map.set_comparison(old, result["new_marks"])
+        self.w.act_end_compare.setEnabled(True)
+        c["comparison"] = {"label": label, "summary": result["summary"], "changes": result["changes"],
+                           "old_route": old, "new_marks": result["new_marks"],
+                           "old_marks": result["old_marks"]}
+
+    def _end_comparison_quietly(self):
+        if self.comparison is not None:
+            self.comparison = None
+            self.w.map.set_comparison(None, None)
+        self.w.act_end_compare.setEnabled(False)
+        if self.current is not None:
+            self.current.pop("comparison", None)
+
+    def end_comparison(self):
+        self._end_comparison_quietly()
+        self.refresh_panels()
+
+    # ----------------------------------------------------------- databases ---
+    def offer_city_database(self):
+        """First run: offer DB-IP Lite City, once. Never downloads unasked."""
+        s = self.settings
+        if dbip.city_database() is not None or s.city_db_declined or not s.online_lookups:
+            return
+        choice = dialogs.CityDatabaseDialog(self.w).exec()
+        if choice == dialogs.CityDatabaseDialog.DOWNLOAD:
+            self.update_databases()
+        elif choice == dialogs.CityDatabaseDialog.IMPORT:
+            self.import_city_database()
+        else:
+            s.city_db_declined = True
+            config.save_settings(s)
+
+    def update_databases(self, settings_dialog=None):
+        """Download this month's DB-IP Lite City and ASN, with a progress bar."""
+        progress = dialogs.DownloadDialog(self.w)
+
+        def job(on_line, on_progress, cancel, **_):
+            out = []
+            for kind in ("city", "asn"):
+                on_line(kind)
+                out.append(dbip.download(kind, user_agent=service.user_agent(),
+                                         progress=lambda done, total: on_progress(kind, str(done), str(total or 0)),
+                                         cancelled=cancel.is_set))
+            return out
+
+        task = Task(job, self)
+        task.line.connect(progress.set_kind)
+        task.progress.connect(lambda kind, done, total: progress.set_progress(int(done), int(total)))
+        task.succeeded.connect(lambda dbs: (progress.accept(), self._databases_installed(dbs, settings_dialog)))
+        task.failed.connect(lambda m: (progress.reject(), self.error("DB-IP download", m)))
+        progress.rejected.connect(task.stop)
+        self._db_task = task
+        task.start()
+        progress.exec()
+
+    def import_city_database(self, settings_dialog=None):
+        path, _ = QFileDialog.getOpenFileName(self.w, "Import DB-IP Lite City", os.path.expanduser("~"),
+                                              "DB-IP Lite City (*.mmdb *.mmdb.gz);;All files (*)")
+        if not path:
+            return
+        try:
+            db = dbip.import_file(path, "city")
+        except dbip.DatabaseError as exc:
+            self.error("Import database", str(exc))
+            return
+        self._databases_installed([db], settings_dialog)
+
+    def _databases_installed(self, dbs: list, settings_dialog=None):
+        insight._ASN = None
+        months = ", ".join(d.label for d in dbs)
+        self.w.statusBar().showMessage(f"Installed {months}.", 8000)
+        if settings_dialog is not None:
+            settings_dialog.refresh_databases()
+
     # ---------------------------------------------------------------- help ---
     def check_update(self):
         def job(on_line, on_progress, cancel, **_):
@@ -541,8 +881,10 @@ class Controller(QObject):
             "<br>Geolocation engine: "
             f"<a href='https://github.com/osintph/routemap-engine'>routemap-engine</a> {_engine_version()} "
             "(AGPL-3.0)<br><br>"
-            "Hostname rules: CAIDA Hoiho. IP geolocation: RIPEstat (RIPE NCC). Cities: GeoNames, "
-            "CC BY 4.0. Map: Natural Earth. Carrier sites: Arelion's looking glass. Built with Qt."
+            "Hostname rules: CAIDA Hoiho. IP geolocation and route details: RIPEstat and RIPE Atlas "
+            "(RIPE NCC); IP Geolocation by <a href='https://db-ip.com'>DB-IP</a> (CC BY 4.0). "
+            "Cities: GeoNames, CC BY 4.0. Map: Natural Earth. Carrier sites: Arelion's looking "
+            "glass. Built with Qt."
             + ("<br><br>" + (f"<a href='{SITE_URL}'>{SITE_URL}</a> \u00b7 " if SITE_LINKED else "")
                + f"<a href='mailto:{CONTACT_EMAIL}'>{CONTACT_EMAIL}</a> \u00b7 "
                + "Support this project: Help \u203a Support")
@@ -636,6 +978,11 @@ def progressive_trace(target: str, settings: config.Settings, origin, *, on_line
 
 # ------------------------------------------------------------------ helpers ---
 
+def mapview_public(address: str) -> bool:
+    from routemap_engine.geo import classify_address
+    return classify_address(address) == "public"
+
+
 def _engine_version() -> str:
     try:
         from routemap_engine.__about__ import __version__ as v
@@ -659,15 +1006,17 @@ def _no_tool_html() -> str:
 
 
 def write_export(fmt: str, path: str, current: dict, *, dark_png: bool = False,
-                 include_trace: bool = True) -> None:
+                 include_trace: bool = True, settings: config.Settings | None = None) -> None:
     """Write one export of *current* to *path*. Used by the window and the CLI."""
     route, target = current["route"], current["target"]
+    settings = settings or config.Settings()
+    ins, cmp = current.get("insight"), current.get("comparison")
     label = service.tool_label(current.get("argv"))
     when = current.get("when") or _dt.datetime.now().astimezone()
     if fmt == "json":
         text = service.export_json(route, target=target, trace_text=current.get("trace_text", ""),
                                    argv=current.get("argv"), source=current.get("source", LOCAL),
-                                   origin_how=current.get("origin_how"))
+                                   origin_how=current.get("origin_how"), insight=ins, comparison=cmp)
         with open(path, "w", encoding="utf-8") as handle:
             handle.write(text)
     elif fmt == "png":
@@ -676,15 +1025,28 @@ def write_export(fmt: str, path: str, current: dict, *, dark_png: bool = False,
             route, dark=dark_png, title=f"{target} from {_city(route)}", destination=target,
             provenance=f"{DISPLAY_NAME} {__version__} \u00b7 {report.stamp(when)} \u00b7 "
                        f"{label or current.get('source', '')} · {geometry.ATTRIBUTION} · "
-                       "GeoNames CC BY 4.0")
+                       "GeoNames CC BY 4.0" + (" · IP Geolocation by DB-IP" if mapview.uses_dbip(route) else ""),
+            quiet_ms=settings.rtt_quiet_ms, hot_ms=settings.rtt_hot_ms,
+            ghost=(cmp or {}).get("old_route"),
+            marks={int(k): v for k, v in ((cmp or {}).get("new_marks") or {}).items()} or None)
         if not image.save(path, "PNG"):
             raise OSError(f"could not write {path}")
     elif fmt == "pdf":
         report.write_pdf(path, route, target=target, trace_text=current.get("trace_text", ""),
                          tool_label=label, origin_how=current.get("origin_how"),
-                         source=current.get("source", LOCAL), when=when, include_trace=include_trace)
+                         source=current.get("source", LOCAL), when=when, include_trace=include_trace,
+                         insight=ins, comparison=cmp, quiet_ms=settings.rtt_quiet_ms,
+                         hot_ms=settings.rtt_hot_ms, origin_cc=_origin_cc_of(route))
     else:
         raise ValueError(f"unknown export format {fmt!r}")
+
+
+def _origin_cc_of(route: dict) -> str | None:
+    from routemap_engine import cities as _cities
+    origin = route.get("origin") or {}
+    if origin.get("lat") is None:
+        return None
+    return (_cities.nearest(origin["lat"], origin["lon"], max_km=400) or {}).get("cc")
 
 
 def _city(route: dict) -> str:
