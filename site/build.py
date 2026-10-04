@@ -41,6 +41,9 @@ FPR = CONFIG["release"]["gpg_fingerprint"]
 FPR_SPACED = " ".join(FPR[i:i + 4] for i in range(0, len(FPR), 4))
 CURRENT = ' aria-current="page"'
 LATEST = ""   # the release tag the site describes; set in main()
+# Content hashes in the stylesheet and script URLs: a changed file gets a new
+# URL, so no browser or Cloudflare cache can serve the old one with new pages.
+ASSET_VERSION = {}
 
 NAV = [("/download/", "Download"), ("/docs/", "Docs"), ("/screenshots/", "Screenshots"),
        ("/changelog/", "Changelog"), ("/support/", "Support"), ("/about/", "About")]
@@ -239,8 +242,8 @@ def page(path: str, title: str, body: str, description: str, *, wide: bool = Fal
 <link rel="manifest" href="/site.webmanifest">
 <link rel="preload" href="/assets/fonts/plex-sans-var.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="/assets/fonts/archivo-var.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="/assets/style.css">
-<script src="/assets/site.js"></script>
+<link rel="stylesheet" href="/assets/style.css?v={ASSET_VERSION['style.css']}">
+<script src="/assets/site.js?v={ASSET_VERSION['site.js']}"></script>
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
@@ -553,6 +556,9 @@ def main(argv: list[str]) -> int:
     OUT.mkdir(parents=True)
     shutil.copytree(SITE / "assets", OUT / "assets")
     global LATEST
+    import hashlib
+    for name in ("style.css", "site.js"):
+        ASSET_VERSION[name] = hashlib.sha256((SITE / "assets" / name).read_bytes()).hexdigest()[:10]
     rel = Release(args.tag, args.release_json, args.sums)
     LATEST = rel.tag
     build_home(rel)

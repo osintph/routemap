@@ -19,7 +19,9 @@ def test_site_builds_without_scripts_or_external_assets_and_links_resolve(tmp_pa
         text = page.read_text(encoding="utf-8")
         # One script, from this site, never inline: the platform mark and the theme switch.
         scripts = re.findall(r"<script[^>]*>", text, flags=re.I)
-        assert scripts == ['<script src="/assets/site.js">'], (page, scripts)
+        assert len(scripts) == 1 and re.fullmatch(r'<script src="/assets/site\.js\?v=[0-9a-f]{10}">', scripts[0]), (page, scripts)
+        # Stylesheet and script are cache-busted by content hash.
+        assert re.search(r'href="/assets/style\.css\?v=[0-9a-f]{10}"', text), page
         assert chr(0x2014) not in text, f"em dash in {page}"
         # Assets (src= and stylesheet/icon links) only from this site.
         for url in re.findall(r'src="([^"]+)"', text) + re.findall(r'<link[^>]+href="([^"]+)"', text):
@@ -27,6 +29,7 @@ def test_site_builds_without_scripts_or_external_assets_and_links_resolve(tmp_pa
         for href in re.findall(r'<a href="(/[^"#]*)', text):
             if href == "/":
                 continue
+            href = href.split("?", 1)[0]
             name = href.rstrip("/").rsplit("/", 1)[-1]
             target = out / href.lstrip("/") if "." in name else out / href.strip("/") / "index.html"
             assert target.exists(), (page, href)
