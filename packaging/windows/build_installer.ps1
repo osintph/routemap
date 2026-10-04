@@ -43,17 +43,16 @@ function Find-Iscc {
     return (Join-Path $dir "ISCC.exe")
 }
 
-function Find-Python {
-    foreach ($c in @(@("python"), @("py", "-3"))) {
-        if (Get-Command $c[0] -ErrorAction SilentlyContinue) { return $c }
-    }
+if (Get-Command python -ErrorAction SilentlyContinue) {
+    $pyExe = "python"; $pyArgs = @()
+} elseif (Get-Command py -ErrorAction SilentlyContinue) {
+    $pyExe = "py"; $pyArgs = @("-3")
+} else {
     throw "Python 3 is needed to read the names from routemap/__about__.py (winget install Python.Python.3.12)"
 }
-$py = Find-Python
-$pyArgs = @($py | Select-Object -Skip 1)
 
 if (-not $Version) {
-    $Version = & $py[0] @pyArgs -c "import sys; sys.path.insert(0, r'$Root'); from routemap.__about__ import VERSION; print(VERSION)"
+    $Version = & $pyExe @pyArgs -c "import sys; sys.path.insert(0, r'$Root'); from routemap.__about__ import VERSION; print(VERSION)"
 }
 $Source = (Resolve-Path $Source).Path
 New-Item -ItemType Directory -Force $Out | Out-Null
@@ -63,7 +62,7 @@ foreach ($exe in "routemap.exe", "routemap-cli.exe") {
 }
 $iscc = Find-Iscc
 $nameArgs = @(); if ($CommitInName) { $nameArgs = @("--commit-in-name") }
-$defs = & $py[0] @pyArgs (Join-Path $Root "packaging\windows\iss_defines.py") $Version $Commit $RunNumber $Source $Out @nameArgs
+$defs = & $pyExe @pyArgs (Join-Path $Root "packaging\windows\iss_defines.py") $Version $Commit $RunNumber $Source $Out @nameArgs
 if ($SignCommand) { $defs += @("/DSign=1", "/Ssigntool=$SignCommand") }
 & $iscc /Qp @defs (Join-Path $Root "packaging\windows\routemap.iss") | Out-Host
 if ($LASTEXITCODE -ne 0) { throw "ISCC exited $LASTEXITCODE" }
