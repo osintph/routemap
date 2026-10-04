@@ -442,12 +442,16 @@ def donation_block() -> str:
     asc = (SITE / "donate" / "addresses.txt.asc").exists()
     signed = ('<a href="/donate/addresses.txt.asc">addresses.txt.asc</a>, its signature by the '
               'release key' if asc else "its signature by the release key, which is being added")
+    verify = (f'<p class="small">Verify: <code>gpg --verify addresses.txt.asc addresses.txt</code> after '
+              f'importing the <a href="/release-key.asc">release key</a>; it must report a good signature '
+              f'from <code>{FPR_SPACED}</code>.</p>' if asc else "")
     return f"""<p class="lead">Donations pay for {html.escape(D['pays_for'])}.</p>
 <ul class="pay-list">{links}</ul>
 <div class="coins">{coins}</div>
 <p class="small">The addresses as text: <a href="/donate/addresses.txt">addresses.txt</a>, and {signed}
 (<a href="/release-key.asc">key</a> <code>{FPR_SPACED}</code>). Compare the address in your
-wallet with this page and the signed file before you send.</p>"""
+wallet with this page and the signed file before you send.</p>
+{verify}"""
 
 
 def build_support() -> None:
