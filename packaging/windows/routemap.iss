@@ -60,6 +60,11 @@ Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs 
 Name: "{autoprograms}\{#AppName}"; Filename: "{app}\{#GuiExe}"
 Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#GuiExe}"; Tasks: desktopicon
 
+[UninstallDelete]
+; After an upgrade the folder was already there when the new version installed,
+; so Setup did not record creating it; remove it if (and only if) it is empty.
+Type: dirifempty; Name: "{app}"
+
 [Run]
 Filename: "{app}\{#GuiExe}"; Description: "{cm:LaunchProgram,{#AppName}}"; Flags: nowait postinstall skipifsilent
 
