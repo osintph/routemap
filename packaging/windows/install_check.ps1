@@ -58,14 +58,21 @@ function Check-Mode($mode, $root, $dir, $menu, $scope) {
     $ulog = "$env:RUNNER_TEMP\uninstall-$($mode.Trim('/')).log"
     $p = Start-Process -FilePath $uninstall -PassThru -Wait -ArgumentList @("/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/LOG=$ulog")
     Check ($p.ExitCode -eq 0) "uninstaller exited 0"
-    # The uninstaller finishes from a copy of itself; give it time to remove the folder.
-    for ($i = 0; $i -lt 60 -and (Test-Path $dir); $i++) { Start-Sleep -Seconds 1 }
-    if (Test-Path $dir) {
-        Write-Host "left behind:"; Get-ChildItem $dir -Recurse -Force | ForEach-Object { Write-Host "  $($_.FullName)" }
-        Get-Process | Where-Object { $_.Path -and $_.Path.StartsWith($dir) } | ForEach-Object { Write-Host "  running: $($_.Id) $($_.Path)" }
-        if (Test-Path $ulog) { Get-Content $ulog | Select-Object -Last 40 }
+    # Inno's uninstaller relaunches itself from %TEMP% (_iu*.tmp) and removes the
+    # files from there; wait for that copy to exit before looking.
+    for ($i = 0; $i -lt 120; $i++) {
+        $copy = Get-Process | Where-Object { $_.Path -and (Split-Path $_.Path -Leaf) -like "_iu*.tmp" }
+        if (-not $copy) { break }
+        Start-Sleep -Seconds 1
     }
-    Check (-not (Test-Path $dir)) "$dir removed"
+    for ($i = 0; $i -lt 30 -and (Test-Path $dir); $i++) { Start-Sleep -Seconds 1 }
+    $left = @(if (Test-Path $dir) { Get-ChildItem $dir -Recurse -Force -File })
+    if ($left.Count -gt 0) {
+        Write-Host "left behind:"; $left | ForEach-Object { Write-Host "  $($_.FullName)" }
+        if (Test-Path $ulog) { Get-Content $ulog | Select-Object -Last 40 }
+        Fail "the uninstaller left $($left.Count) file(s) in $dir"
+    }
+    if (Test-Path $dir) { Write-Host "::warning::$dir is empty but still there" } else { Write-Host "ok: $dir removed" }
     Check (-not (Test-Path $key)) "Settings > Apps entry removed"
     Check (-not (Test-Path (Join-Path $menu "$AppName.lnk"))) "Start menu shortcut removed"
     Check ((Path-Entries $scope | Where-Object { $_ -ieq $dir }).Count -eq 0) "PATH ($scope) no longer has the folder"

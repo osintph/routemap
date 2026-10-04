@@ -94,6 +94,14 @@ jobs:
           & "$env:RUNNER_TEMP\inno\ISCC.exe" /Qp @defs packaging/windows/routemap.iss
           if ($LASTEXITCODE -ne 0) { throw "ISCC exited $LASTEXITCODE" }
           Get-ChildItem out
+      - name: Checksum
+        shell: bash
+        run: cd out && sha256sum *-setup.exe | tee SHA256SUMS-windows.txt
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        # Uploaded before the install tests, so it is there even when one fails.
+        with:
+          name: routemap-windows-x86_64-setup
+          path: out/*
       - name: Install, check and uninstall, per user and per machine
         shell: pwsh
         run: |
@@ -103,14 +111,7 @@ jobs:
       - name: Defender scan of the installer (fails on a detection)
         shell: pwsh
         run: |
-          pwsh packaging/defender_scan.ps1 -Report out/defender.txt (Get-ChildItem out -Filter "*-setup.exe").FullName
-      - name: Checksum
-        shell: bash
-        run: cd out && sha256sum *-setup.exe | tee SHA256SUMS-windows.txt
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: routemap-windows-x86_64-setup
-          path: out/*
+          pwsh packaging/defender_scan.ps1 -Report $env:RUNNER_TEMP/defender.txt (Get-ChildItem out -Filter "*-setup.exe").FullName
 
   linux:
     name: Linux packages
