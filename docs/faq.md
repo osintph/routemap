@@ -2,10 +2,17 @@
 
 ## Why does Windows or macOS warn me?
 
-The builds are not code-signed or notarised yet. Windows signing through
-SignPath Foundation is applied for. The steps to open the app anyway are in the
+The builds are not code-signed or notarised yet. Windows signing with a Certum
+code signing certificate is being set up. The steps to open the app anyway are in the
 [troubleshooting guide](troubleshooting.md), and every file can be checked
 against the GPG-signed checksums of its release.
+
+## Why isn't the Windows build signed by a free open-source signing programme?
+
+Free signing programmes for open-source projects exist, but they only accept
+projects with established public adoption. Route Map is new, so Windows
+releases are signed with a Certum code signing certificate paid for by the
+maintainer.
 
 ## Is it free?
 

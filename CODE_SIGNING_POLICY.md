@@ -1,12 +1,10 @@
 # Code signing policy
 
-Route Map's Windows releases are to be signed through SignPath Foundation.
+Route Map's Windows releases are to be signed with a Certum code signing
+certificate paid for and held by the maintainer.
 
-> Free code signing provided by [SignPath.io](https://about.signpath.io/),
-> certificate by [SignPath Foundation](https://signpath.org/).
-
-*Until the project is approved, Windows builds are unsigned, and the release
-notes of each unsigned release say so.*
+*Until signing is set up in the release workflow, Windows builds are unsigned,
+and the release notes of each unsigned release say so.*
 
 ## What is signed
 
@@ -16,14 +14,11 @@ its public GitHub Actions workflow
 ([.github/workflows/build.yml](.github/workflows/build.yml)) on GitHub-hosted
 runners from a tagged commit of this public repository.
 
-Never signed with the SignPath Foundation certificate:
+Never signed with this certificate:
 
 - binaries built anywhere else (a developer's machine, another CI, another
   repository);
-- third-party software, or files not built from this repository's source;
-- private or closed-source software. OSINTPH may publish a separate commercial
-  product in the future; it is not part of this project and will never be
-  signed with this certificate.
+- third-party software, or files not built from this repository's source.
 
 ## Roles
 
@@ -37,24 +32,21 @@ Contributions from others reach the repository only through pull requests,
 reviewed by the maintainer, from contributors who have signed the
 [Contributor Licence Agreement](CLA.md).
 
-## How a signing request is made and approved
+## How a release is signed
 
 1. A release tag on this repository starts the build workflow on GitHub-hosted
    runners. It compiles, verifies and smoke-tests the Windows build and scans
    it with Microsoft Defender.
-2. The workflow submits the unsigned build to SignPath with SignPath's GitHub
-   Action. SignPath verifies that the artifact comes from this repository's
-   workflow run.
-3. **Every signing request is approved manually** by the Approver in SignPath.
-   Nothing is signed automatically.
-4. The signed files are verified (`signtool verify /pa`), scanned again, and
-   published on [GitHub Releases](https://github.com/osintph/routemap/releases)
-   with a GPG-signed `SHA256SUMS`.
+2. The two executables are signed with the maintainer's certificate, and the
+   signatures are verified (`signtool verify /pa`).
+3. The signed files are scanned again and published on
+   [GitHub Releases](https://github.com/osintph/routemap/releases) with a
+   GPG-signed `SHA256SUMS`.
 
 ## Account security
 
 Multi-factor authentication is required for every account with write access
-to this repository and for every SignPath account in the project.
+to this repository and for the certificate account.
 
 ## Contact
 

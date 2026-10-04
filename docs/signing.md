@@ -2,25 +2,20 @@
 
 | Platform | Status |
 |---|---|
-| Windows | unsigned until SignPath Foundation approves the project; see [CODE_SIGNING_POLICY.md](../CODE_SIGNING_POLICY.md) and [signpath-application.md](signpath-application.md) |
+| Windows | unsigned until signing with the maintainer's Certum certificate is set up; see [CODE_SIGNING_POLICY.md](../CODE_SIGNING_POLICY.md) |
 | macOS | unsigned (ad-hoc signature only, which Apple silicon needs to run the app at all) |
 | Linux | nothing to sign in the binaries |
 | All | `SHA256SUMS` signed with the GPG release key `D57C 7E26 C19F 9436 E2D6 6F37 4080 97D1 91DD F981` |
 
-## Windows signing through SignPath
+## Windows signing
 
-The build workflow uploads the finished `Route Map` folder as the GitHub
-artifact `windows-for-signing`. When the repository variable `WINDOWS_SIGNING`
-is `signpath`, the `sign-windows` job submits it with SignPath's GitHub Action
-and waits for the maintainer's manual approval. The signed folder is verified
-with `signtool verify /pa`, scanned with Defender, and replaces the unsigned
-zip before the release job runs. Until then the release job publishes the
-unsigned zip and the release notes say so.
-
-Set up after approval: see the last section of
-[signpath-application.md](signpath-application.md). Then set
-`SIGNPATH_SIGNED = True` in `routemap/__about__.py` (About box) and
-`signpath_signed: true` in `site/site.toml` (site footer).
+Windows releases are to be signed with a Certum code signing certificate paid
+for by the maintainer. Until that step is in the build workflow, the release
+job publishes the unsigned zip, the release notes say so, and the run summary
+reports the Windows build as unsigned. When it is added, the executables are
+signed, checked with `signtool verify /pa`, scanned with Defender again, and
+`WINDOWS_SIGNED = True` in `routemap/__about__.py` and `windows_signed = true`
+in `site/site.toml` drop the unsigned warnings.
 
 ## Microsoft Defender
 
@@ -81,7 +76,7 @@ Text for the "Additional information" field:
 > Hoiho, RIPEstat, RIPE Atlas with the user's own key, GitHub for an explicit
 > update check). The SHA-256 above matches our GPG-signed SHA256SUMS. Our next
 > build drops one-file mode (standalone folder, version resources, manifest)
-> and will be code-signed through SignPath Foundation. Please review and
+> and will be code-signed. Please review and
 > remove the detection.
 
 | Submission | Date | ID | Result |

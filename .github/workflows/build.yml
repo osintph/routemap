@@ -10,9 +10,9 @@
 #     Windows artifact (packaging/defender_scan.ps1), which fails the build on
 #     any detection
 #
-# Signing: Windows through SignPath Foundation when WINDOWS_SIGNING is
-# "signpath" (sign-windows job, manual approval per request); SHA256SUMS with
-# the GPG release key; macOS ad-hoc only.
+# Signing: SHA256SUMS with the GPG release key; macOS ad-hoc only. The
+# Windows build is not code-signed yet (a Certum certificate is being set up)
+# and the run summary says so.
 name: build
 
 on:
@@ -30,9 +30,6 @@ jobs:
   build:
     name: ${{ matrix.target }}
     runs-on: ${{ matrix.os }}
-    outputs:
-      # Only the Windows leg sets it: the GitHub artifact SignPath signs.
-      signing-artifact-id: ${{ steps.forsigning.outputs.artifact-id }}
     timeout-minutes: 90
     strategy:
       fail-fast: false
@@ -137,15 +134,6 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force smoke | Out-Null
           pwsh packaging/defender_scan.ps1 -Report smoke/defender.txt "build/nuitka/windows/Route Map" "out/routemap-${{ steps.v.outputs.version }}-${{ matrix.target }}.zip"
-      - name: Folder for signing (Windows)
-        id: forsigning
-        if: runner.os == 'Windows'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: windows-for-signing
-          path: build/nuitka/windows/
-          retention-days: 7
-
       # ---- Linux --------------------------------------------------------------------
       - name: Compile (Linux)
         if: runner.os == 'Linux'
@@ -191,68 +179,12 @@ jobs:
             smoke/
             smoke-gui/
 
-  sign-windows:
-    # SignPath Foundation, through its trusted-build GitHub Action. Runs only
-    # when the repository variable WINDOWS_SIGNING is "signpath" (set once the
-    # project is approved). Every signing request waits for the maintainer's
-    # manual approval in SignPath (CODE_SIGNING_POLICY.md). The signed folder
-    # is verified, scanned again and replaces the unsigned zip.
-    name: Sign Windows (SignPath)
-    if: vars.WINDOWS_SIGNING == 'signpath'
-    needs: build
-    runs-on: windows-2025
-    timeout-minutes: 360
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Version
-        id: v
-        shell: bash
-        run: echo "version=$(python -c 'import re; print(re.search(r"__version__ = \"(.+?)\"", open("routemap/__about__.py").read()).group(1))')" >> "$GITHUB_OUTPUT"
-      - name: Submit to SignPath and wait for approval
-        uses: signpath/github-action-submit-signing-request@f6d04783b4569d051e0c80105fe66e82819d0092 # v3.0
-        with:
-          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
-          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
-          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG || 'routemap' }}
-          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG || 'release-signing' }}
-          artifact-configuration-slug: ${{ vars.SIGNPATH_ARTIFACT_CONFIGURATION_SLUG || 'windows-folder' }}
-          github-artifact-id: ${{ needs.build.outputs.signing-artifact-id }}
-          wait-for-completion: true
-          wait-for-completion-timeout-in-seconds: 20000
-          output-artifact-directory: signed
-      - name: Verify signatures
-        shell: pwsh
-        run: |
-          $signtool = (Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\10.*\x64\signtool.exe" | Sort-Object FullName | Select-Object -Last 1).FullName
-          foreach ($exe in "signed/Route Map/routemap.exe", "signed/Route Map/routemap-cli.exe") {
-            & $signtool verify /pa /v $exe
-            if ($LASTEXITCODE -ne 0) { throw "signature check failed: $exe" }
-          }
-      - name: Package and scan the signed build
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force out, smoke | Out-Null
-          $zip = "out/routemap-${{ steps.v.outputs.version }}-windows-x86_64.zip"
-          Compress-Archive -Path "signed/Route Map" -DestinationPath $zip
-          pwsh packaging/defender_scan.ps1 -Report smoke/defender-signed.txt "signed/Route Map" $zip
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: routemap-windows-x86_64
-          path: out/*
-          overwrite: true
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        if: always()
-        with:
-          name: smoke-windows-signed
-          path: smoke/
-
   release:
     name: Release
     if: >-
       startsWith(github.ref, 'refs/tags/v') && !cancelled() &&
-      needs.build.result == 'success' &&
-      (needs.sign-windows.result == 'success' || needs.sign-windows.result == 'skipped')
-    needs: [build, sign-windows]
+      needs.build.result == 'success'
+    needs: [build]
     runs-on: ubuntu-24.04
     # The GPG release key lives in this environment.
     environment: downloads
@@ -261,7 +193,6 @@ jobs:
     env:
       GPG_RELEASE_KEY: ${{ secrets.GPG_RELEASE_KEY }}
       GPG_RELEASE_PASSPHRASE: ${{ secrets.GPG_RELEASE_PASSPHRASE }}
-      WINDOWS_SIGNED: ${{ needs.sign-windows.result == 'success' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: GPG key present
@@ -283,8 +214,7 @@ jobs:
             --local-user "$FPR" --armor --detach-sign --output SHA256SUMS.asc SHA256SUMS
           gpg --batch --verify SHA256SUMS.asc SHA256SUMS
           cd ..
-          SIGNED=""; [ "$WINDOWS_SIGNED" = "true" ] && SIGNED="--windows-signed"
-          python3 packaging/release_notes.py "$V" --fingerprint "$FPR" $SIGNED > notes.md
+          python3 packaging/release_notes.py "$V" --fingerprint "$FPR" > notes.md
           echo "FPR=$FPR" >> "$GITHUB_ENV"
           cat release/SHA256SUMS
       - name: GitHub Release
@@ -337,11 +267,10 @@ jobs:
   summary:
     # Always runs, and fails the run loudly: names any failed platform leg,
     # and on a tag treats a skipped or failed release-path job as a failure.
-    # The only expected skip is SignPath while WINDOWS_SIGNING is unset; it is
-    # reported as "unsigned" in the summary, not hidden.
+    # The Windows build being unsigned is reported in the summary, not hidden.
     name: Summary
     if: always()
-    needs: [build, sign-windows, release, site]
+    needs: [build, release, site]
     runs-on: ubuntu-24.04
     permissions:
       actions: read
@@ -350,9 +279,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           IS_TAG: ${{ startsWith(github.ref, 'refs/tags/v') }}
-          SIGNING: ${{ vars.WINDOWS_SIGNING || 'off' }}
           R_BUILD: ${{ needs.build.result }}
-          R_SIGN: ${{ needs.sign-windows.result }}
           R_RELEASE: ${{ needs.release.result }}
           R_SITE: ${{ needs.site.result }}
         run: |
@@ -376,11 +303,6 @@ jobs:
                 echo "::error::On a tag, the ${pair%%:*} job must succeed; it was ${pair#*:}."; fail=1
               fi
             done
-            if [ "$SIGNING" = "signpath" ] && [ "$R_SIGN" != "success" ]; then
-              echo "::error::WINDOWS_SIGNING is signpath but signing was $R_SIGN."; fail=1
-            fi
           fi
-          if [ "$R_SIGN" = "skipped" ]; then
-            echo "Windows signing: not configured (WINDOWS_SIGNING=$SIGNING); the Windows build is unsigned." >> "$GITHUB_STEP_SUMMARY"
-          fi
+          echo "Windows signing: not configured yet; the Windows build is unsigned." >> "$GITHUB_STEP_SUMMARY"
           exit $fail

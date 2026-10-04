@@ -35,8 +35,7 @@ from routemap.__about__ import __version__  # noqa: E402
 
 CONFIG = tomllib.loads((SITE / "site.toml").read_text(encoding="utf-8"))
 S, L, D = CONFIG["site"], CONFIG["links"], CONFIG["donate"]
-SIGNED = CONFIG["signing"]["signpath_signed"]
-ATTRIBUTION = CONFIG["signing"]["signpath_attribution"]
+SIGNED = CONFIG["signing"]["windows_signed"]
 FPR = CONFIG["release"]["gpg_fingerprint"]
 FPR_SPACED = " ".join(FPR[i:i + 4] for i in range(0, len(FPR), 4))
 CURRENT = ' aria-current="page"'
@@ -211,9 +210,6 @@ def page(path: str, title: str, body: str, description: str, *, wide: bool = Fal
     nav = "".join(f'<a href="{href}"{CURRENT if path.startswith(href) else ""}>{label}</a>'
                   for href, label in NAV)
     full_title = f"{S['product']}: {S['tagline']}" if path == "/" else f"{title} | {S['product']}"
-    # Kept in the page, hidden, until SignPath approves the project (site.toml).
-    hidden = "" if SIGNED else " hidden"
-    signed = f'<p class="attribution"{hidden}>{html.escape(ATTRIBUTION)}.</p>'
     url = S["url"] + ("/404" if path == "/404" else path)
     doc = f"""<!doctype html>
 <html lang="en">
@@ -266,7 +262,6 @@ def page(path: str, title: str, body: str, description: str, *, wide: bool = Fal
     <a href="/release-key.asc">Release key</a> <a href="/.well-known/security.txt">security.txt</a>
     <a href="mailto:{S['contact']}">{S['contact']}</a></p>
     <p class="release">Latest release: <a href="{L['releases']}/tag/{LATEST}">{LATEST}</a></p>
-    {signed}
     <p class="quiet">This website counts visits with Cloudflare Web Analytics, which sets no cookies;
     the desktop app has no telemetry. <a href="/privacy/#this-website">Details</a>.</p>
   </div>
@@ -390,7 +385,8 @@ def build_download(rel: Release) -> None:
                     f'<td><a href="{rel.base}/{name}">{name}</a>'
                     + (f'<code class="sha">{sha}</code>' if sha else "")
                     + f'</td><td class="num">{size_text(size)}</td></tr>')
-    windows_note = (f"<p>The Windows build is code-signed. {html.escape(ATTRIBUTION)}.</p>"
+    windows_note = ("<p>The Windows build is code-signed with the maintainer's Certum code signing "
+                    "certificate.</p>"
                     if SIGNED else content("download-unsigned.html"))
     published = f", published {rel.date}" if rel.date else ""
     zip_name = next(rel.files())[2]
@@ -500,7 +496,7 @@ def build_static_pages(rel: Release) -> None:
          f"What the {S['product']} app sends, to whom and when (no telemetry), and how this website "
          "counts visits with Cloudflare Web Analytics.")
     doc_page("/code-signing/", ROOT / "CODE_SIGNING_POLICY.md", "Code signing policy",
-             f"How {S['product']} Windows releases are signed through SignPath Foundation, and by whom.")
+             f"How {S['product']} Windows releases are code-signed, and by whom.")
     changelog = markdown((ROOT / "CHANGELOG.md").read_text(encoding="utf-8"))
     changelog = re.sub(r"<p>All notable changes.*?</p>", "", changelog, flags=re.S)
     changelog = re.sub(r'<h2 id="unreleased">Unreleased</h2>\s*', "", changelog)

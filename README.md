@@ -35,9 +35,9 @@ Download the latest release from
 
 The Windows folder also has `routemap-cli.exe`, the command line.
 
-**Code signing.** The Windows build will be signed through SignPath
-Foundation's free code signing for open-source projects; until then it is
-unsigned and each release says so. The rules are in
+**Code signing.** The Windows build will be signed with a Certum code
+signing certificate paid for by the maintainer; until then it is unsigned and
+each release says so. The rules are in
 [CODE_SIGNING_POLICY.md](CODE_SIGNING_POLICY.md). macOS builds are not
 notarised.
 

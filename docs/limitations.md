@@ -1,7 +1,7 @@
 # Known limitations
 
-- **Unsigned builds.** Windows builds are not code-signed until SignPath
-  Foundation approves the project, and macOS builds are not notarised, so both
+- **Unsigned builds.** Windows builds are not code-signed until signing with
+  the maintainer's Certum certificate is set up, and macOS builds are not notarised, so both
   systems warn on first start.
 - **Platforms.** Windows x86_64, macOS 12+ (Apple silicon and Intel) and Linux
   x86_64. No Windows on ARM or Linux ARM builds yet.

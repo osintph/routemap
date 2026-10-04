@@ -4,8 +4,7 @@ CHANGELOG section, which lists what changed.
     python packaging/release_notes.py v0.1.0-beta.4 [--fingerprint FPR] [--windows-signed]
 
 Without --windows-signed the notes say the Windows build is not code-signed and
-give the SmartScreen steps; with it, they say it is signed through SignPath
-Foundation.
+give the SmartScreen steps; with it, they say both executables are signed.
 """
 import argparse
 import pathlib
@@ -20,15 +19,13 @@ WINDOWS_UNSIGNED = (
     "- **Windows 10/11**: download `routemap-<version>-windows-x86_64.zip`, "
     "extract it, and run `routemap.exe` in the `Route Map` folder (keep the folder "
     "together; `routemap-cli.exe` beside it is the command line). **The Windows "
-    "build is not code-signed yet** (signing through SignPath Foundation is "
-    "pending): SmartScreen says \"Windows protected your PC\"; choose **More "
+    "build is not code-signed yet**: SmartScreen says \"Windows protected your PC\"; choose **More "
     "info**, then **Run anyway**.")
 WINDOWS_SIGNED = (
     "- **Windows 10/11**: download `routemap-<version>-windows-x86_64.zip`, "
     "extract it, and run `routemap.exe` in the `Route Map` folder (keep the folder "
     "together; `routemap-cli.exe` beside it is the command line). Both exes are "
-    "code-signed: free code signing provided by SignPath.io, certificate by "
-    "SignPath Foundation.")
+    "code-signed with the maintainer's Certum code signing certificate.")
 REST = """- **macOS 12+**: open the `.dmg` for your Mac (`macos-arm64` for Apple silicon,
   `macos-x86_64` for Intel) and drag Route Map to Applications. The app is not
   notarised yet, so Gatekeeper blocks the first start: **right-click** it,

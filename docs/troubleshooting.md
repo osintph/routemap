@@ -23,8 +23,8 @@ If Defender still removes it:
 ## Windows: "Windows protected your PC"
 
 That is SmartScreen, shown for programs without download reputation. Choose
-**More info**, then **Run anyway**. It goes away once the build is signed
-through SignPath Foundation.
+**More info**, then **Run anyway**. It goes away once the build is
+code-signed.
 
 ## macOS: "Route Map cannot be opened" or "Apple could not verify"
 

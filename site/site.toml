@@ -32,7 +32,6 @@ pays_for = "code signing, hosting, the RIPE Atlas probe, and maintenance time"
 gpg_fingerprint = "D57C7E26C19F9436E2D66F37408097D191DDF981"
 
 [signing]
-# true once SignPath Foundation signs the Windows builds: the footer and the
-# download page then carry SignPath's attribution line.
-signpath_signed = false
-signpath_attribution = "Free code signing provided by SignPath.io, certificate by SignPath Foundation"
+# true once the Windows builds are code-signed (the maintainer's Certum
+# certificate): the download page then drops the unsigned warning.
+windows_signed = false

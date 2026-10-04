@@ -18,8 +18,8 @@ from PySide6.QtGui import QGuiApplication, QIcon
 from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox
 
 from routemap import config, service
-from routemap.__about__ import (DISPLAY_NAME, NAME, REPO_URL, SIGNPATH_ATTRIBUTION,
-                                CONTACT_EMAIL, SIGNPATH_SIGNED, SITE_LINKED, SITE_URL,
+from routemap.__about__ import (DISPLAY_NAME, NAME, REPO_URL,
+                                CONTACT_EMAIL, WINDOWS_SIGNED, SITE_LINKED, SITE_URL,
                                 __version__)
 from routemap_engine import (InvalidTarget, Route, SqliteCache, TraceParseError, analyse, atlas,
                              available_tools, install_hint, validate_target, whereami)
@@ -546,7 +546,8 @@ class Controller(QObject):
             + ("<br><br>" + (f"<a href='{SITE_URL}'>{SITE_URL}</a> \u00b7 " if SITE_LINKED else "")
                + f"<a href='mailto:{CONTACT_EMAIL}'>{CONTACT_EMAIL}</a> \u00b7 "
                + "Support this project: Help \u203a Support")
-            + (f"<br><br>{SIGNPATH_ATTRIBUTION}." if SIGNPATH_SIGNED else "")))
+            + ("<br><br>Windows builds are code-signed by the maintainer (Certum)."
+               if WINDOWS_SIGNED and sys.platform == "win32" else "")))
 
     def save_window(self):
         self.settings.window_geometry = bytes(self.w.saveGeometry().toBase64()).decode()

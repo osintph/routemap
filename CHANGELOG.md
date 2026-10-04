@@ -39,7 +39,7 @@ uses [Semantic Versioning](https://semver.org/).
   Defender on download as a false positive. Both exes now carry full version
   information and an application manifest, no packer is used, and every
   Windows build is scanned with Defender before release. The Windows build is
-  still unsigned; signing through SignPath Foundation is applied for.
+  still unsigned.
 - Help > Support Route Map opens the project's sponsor page (nothing else, and
   never on its own). Help > About links the project site.
 - Help > Privacy and PRIVACY.md now spell out everything an Atlas trace sends.

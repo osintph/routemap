@@ -31,10 +31,9 @@ DONATE_ADDRESSES = (
     ("Monero", "42kA1yiEM8GSan4FeeZ9MxGtZCLNwYsvGefWLrMJ849dV2o9eVrc1Pufc7LcBAbRebXbVdxC5eoKj1a8pXJ3fSuFUDKLtXM"),
 )
 DONATIONS_PAY_FOR = "code signing, hosting, the RIPE Atlas probe, and maintenance time"
-# True once Windows builds are signed through SignPath Foundation: the About box
-# then carries the attribution SignPath requires.
-SIGNPATH_SIGNED = False
-SIGNPATH_ATTRIBUTION = "Free code signing provided by SignPath.io, certificate by SignPath Foundation"
+# True once Windows builds are code-signed (Certum certificate): the About box
+# then says so.
+WINDOWS_SIGNED = False
 
 __version__ = "0.1.0b5"
 
