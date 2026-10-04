@@ -51,16 +51,25 @@ NAV = [("/download/", "Download"), ("/docs/", "Docs"), ("/screenshots/", "Screen
 LOCAL_DOCS = {"PRIVACY.md": "/privacy/", "CODE_SIGNING_POLICY.md": "/code-signing/",
               "CHANGELOG.md": "/changelog/", "guide.md": "/docs/guide/", "cli.md": "/docs/cli/",
               "faq.md": "/docs/faq/", "limitations.md": "/docs/limitations/",
-              "troubleshooting.md": "/docs/troubleshooting/", "RELEASE-KEY.asc": "/release-key.asc"}
+              "troubleshooting.md": "/docs/troubleshooting/", "testing.md": "/docs/testing/",
+              "RELEASE-KEY.asc": "/release-key.asc"}
 
 PLATFORMS = [
-    # key, label, file pattern, note
-    ("windows", "Windows 10/11", "routemap-{v}-windows-x86_64.zip", "x86_64, zip"),
-    ("macos", "macOS, Apple silicon", "routemap-{v}-macos-arm64.dmg", "macOS 12+, dmg"),
-    ("macos-intel", "macOS, Intel", "routemap-{v}-macos-x86_64.dmg", "macOS 12+, dmg"),
-    ("linux", "Linux AppImage", "routemap-{v}-linux-x86_64.AppImage", "x86_64"),
-    ("linux-tar", "Linux tar.gz", "routemap-{v}-linux-x86_64.tar.gz", "x86_64"),
+    # key, group, label, file pattern, note. Per platform the installer comes
+    # first. {v} is the version, {d} its Debian and RPM spelling (0.2.0~beta.2);
+    # a * (the build number in package names) is filled in from the release's files.
+    ("windows", "windows", "Installer", "routemap-{v}-windows-x86_64-setup.exe",
+     "Windows 10/11, x86_64; Start menu, uninstaller, upgrades in place"),
+    ("windows-zip", "windows", "Zip", "routemap-{v}-windows-x86_64.zip", "no install: extract and run"),
+    ("macos", "macos", "Apple silicon", "routemap-{v}-macos-arm64.dmg", "macOS 12+, dmg"),
+    ("macos-intel", "macos", "Intel", "routemap-{v}-macos-x86_64.dmg", "macOS 12+, dmg"),
+    ("linux-deb", "linux", "Debian, Ubuntu (.deb)", "routemap_{d}-*_amd64.deb", "x86_64, apt; menu entry"),
+    ("linux-rpm", "linux", "Fedora, RHEL, openSUSE (.rpm)", "routemap-{d}-*.x86_64.rpm",
+     "x86_64, dnf or zypper; menu entry"),
+    ("linux", "linux", "AppImage", "routemap-{v}-linux-x86_64.AppImage", "x86_64, any distribution, no install"),
+    ("linux-tar", "linux", "tar.gz", "routemap-{v}-linux-x86_64.tar.gz", "x86_64, no install"),
 ]
+GROUPS = {"windows": "Windows", "macos": "macOS", "linux": "Linux"}
 
 
 # ------------------------------------------------------------------ markdown ---
@@ -294,7 +303,8 @@ def prose(title: str, inner: str, lead: str = "") -> str:
 DOC_PAGES = [("/docs/guide/", "guide.md", "User guide"), ("/docs/cli/", "cli.md", "Command line"),
              ("/docs/faq/", "faq.md", "Questions"),
              ("/docs/troubleshooting/", "troubleshooting.md", "Troubleshooting"),
-             ("/docs/limitations/", "limitations.md", "Known limitations")]
+             ("/docs/limitations/", "limitations.md", "Known limitations"),
+             ("/docs/testing/", "testing.md", "Testing a beta")]
 
 
 def doc_nav(current: str) -> str:
@@ -313,10 +323,20 @@ def doc_page(path: str, source: pathlib.Path, title: str, description: str, lead
 
 # ------------------------------------------------------------------ releases ---
 
+# Releases up to 0.2.0-beta.1 named their files with the PEP 440 spelling
+# (routemap-0.2.0b1-...); from 0.2.0-beta.2 on, with the tag's own.
+PEP440_FILE_NAMES = (0, 2, 0, "b", 1)
+
+
 def version_for(tag: str) -> str:
-    """'v0.1.0-beta.4' -> '0.1.0b4': the spelling the release file names use."""
+    """The spelling a release's file names use: 'v0.2.0-beta.2' -> '0.2.0-beta.2';
+    'v0.1.0-beta.4' -> '0.1.0b4' for the releases before the change."""
     m = re.match(r"^v?(\d+\.\d+\.\d+)(?:-(alpha|beta|rc)\.(\d+))?$", tag)
     if not m:
+        return tag.lstrip("v")
+    order = {"alpha": "a", "beta": "b", "rc": "rc", None: "z"}  # z: a final release sorts last
+    key = (*map(int, m.group(1).split(".")), order[m.group(2)], int(m.group(3) or 0))
+    if key > PEP440_FILE_NAMES:
         return tag.lstrip("v")
     base, kind, n = m.groups()
     return base + ({"alpha": "a", "beta": "b", "rc": "rc"}[kind] + n if kind else "")
@@ -350,9 +370,19 @@ class Release:
                     self.sums[parts[1].lstrip("*")] = parts[0]
 
     def files(self):
-        for key, label, pattern, note in PLATFORMS:
-            name = pattern.format(v=self.version)
-            yield key, label, name, note, self.sizes.get(name), self.sums.get(name)
+        """(key, group, label, name, note, size, sha) for each file the release has.
+        Without the release's file list (a local build), every pattern is listed."""
+        import fnmatch
+        for key, group, label, pattern, note in PLATFORMS:
+            name = pattern.format(v=self.version, d=self.version.replace("-", "~", 1))
+            if self.sizes:
+                if "*" in name:
+                    name = next((n for n in sorted(self.sizes) if fnmatch.fnmatchcase(n, name)), "")
+                if name not in self.sizes:
+                    continue  # an earlier release without this format
+            else:
+                name = name.replace("*", "1")
+            yield key, group, label, name, note, self.sizes.get(name), self.sums.get(name)
 
 
 def size_text(n: int | None) -> str:
@@ -367,16 +397,21 @@ def download_buttons(rel: Release) -> str:
     site.js marks the platform on <html>; the stylesheet shows the matching
     button. Without JavaScript (or an unknown platform) the button leads to the
     download page and every platform is listed on the line below."""
-    files = {key: (label, name, size) for key, label, name, _n, size, _s in rel.files()}
+    files = {key: (group, label, name, size) for key, group, label, name, _n, size, _s in rel.files()}
     buttons = []
     for os_key, (file_key, short) in PRIMARY.items():
-        _label, name, size = files[file_key]
+        if os_key == "linux":
+            # The package depends on the distribution, which the browser does not say.
+            buttons.append(f'<a class="dl primary" data-os="linux" href="/download/#linux">Download for Linux</a>')
+            continue
+        key = file_key if file_key in files else f"{file_key}-zip"
+        _group, _label, name, size = files[key]
         extra = f'<span class="size">{size_text(size)}</span>' if size else ""
         buttons.append(f'<a class="dl primary" data-os="{os_key}" href="{rel.base}/{name}">'
                        f"Download for {short}{extra}</a>")
     buttons.append('<a class="dl primary generic" href="/download/">Download</a>')
-    others = " ".join(f'<a href="{rel.base}/{name}">{label}</a>'
-                      for key, (label, name, _size) in files.items())
+    others = " ".join(f'<a href="{rel.base}/{name}">{GROUPS[group]} {label}</a>'
+                      for key, (group, label, name, _size) in files.items())
     return (f'<div class="downloads">{"".join(buttons)}</div>'
             f'<p class="dl-more">Also: {others}. {html.escape(rel.tag)}, '
             f'<a href="/download/">checksums and install steps</a>.</p>')
@@ -391,8 +426,11 @@ def build_home(rel: Release) -> None:
 
 
 def build_download(rel: Release) -> None:
-    rows = []
-    for key, label, name, note, size, sha in rel.files():
+    rows, seen = [], set()
+    for key, group, label, name, note, size, sha in rel.files():
+        if group not in seen:
+            seen.add(group)
+            rows.append(f'<tr class="group" id="{group}"><th scope="rowgroup" colspan="3">{GROUPS[group]}</th></tr>')
         rows.append(f'<tr><th scope="row">{label}<span class="note">{note}</span></th>'
                     f'<td><a href="{rel.base}/{name}">{name}</a>'
                     + (f'<code class="sha">{sha}</code>' if sha else "")
@@ -401,7 +439,7 @@ def build_download(rel: Release) -> None:
                     "certificate.</p>"
                     if SIGNED else content("download-unsigned.html"))
     published = f", published {rel.date}" if rel.date else ""
-    zip_name = next(rel.files())[2]
+    win_name = next(f[3] for f in rel.files() if f[1] == "windows")
     body = f"""<article class="prose wide-prose">
 <h1>Download {html.escape(S['product'])}</h1>
 <p class="lead">Version <strong>{html.escape(rel.tag)}</strong>{published}, from
@@ -412,6 +450,8 @@ def build_download(rel: Release) -> None:
 <tbody>{''.join(rows)}</tbody></table></div>
 <p>Release notes and every earlier version: <a href="{L['releases']}">github.com/osintph/routemap/releases</a>.
 What changed: <a href="/changelog/">changelog</a>.</p>
+<h2 id="install">Install, upgrade, uninstall</h2>
+{content("download-install.html")}
 <h2 id="first-start">First start</h2>
 {windows_note}
 {content("download-firststart.html")}
@@ -425,12 +465,13 @@ gpg --fingerprint {FPR}      # must show the fingerprint above
 gpg --verify SHA256SUMS.asc SHA256SUMS
 sha256sum -c SHA256SUMS --ignore-missing        # Linux
 shasum -a 256 -c SHA256SUMS --ignore-missing    # macOS</code></pre>
-<p>On Windows, compare <code>Get-FileHash .\\{html.escape(zip_name)}</code> in PowerShell with
-the line for the zip in <code>SHA256SUMS</code>.</p>
+<p>On Windows, compare <code>Get-FileHash .\\{html.escape(win_name)}</code> in PowerShell with
+its line in <code>SHA256SUMS</code>.</p>
 </article>"""
     page("/download/", "Download", body,
-         f"Download {S['product']} {rel.tag} for Windows, macOS and Linux from GitHub Releases, "
-         "with SHA-256 checksums signed by the release key.")
+         f"Download {S['product']} {rel.tag} for Windows, macOS and Linux from GitHub Releases: "
+         "Windows installer, macOS DMG, Linux .deb, .rpm and AppImage, with SHA-256 checksums "
+         "signed by the release key.")
 
 
 def qr_svg(text: str, label: str) -> str:
@@ -480,17 +521,20 @@ def build_docs() -> None:
               "Every command, option and exit code.",
               "Short answers to the usual questions.",
               "Defender, Gatekeeper, no trace tool, the origin behind a VPN.",
-              "What Route Map does not do, or does not do yet."]
+              "What Route Map does not do, or does not do yet.",
+              "Installing a beta, what to try, and how to report what you found."]
     index = "".join(f'<li><a href="{p}">{t}</a><span>{b}</span></li>'
                     for (p, _f, t), b in zip(DOC_PAGES, blurbs))
     page("/docs/", "Docs", prose("Documentation", f'<ul class="doc-index">{index}</ul>'),
-         f"{S['product']} documentation: user guide, command line, questions, troubleshooting and limitations.")
+         f"{S['product']} documentation: user guide, command line, questions, troubleshooting, limitations "
+         "and testing a beta.")
     descriptions = {
         "guide.md": f"How to install and use {S['product']}: first trace, source labels, exports, paste mode, settings and RIPE Atlas.",
         "cli.md": f"{S['product']} command-line reference: commands, options, exit codes and examples.",
         "faq.md": f"Questions about {S['product']}: warnings, cost, sources, privacy, pasted traces.",
         "troubleshooting.md": f"Fixing common {S['product']} problems: Defender, Gatekeeper, missing traceroute, VPN origin.",
         "limitations.md": f"Known limitations of {S['product']}: unsigned builds, IP database hints, what traceroute cannot see.",
+        "testing.md": f"Testing a {S['product']} beta: which file to install, what to try, how to report it.",
     }
     for path, name, title in DOC_PAGES:
         doc_page(path, ROOT / "docs" / name, title, descriptions[name], aside=doc_nav(path))

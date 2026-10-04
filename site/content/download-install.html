@@ -1,0 +1,32 @@
+<h3>Windows</h3>
+<ol>
+<li>Run the installer. Choose <strong>Install for me only</strong> (no administrator rights; it
+goes into your user folder) or <strong>Install for all users</strong> (Program Files; Windows asks
+for administrator approval).</li>
+<li>Optional: tick <strong>Add routemap-cli.exe to PATH</strong> to use the command line in any
+terminal.</li>
+<li>Start Route Map from the Start menu. <code>routemap.exe</code> never opens a console;
+<code>routemap-cli.exe</code> beside it is the command line.</li>
+</ol>
+<p><strong>Upgrade</strong>: run the new installer; it replaces the old version and keeps your
+settings, history and databases. <strong>Uninstall</strong>: Settings &gt; Apps &gt; Installed apps
+&gt; Route Map &gt; Uninstall. Without installing: extract the zip and run <code>routemap.exe</code>
+in the <code>Route Map</code> folder; keep the folder together.</p>
+<h3>macOS</h3>
+<p>Open the <code>.dmg</code> for your Mac (Apple silicon or Intel: Apple menu &gt; About This Mac
+says which) and drag Route Map to Applications. <strong>Upgrade</strong>: drag the new version over
+the old one. <strong>Uninstall</strong>: move Route Map from Applications to the Trash.</p>
+<h3 id="linux-install">Linux</h3>
+<pre><code>sudo apt install ./routemap_*_amd64.deb      # Debian, Ubuntu, Mint, Pop!_OS
+sudo dnf install ./routemap-*.x86_64.rpm     # Fedora, RHEL, Rocky, Alma
+sudo zypper install ./routemap-*.x86_64.rpm  # openSUSE</code></pre>
+<p>Route Map is then in the applications menu, and <code>routemap</code> is on the PATH (the same
+program is the window and the command line). <strong>Upgrade</strong>: install the new package the
+same way. <strong>Uninstall</strong>: <code>sudo apt remove routemap</code> or
+<code>sudo dnf remove routemap</code>. Without installing: <code>chmod +x</code> the AppImage and
+run it, or unpack the <code>tar.gz</code> and run <code>./routemap</code>.</p>
+<p><strong>Your data</strong>: uninstalling keeps your settings, history and downloaded databases,
+so a later install picks them up. To remove them too, delete <code>%APPDATA%\routemap</code>
+(Windows), <code>~/Library/Application Support/routemap</code> (macOS) or
+<code>~/.config/routemap</code> (Linux). <strong>Check for Updates</strong> in the Help menu offers
+the right file for your system when a new version is out.</p>

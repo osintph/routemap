@@ -1,15 +1,11 @@
-<p><strong>macOS</strong>: the app is not notarised, so Gatekeeper blocks the first start.</p>
+<p><strong>macOS: the app is not notarised</strong>, so Gatekeeper blocks the first start.</p>
 <ol>
-<li>Open the <code>.dmg</code> and drag Route Map to Applications.</li>
 <li>In Applications, right-click Route Map, choose <strong>Open</strong>, then <strong>Open</strong> again.</li>
 <li>On macOS 15 and later, if there is no Open button: try to open it once, then System Settings,
 Privacy &amp; Security, and <strong>Open Anyway</strong> next to the message about Route Map.</li>
 </ol>
 <p>Or in Terminal: <code>xattr -d com.apple.quarantine "/Applications/Route Map.app"</code>.</p>
-<p><strong>Linux</strong>: <code>chmod +x routemap-*-linux-x86_64.AppImage</code> and run it, or unpack the
-<code>.tar.gz</code> and run <code>./routemap</code>. Tracing needs a trace tool:
-<code>sudo apt install traceroute</code> (Debian, Ubuntu), <code>sudo dnf install traceroute</code>
-(Fedora), <code>sudo pacman -S traceroute</code> (Arch); <code>mtr</code> is optional and adds per-hop
-loss.</p>
-<p><strong>Windows</strong>: keep the <code>Route Map</code> folder together. <code>routemap.exe</code>
-never opens a console; <code>routemap-cli.exe</code> beside it is the command line.</p>
+<p><strong>Linux</strong>: nothing to confirm. Traces use the built-in ICMP prober where the
+distribution allows unprivileged ICMP (most desktops do); elsewhere they use <code>traceroute</code>,
+so install it (<code>sudo apt install traceroute</code>, <code>sudo dnf install traceroute</code>)
+and Settings &gt; Trace says why. <code>mtr</code> is optional.</p>

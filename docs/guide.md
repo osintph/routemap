@@ -5,20 +5,36 @@
 Download the latest release from
 [GitHub Releases](https://github.com/osintph/routemap/releases).
 
-- **Windows 10/11 (x86_64)**: download `routemap-<version>-windows-x86_64.zip`,
-  extract it, and run `routemap.exe` in the `Route Map` folder. Keep the folder
-  together; you can pin `routemap.exe` to Start or the taskbar. Until the build
-  is code-signed, SmartScreen may say "Windows protected your PC": choose
-  **More info**, then **Run anyway**. `routemap.exe` never opens a console;
-  `routemap-cli.exe` beside it is the command line.
+- **Windows 10/11 (x86_64)**: run `routemap-<version>-windows-x86_64-setup.exe`.
+  Choose **Install for me only** (no administrator rights, installed in your
+  user folder) or **Install for all users** (Program Files). Route Map is then in the Start
+  menu and in Settings > Apps; tick **Add routemap-cli.exe to PATH** to use the
+  command line in any terminal. `routemap.exe` never opens a console;
+  `routemap-cli.exe` beside it is the command line. Until the build is
+  code-signed, SmartScreen may say "Windows protected your PC": choose
+  **More info**, then **Run anyway**. Without installing: extract
+  `routemap-<version>-windows-x86_64.zip` and run `routemap.exe` in the
+  `Route Map` folder.
 - **macOS 12+**: open the `.dmg` for your Mac (`macos-arm64` for Apple silicon,
   `macos-x86_64` for Intel) and drag Route Map to Applications. The app is not
   notarised, so the first start is blocked: right-click it, choose **Open**,
   then **Open** again (on macOS 15: System Settings > Privacy & Security >
   **Open Anyway**).
-- **Linux x86_64**: `chmod +x` the `.AppImage` and run it, or unpack the
-  `.tar.gz` and run `./routemap`. Tracing needs `traceroute` (for example
-  `sudo apt install traceroute`); `mtr` is used if you choose it in Settings.
+- **Linux x86_64**: `sudo apt install ./routemap_<version>-<build>_amd64.deb`
+  (Debian, Ubuntu and relatives) or `sudo dnf install
+  ./routemap-<version>-<build>.x86_64.rpm` (Fedora, RHEL; `zypper install` on
+  openSUSE). Route Map is then in the applications menu and `routemap` on the
+  PATH. Without installing: `chmod +x` the `.AppImage` and run it, or unpack the
+  `.tar.gz` and run `./routemap`. Where the distribution does not allow
+  unprivileged ICMP, traces use `traceroute`, which then has to be installed.
+
+**Upgrade** by installing the new version over the old one (installer,
+package or DMG); settings, history and databases stay. **Help > Check for
+Updates** says whether a newer version is out and offers the file for your
+system. **Uninstall**: Settings > Apps on Windows, the Trash on macOS,
+`sudo apt remove routemap` or `sudo dnf remove routemap` on Linux. Settings and
+history are kept in `%APPDATA%\routemap`, `~/Library/Application
+Support/routemap` or `~/.config/routemap` until you delete that folder.
 
 Check a download (optional): import the release key
 ([RELEASE-KEY.asc](../RELEASE-KEY.asc)) with `gpg --import RELEASE-KEY.asc`,

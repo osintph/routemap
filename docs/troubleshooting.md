@@ -4,9 +4,10 @@
 
 The Windows build is not code-signed yet, so Microsoft Defender and SmartScreen
 have no reputation for it. 0.1.0-beta.3, a single self-extracting exe, was
-quarantined as a false positive; since 0.1.0-beta.4 the Windows download is a
-zip of a normal program folder, with version information and a manifest, and
-every build is scanned with Defender before release.
+quarantined as a false positive; since 0.1.0-beta.4 Windows gets a normal
+program folder with version information and a manifest (since 0.2.0-beta.2 as
+an installer, and still as a zip), and every build, installer included, is
+scanned with Defender before release.
 
 If Defender still removes it:
 
@@ -25,6 +26,13 @@ If Defender still removes it:
 That is SmartScreen, shown for programs without download reputation. Choose
 **More info**, then **Run anyway**. It goes away once the build is
 code-signed.
+
+## Windows: the installer asks for administrator rights
+
+Choose **Install for me only** on its first page: Route Map then installs into
+your user folder (`%LOCALAPPDATA%\Programs\Route Map`) without administrator
+rights. **Install for all users** puts it in Program Files and needs them.
+From a terminal: `routemap-<version>-windows-x86_64-setup.exe /CURRENTUSER`.
 
 ## A summary section says "unavailable"
 

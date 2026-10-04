@@ -4,7 +4,21 @@ All notable changes to this project are documented here. The format is based
 on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 uses [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.2.0-beta.2] - 2026-10-04
+
+### Added
+
+- **Installers.** Windows: one installer for a per-user install (no
+  administrator rights) or a per-machine one (Program Files), with a Start menu
+  entry, an uninstaller in Settings > Apps and an optional PATH entry for
+  `routemap-cli.exe`; installing a new version over an old one upgrades it.
+  Linux: `.deb` and `.rpm` packages with a menu entry. Every release builds
+  them from the same commit as the DMGs, the AppImage and the zip, and installs,
+  checks and removes each one on clean Windows, Ubuntu, Debian and Fedora
+  systems before anything is published.
+- **Check for Updates offers the file for your system**: the Windows
+  installer, the DMG for your Mac's processor, or the `.deb`, `.rpm` or
+  AppImage on Linux, with a Download button that opens it in your browser.
 
 ### Changed
 
@@ -32,6 +46,28 @@ uses [Semantic Versioning](https://semver.org/).
 - **Help > About and `--version` show the commit** the build was made from, and
   every release checks that all platforms were built from the same commit and
   render the same panels, legends, charts and table.
+- **Help > About and `--version` also show the engine's commit** whenever the
+  app is built on an engine commit rather than a published release.
+- **Version spelling**: the version reads `0.2.0-beta.2` everywhere you see it
+  (About, `--version`, file names, installer, Settings > Apps, packages), the
+  same as the release tag; earlier releases' files used `0.2.0b1`.
+- Requires routemap-engine 0.3.1.
+
+### Fixed
+
+- **Windows: round trip times keep their decimals.** Every probe is timed with
+  the same high-resolution clock on every platform; on Windows, hops beyond the
+  access network used to read as whole milliseconds.
+- **The built-in prober is named as such** ("Built-in ICMP prober"), not "Unix
+  traceroute", from the first line of a trace.
+- **Disagreeing RIS paths are explained**: the BGP view says where they leave
+  the trace's path and through which AS, also when some paths agree.
+- **The BGP updates chart marks the hours RIPEstat has no data for yet**
+  (hatched, with the time its data reaches) instead of drawing them as quiet.
+- **The Hoiho ruleset date is always shown**, also when the answers came from
+  the cache.
+- **One RPKI term**: a prefix without a ROA is "not found" in the hop table,
+  the PDF, the AS path and the BGP view alike (the table said "no ROA").
 
 ## [0.2.0-beta.1] - 2026-10-04
 

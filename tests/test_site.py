@@ -126,3 +126,31 @@ def test_font_urls_carry_their_content_hash(tmp_path):
     home = (out / "index.html").read_text(encoding="utf-8")
     for pre in re.findall(r'rel="preload" href="([^"]+)"', home):
         assert pre in urls, f"preload {pre} must match the stylesheet's URL exactly"
+
+
+def test_the_download_page_puts_the_installer_first_for_each_platform(tmp_path):
+    """From 0.2.0-beta.2: per platform the installer row comes first, the
+    package names (with their build number) come from the release's file list,
+    and the Windows button downloads the installer."""
+    import json
+    v, tag = "0.2.0-beta.2", "v0.2.0-beta.2"
+    names = [f"routemap-{v}-windows-x86_64-setup.exe", f"routemap-{v}-windows-x86_64.zip",
+             f"routemap-{v}-macos-arm64.dmg", f"routemap-{v}-macos-x86_64.dmg",
+             "routemap_0.2.0~beta.2-57_amd64.deb", "routemap-0.2.0~beta.2-57.x86_64.rpm",
+             f"routemap-{v}-linux-x86_64.AppImage", f"routemap-{v}-linux-x86_64.tar.gz", "SHA256SUMS"]
+    rel = tmp_path / "release.json"
+    rel.write_text(json.dumps({"tagName": tag, "publishedAt": "2026-10-05T00:00:00Z",
+                               "assets": [{"name": n, "size": 1_000_000} for n in names]}))
+    out = tmp_path / "site"
+    subprocess.run([sys.executable, str(ROOT / "site" / "build.py"), "--out", str(out), "--tag", tag,
+                    "--release-json", str(rel)], check=True, capture_output=True)
+    page = (out / "download" / "index.html").read_text(encoding="utf-8")
+    order = [page.index(n) for n in names[:8]]
+    assert order[0] < order[1] and order[4] < order[6], "installer before zip, packages before AppImage"
+    assert 'id="windows"' in page and 'id="macos"' in page and 'id="linux"' in page
+    assert f'data-os="windows" href="https://github.com/osintph/routemap/releases/download/{tag}/{names[0]}"' in page
+    assert "Install for me only" in page and "Settings &gt; Apps" in page
+    old = subprocess.run([sys.executable, str(ROOT / "site" / "build.py"), "--out", str(tmp_path / "old"),
+                          "--tag", "v0.2.0-beta.1"], capture_output=True, text=True)
+    assert old.returncode == 0, old.stderr
+    assert "routemap-0.2.0b1-windows-x86_64.zip" in (tmp_path / "old" / "download" / "index.html").read_text()
