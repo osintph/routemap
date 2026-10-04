@@ -11,13 +11,12 @@
 </section>
 
 <section class="story" aria-label="Why it exists">
-  <p>On a trace from Manila, an IP geolocation database put a Tata Communications backbone router
-  in Harare, though it answered at the same round-trip time as its neighbours in San Jose. On a
-  trace to heise.de, the same database had no city for any of Arelion's backbone routers between
-  Hong Kong and Frankfurt: no answer at all for some, just "France" for the rest. A map built on
-  that shows Asia, a blank, then Germany. Yet every one of those routers names its site in its
-  hostname: <code>hnk</code>, <code>sng</code>, <code>mei</code>, <code>ffm</code>. Route Map reads
-  those names first.</p>
+  <p>On October 2 a commercial traceroute visualiser drew my path from Manila to amazon.com
+  through Harare. The hop was a Tata router between Hong Kong and San Jose, answering in 215 ms,
+  the same as San Jose; a detour through Zimbabwe would have added well over 100 ms. A trace to
+  heise.de was worse: every Arelion backbone hop was blank, while the hostnames spelled out
+  <code>hnk</code>, <code>sng</code>, <code>mei</code>, <code>prs</code>, <code>ffm</code>. The
+  answer was in the DNS all along, and Route Map reads it.</p>
 </section>
 
 <section class="rules" aria-labelledby="rules">
