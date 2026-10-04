@@ -6,6 +6,33 @@ uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- **The same trace on every platform.** Traces now probe with the engine's own
+  ICMP prober on Windows, macOS and Linux: 30 hops, three probes per hop, one
+  second per reply, and every router that answers a hop is listed. Windows
+  `tracert` showed one router per hop and macOS and Linux `traceroute` used
+  UDP probes that many destinations ignore, so the same target looked
+  different on each. No administrator rights are needed. On a Linux system
+  that does not allow unprivileged ICMP (`net.ipv4.ping_group_range`), traces
+  fall back to `traceroute` with UDP and Settings > Trace says why. The system
+  tools remain as options (UDP, and TCP where you have administrator rights).
+- **One look on every platform:** the same style, palette, accent colour and
+  font (IBM Plex Sans, bundled, SIL Open Font Licence) on Windows, macOS and
+  Linux; only the window frame and the menu bar position differ.
+- **Theme:** System (default), Light or Dark, in Settings > Map and View >
+  Theme; applies to the window, the map and the exports, and is remembered.
+- **Nothing disappears without a reason.** When RIPEstat or RIPE Atlas does not
+  answer, the route summary says so and why (for example "RIPEstat did not
+  answer within 20 s") instead of leaving a section out. The slow RIPEstat
+  lookups (RIS paths, BGP updates, visibility) now wait up to 20 s and retry
+  once. With no origin set, the RTT chart says why there is no physics floor.
+- **City labels at every zoom**, the largest places first, so whether a map
+  shows any no longer depends on the window size.
+- **Help > About and `--version` show the commit** the build was made from, and
+  every release checks that all platforms were built from the same commit and
+  render the same panels, legends, charts and table.
+
 ## [0.2.0-beta.1] - 2026-10-04
 
 ### Added

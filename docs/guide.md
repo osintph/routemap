@@ -80,6 +80,15 @@ and are coloured by how much round-trip time each step added: grey under 15 ms,
 warming to the hot colour at 60 ms (both set in **Settings > Map**). A dashed
 line crosses hops that did not answer or a country-only placement.
 
+Traces probe the same way on every platform: ICMP echo from the app's own
+prober, 30 hops, three probes per hop, one second per reply, with every
+router that answers a hop listed (a hop answered by two routers shows both).
+Settings > Trace offers the system `traceroute` for UDP probes, or TCP
+probes with administrator rights.
+
+**View > Theme** (or Settings > Map) sets System, Light or Dark for the
+window, the map and the exports.
+
 **Flat** and **Globe** switch projection (View > Globe, Ctrl+G); the globe is
 centred on the route and turns when you drag it.
 

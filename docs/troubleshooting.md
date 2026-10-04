@@ -26,6 +26,21 @@ That is SmartScreen, shown for programs without download reputation. Choose
 **More info**, then **Run anyway**. It goes away once the build is
 code-signed.
 
+## A summary section says "unavailable"
+
+The route summary's online parts come from RIPEstat and RIPE Atlas. When one
+does not answer, the section stays and says why, for example "RIPEstat did not
+answer within 20 s". Trace again later, or check that Settings > Sources >
+Online lookups is on. Help > About shows the exact version and commit.
+
+## Linux: traces use traceroute instead of ICMP
+
+The built-in ICMP prober needs unprivileged ICMP sockets, which most desktop
+distributions allow. If yours does not, Settings > Trace says so and traces
+use `traceroute` (UDP). To allow it for all users (as root):
+`sysctl -w net.ipv4.ping_group_range="0 2147483647"`, and add that line to
+`/etc/sysctl.d/99-ping.conf` to keep it after a restart.
+
 ## macOS: "Route Map cannot be opened" or "Apple could not verify"
 
 The app is not notarised. Right-click Route Map in Applications, choose
