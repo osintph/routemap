@@ -15,7 +15,7 @@ from __future__ import annotations
 import html
 
 from PySide6.QtCore import QPointF, QRectF, QSize, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QFont, QFontMetricsF, QGuiApplication, QPainter, QPen
+from PySide6.QtGui import QBrush, QColor, QFont, QFontMetricsF, QGuiApplication, QPainter, QPen
 from PySide6.QtWidgets import (QFrame, QGridLayout, QHBoxLayout, QLabel, QPushButton, QScrollArea,
                                QSizePolicy, QToolButton, QVBoxLayout, QWidget)
 
@@ -67,7 +67,9 @@ class UpdateBars(QWidget):
         self.setMinimumHeight(56)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
 
-    def set_bins(self, bins: list[int]):
+    def set_bins(self, bins: list):
+        """Counts per hour, oldest first; None for hours RIPEstat has no data
+        for yet (its route-collector data runs a few hours behind)."""
         self.bins = list(bins or [])
         self.update()
 
@@ -82,8 +84,18 @@ class UpdateBars(QWidget):
         pal = theme.current()
         w, h = self.width(), self.height() - 16
         bw = w / len(self.bins)
-        top = max(self.bins) or 1
+        top = max([n for n in self.bins if n is not None] or [1]) or 1
+        pending = [i for i, n in enumerate(self.bins) if n is None]
+        if pending:
+            # Not yet available: a hatched band, not empty bars.
+            x0 = pending[0] * bw
+            band = QRectF(x0, 0, w - x0, h)
+            p.setPen(Qt.NoPen)
+            p.setBrush(QBrush(pal.coast, Qt.BDiagPattern))
+            p.drawRect(band)
         for i, n in enumerate(self.bins):
+            if n is None:
+                continue
             bar = h * n / top
             p.setPen(Qt.NoPen)
             p.setBrush(pal.sources["ip-db"] if n else pal.coast)
@@ -283,7 +295,10 @@ class InsightPanel(QScrollArea):
                                                 + (f", BURST OF {updates['burst']} AT TRACE TIME"
                                                    if updates.get("burst") else ""))
             self.sections["updates"][1].set_bins(updates["bins"])
-            self.updates_note.setText("")
+            pending = sum(1 for n in updates["bins"] if n is None)
+            self.updates_note.setText(_muted(
+                f"Hatched: the last {pending} h, which RIPEstat's data does not reach yet "
+                f"(it runs to {html.escape(updates['until'][11:16])} UTC)") if pending and updates.get("until") else "")
             self._show("updates", True)
         elif s.get("reasons", {}).get("updates"):
             # Never just gone: the heading stays, with why there are no bars.

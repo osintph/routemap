@@ -29,7 +29,7 @@ classifiers = [
 dependencies = [
     # Development pin: the engine's main branch at the built-in prober and the
     # failure reasons, not yet on PyPI. Back to a PyPI release before any tag.
-    "routemap-engine[offline] @ git+https://github.com/osintph/routemap-engine@b80cb197cc2133c1b18e3c8f3f05fd0c2ea3b9f9",
+    "routemap-engine[offline] @ git+https://github.com/osintph/routemap-engine@1166c9c56513ceda26630a739b42a4620782e7ee",
     # Reads the DB-IP Lite files; pinned so the packaged build is reproducible.
     "maxminddb==3.2.0",
 ]

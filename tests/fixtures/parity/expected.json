@@ -2,6 +2,7 @@
  "accent": "#b4530a",
  "charts": {
   "bgp_bins": 48,
+  "bgp_pending": 0,
   "bgp_total": 191,
   "floor_points": 13,
   "rtt_points": 16

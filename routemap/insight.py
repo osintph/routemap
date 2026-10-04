@@ -162,15 +162,18 @@ async def _fill(route, insight, result, stat, atlas, now):
                 "RIPEstat has no routed prefix for the last answering hop"
                 + (f" ({stat.errors['network-info']})" if getattr(stat, "errors", {}).get("network-info") else ""))
         if prefix:
-            paths, vis, updates = await asyncio.gather(
-                stat.ris_paths(prefix), stat.visibility(prefix), stat.bgp_updates(prefix, end=now))
+            paths, vis, window = await asyncio.gather(
+                stat.ris_paths(prefix), stat.visibility(prefix), stat.bgp_update_window(prefix, end=now))
+            updates = None if window is None else window["timestamps"]
             block = {"prefix": prefix, "visibility": vis, "ris": None, "updates": None}
             if paths is not None:
                 dp = [p["asn"] for p in insight["as_path"]]
                 block["ris"] = ripe.ris_agreement(dp, paths)
             if updates is not None:
-                block["updates"] = {"total": len(updates), "bins": ripe.hourly_bins(updates, now),
-                                    "burst": ripe.update_burst(updates, now)}
+                until = window["until"]
+                block["updates"] = {"total": len(updates), "bins": ripe.hourly_bins(updates, now, until=until),
+                                    "burst": ripe.update_burst(updates, now),
+                                    "until": until.isoformat(timespec="minutes")}
             result["prefix"] = block
         result["baseline"] = await _baseline(route, dest, atlas)
 
@@ -302,6 +305,23 @@ def summary(route: dict, ins: dict | None, origin_cc: str | None = None) -> dict
             if ris["agree"]:
                 lines.append(f"origin {origins}; {ris['agree']} of {ris['total']} RIS peer paths "
                              f"carry {via} like this trace")
+                others = ris["total"] - ris["agree"]
+                parts = []
+                for d in ris.get("diverge") or []:
+                    if d["joins_at"] is None:
+                        parts.append(f"{d['paths']} announced by a different origin")
+                    elif d["via"] is None:
+                        parts.append(f"{d['paths']} from route collectors that peer with AS{d['joins_at']} itself")
+                    else:
+                        parts.append(f"{d['paths']} reach AS{d['joins_at']} through AS{d['via']}"
+                                     + (f" instead of AS{d['instead_of']}" if d.get("instead_of") else ""))
+                if others and parts:
+                    shown = sum(d["paths"] for d in ris.get("diverge") or [])
+                    lines.append(f"the other {others}: " + "; ".join(parts)
+                                 + (f"; {others - shown} more in smaller groups" if others > shown else ""))
+                elif others:
+                    lines.append(f"the other {others} take different paths; RIPEstat's answer does not say where "
+                                 "they leave this one")
             elif ris.get("differs_at"):
                 lines.append(f"origin {origins}; no RIS peer path matches this trace after "
                              f"AS{ris['differs_at']}: the forward path may differ from what BGP announces")
