@@ -182,22 +182,30 @@ class SettingsDialog(QDialog):
         s = self.settings
         page = QWidget()
         form = QFormLayout(page)
+        from routemap_engine.runner import icmp_status
+        icmp_ok, icmp_why = icmp_status()
         self.tool = QComboBox()
-        self.tool.addItem("Automatic", "auto")
-        for name in ("traceroute", "mtr", "tracert"):
-            status = "installed" if name in tools else "not available here"
-            self.tool.addItem(f"{name} ({status})", name)
+        self.tool.addItem("Automatic (built-in ICMP where it can run)", "auto")
+        labels = {"icmp": "ICMP probes, built in (the same on every platform)",
+                  "traceroute": "traceroute (UDP probes; TCP with -T on Linux, -P tcp on macOS)",
+                  "mtr": "mtr", "tracert": "tracert (Windows, ICMP, one address per hop)"}
+        for name in ("icmp", "traceroute", "mtr", "tracert"):
+            status = "" if name in tools else " (not available here)"
+            self.tool.addItem(labels[name] + status, name)
             if name not in tools:
                 self.tool.model().item(self.tool.count() - 1).setEnabled(False)
         index = self.tool.findData(s.tool)
         self.tool.setCurrentIndex(max(0, index))
-        form.addRow("Tool", self.tool)
-        form.addRow("", _note("Detected at startup. tracert on Windows; traceroute on macOS "
-                              "and Linux; mtr where installed (on macOS mtr needs administrator "
-                              "rights, so it is not offered there)."))
+        form.addRow("Probe with", self.tool)
+        form.addRow("", _note(
+            "By default every platform probes the same way: ICMP echo, 30 hops, three probes per "
+            "hop, one second per reply, and every router that answers a hop is listed."
+            + ("" if icmp_ok else f" <b>Built-in ICMP cannot run here:</b> {icmp_why}; traces use "
+               "traceroute (UDP) instead, which many destinations do not answer.")
+            + " TCP probes need administrator rights."))
         self.flags = {}
         mono = QFontDatabase.systemFont(QFontDatabase.FixedFont)
-        for name in ("traceroute", "mtr", "tracert"):
+        for name in ("icmp", "traceroute", "mtr", "tracert"):
             edit = QLineEdit(shlex.join(s.flags_for(name)))
             edit.setFont(mono)
             edit.textChanged.connect(self._check_flags)
@@ -348,6 +356,11 @@ class SettingsDialog(QDialog):
         self.projection.addItem("Globe, centred on the route", "globe")
         self.projection.setCurrentIndex(1 if s.projection == "globe" else 0)
         form.addRow("Projection", self.projection)
+        self.theme = QComboBox()
+        for key, label in (("system", "System (follow the operating system)"), ("light", "Light"), ("dark", "Dark")):
+            self.theme.addItem(label, key)
+        self.theme.setCurrentIndex(max(0, self.theme.findData(s.theme)))
+        form.addRow("Theme", self.theme)
         steps = QHBoxLayout()
         self.rtt_quiet = QDoubleSpinBox()
         self.rtt_quiet.setRange(0, 500)
@@ -471,6 +484,7 @@ class SettingsDialog(QDialog):
         settings.timeout_seconds = self.timeout.value()
         settings.online_lookups = self.online.isChecked()
         settings.projection = self.projection.currentData() or "flat"
+        settings.theme = self.theme.currentData() or "system"
         settings.rtt_quiet_ms = float(self.rtt_quiet.value())
         settings.rtt_hot_ms = float(self.rtt_hot.value())
         if settings.rtt_hot_ms <= settings.rtt_quiet_ms:

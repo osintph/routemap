@@ -149,6 +149,10 @@ class RttSparkline(QWidget):
         p.end()
 
 
+RTT_NOTE = ("Solid: measured minimum RTT. Dashed: the lowest RTT the placement allows "
+            "(100 km per ms of round trip).")
+
+
 class InsightPanel(QScrollArea):
     """The route summary. Fed by show(route, insight, ...)."""
 
@@ -175,9 +179,11 @@ class InsightPanel(QScrollArea):
             self.box.addWidget(head)
             self.box.addWidget(content)
             if key == "rtt":
-                self.rtt_note = rich(_muted("Solid: measured minimum RTT. Dashed: the lowest RTT "
-                                            "the placement allows (100 km per ms of round trip)."))
+                self.rtt_note = rich(_muted(RTT_NOTE))
                 self.box.addWidget(self.rtt_note)
+            if key == "updates":
+                self.updates_note = rich()
+                self.box.addWidget(self.updates_note)
             self.sections[key] = (head, content)
         self.box.addStretch(1)
         self.setWidget(body)
@@ -189,6 +195,8 @@ class InsightPanel(QScrollArea):
         content.setVisible(on)
         if key == "rtt":
             self.rtt_note.setVisible(on)
+        if key == "updates":
+            self.updates_note.setVisible(on and bool(self.updates_note.text()))
 
     def clear(self):
         for key in self.sections:
@@ -243,7 +251,8 @@ class InsightPanel(QScrollArea):
                                                  + _muted(html.escape(b["detail"])))
             self._show("baseline", True)
         elif s["baseline"] == insight_mod.UNAVAILABLE:
-            self.sections["baseline"][1].setText(_muted("unavailable"))
+            why = s.get("reasons", {}).get("baseline")
+            self.sections["baseline"][1].setText(_muted("unavailable" + (f": {html.escape(why)}" if why else "")))
             self._show("baseline", True)
         else:
             self._show("baseline", False)
@@ -261,6 +270,10 @@ class InsightPanel(QScrollArea):
                 lines.append(vis)
             self.sections["ris"][1].setText("<br>".join(lines))
             self._show("ris", True)
+        elif s.get("reasons", {}).get("prefix"):
+            self.sections["ris"][0].setText("BGP VIEW (RIPE RIS)")
+            self.sections["ris"][1].setText(_muted("unavailable: " + html.escape(s["reasons"]["prefix"])))
+            self._show("ris", True)
         else:
             self._show("ris", False)
         # updates
@@ -270,12 +283,25 @@ class InsightPanel(QScrollArea):
                                                 + (f", BURST OF {updates['burst']} AT TRACE TIME"
                                                    if updates.get("burst") else ""))
             self.sections["updates"][1].set_bins(updates["bins"])
+            self.updates_note.setText("")
+            self._show("updates", True)
+        elif s.get("reasons", {}).get("updates"):
+            # Never just gone: the heading stays, with why there are no bars.
+            self.sections["updates"][0].setText("BGP UPDATES, LAST 48 H")
+            self.sections["updates"][1].set_bins([])
+            self.updates_note.setText(_muted("unavailable: " + html.escape(s["reasons"]["updates"])))
             self._show("updates", True)
         else:
+            self.updates_note.setText("")
             self._show("updates", False)
         # sparkline
         hops = route.get("hops") or []
         self.sections["rtt"][1].set_hops(hops)
+        if s.get("reasons", {}).get("origin"):
+            self.rtt_note.setText(_muted("Solid: measured minimum RTT. No dashed physics floor: "
+                                         + html.escape(s["reasons"]["origin"]) + "."))
+        else:
+            self.rtt_note.setText(_muted(RTT_NOTE))
         self._show("rtt", sum(1 for h in hops if h.get("min_rtt_ms") is not None) >= 2)
         # diff
         if diff:

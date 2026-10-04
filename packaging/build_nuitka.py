@@ -39,6 +39,7 @@ COMMON = [
     "--include-module=routemap.gui.app",
     "--include-module=routemap.gui.legal",
     "--include-module=maxminddb",
+    "--include-module=routemap._build",
     "--nofollow-import-to=jsonschema",
     "--nofollow-import-to=pytest",
     "--nofollow-import-to=PIL",
@@ -70,8 +71,20 @@ def run(args: list[str]) -> None:
     subprocess.run([sys.executable, "-m", "nuitka", *args], check=True, cwd=ROOT)
 
 
+def stamp_commit() -> str:
+    """Write routemap/_build.py with the commit being built, so the app can say
+    exactly what it is (Help > About, --version) and CI can check that every
+    platform of a release came from one commit."""
+    commit = os.environ.get("GITHUB_SHA") or subprocess.run(
+        ["git", "rev-parse", "HEAD"], capture_output=True, text=True, cwd=ROOT).stdout.strip()
+    (ROOT / "routemap" / "_build.py").write_text(
+        f'"""Written by packaging/build_nuitka.py; not in git."""\nCOMMIT = "{commit}"\n', encoding="utf-8")
+    return commit
+
+
 def main(target: str) -> int:
     OUT.mkdir(parents=True, exist_ok=True)
+    print("building commit", stamp_commit(), flush=True)
     version = ["--file-version=" + numeric_version(), "--product-version=" + numeric_version()]
     if target == "macos":
         # The binary is not called "routemap": that would collide with the

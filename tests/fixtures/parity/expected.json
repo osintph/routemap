@@ -1,0 +1,87 @@
+{
+ "accent": "#b4530a",
+ "charts": {
+  "bgp_bins": 48,
+  "bgp_total": 191,
+  "floor_points": 13,
+  "rtt_points": 16
+ },
+ "font": {
+  "family": "IBM Plex Sans",
+  "pixel_size": 13
+ },
+ "globe_legend": [
+  "Placed by",
+  "Carrier site code",
+  "IP database (fallback)",
+  "Local / ISP network",
+  "Country only (centroid)",
+  "RTT added per step",
+  "under 15 ms",
+  "15 to 60 ms",
+  "60 ms or more",
+  "silent stretch or country only"
+ ],
+ "headings": {
+  "baseline": "TYPICAL LATENCY (RIPE ATLAS)",
+  "countries": "COUNTRIES TRANSITED",
+  "path": "AS PATH",
+  "ris": "BGP VIEW OF 62.115.0.0/16 (RIPE RIS)",
+  "rtt": "RTT PER HOP AND THE PHYSICS FLOOR",
+  "updates": "BGP UPDATES, LAST 48 H (191)"
+ },
+ "legend": [
+  "<b>Placed by</b>",
+  "Carrier site code",
+  "IP database (fallback)",
+  "Local / ISP network",
+  "Country only (centroid)",
+  "<b>RTT added per step</b>",
+  "under 15 ms",
+  "15 to 60 ms",
+  "60 ms or more",
+  "silent stretch or country only"
+ ],
+ "map": {
+  "credit": "Natural Earth \u00b7 GeoNames \u00b7 IP Geolocation by DB-IP",
+  "groups": 11,
+  "markers": 11,
+  "multi_responder_hops": [
+   8
+  ],
+  "origin_marker": true
+ },
+ "panels": {
+  "hop_details_visible": false,
+  "tool_output_expanded": false,
+  "unplaced_expanded": false
+ },
+ "sections": {
+  "anycast": false,
+  "baseline": true,
+  "countries": true,
+  "diff": false,
+  "path": true,
+  "ris": true,
+  "rtt": true,
+  "status": false,
+  "updates": true
+ },
+ "style": "fusion",
+ "table": {
+  "columns": [
+   "#",
+   "Location",
+   "Source",
+   "ASN",
+   "RPKI",
+   "Hostname",
+   "IP address",
+   "RTT min",
+   "RTT avg",
+   "Loss",
+   "Notes"
+  ],
+  "rows": 16
+ }
+}

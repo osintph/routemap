@@ -75,6 +75,8 @@ jobs:
           "$BIN" --version
           bash packaging/cli_check.sh "$BIN"
           "$BIN" --smoke-test smoke
+          # One tag, one commit, every platform: the binary must report the commit being built.
+          grep -q "commit $GITHUB_SHA " smoke/result.txt || { echo "::error::smoke/result.txt does not report commit $GITHUB_SHA"; cat smoke/result.txt; exit 1; }
           "$BIN" parse tests/fixtures/routemap/heise_mtr.txt --offline --origin "Manila, PH" > smoke/parse.json
       - name: Package (macOS dmg, ad-hoc signed)
         if: runner.os == 'macOS'
@@ -119,6 +121,9 @@ jobs:
           "$D/routemap.exe" --smoke-test smoke-gui
           for i in $(seq 1 60); do [ -f smoke-gui/result.txt ] && break; sleep 2; done
           cat smoke-gui/result.txt
+          # One tag, one commit, every platform: the binary must report the commit being built.
+          grep -q "commit $GITHUB_SHA " smoke/result.txt || { echo "::error::smoke/result.txt does not report commit $GITHUB_SHA"; cat smoke/result.txt; exit 1; }
+          grep -q "commit $GITHUB_SHA " smoke-gui/result.txt || { echo "::error::smoke-gui/result.txt does not report commit $GITHUB_SHA"; cat smoke-gui/result.txt; exit 1; }
       - name: Resources, no packer, windowed, no console, survives its terminal (Windows)
         if: runner.os == 'Windows'
         run: python packaging/verify_windows.py "build/nuitka/windows/Route Map/routemap.exe" "build/nuitka/windows/Route Map/routemap-cli.exe"
@@ -144,6 +149,8 @@ jobs:
           build/nuitka/routemap --version
           QT_QPA_PLATFORM=offscreen bash packaging/cli_check.sh build/nuitka/routemap
           QT_QPA_PLATFORM=offscreen build/nuitka/routemap --smoke-test smoke
+          # One tag, one commit, every platform: the binary must report the commit being built.
+          grep -q "commit $GITHUB_SHA " smoke/result.txt || { echo "::error::smoke/result.txt does not report commit $GITHUB_SHA"; cat smoke/result.txt; exit 1; }
           build/nuitka/routemap parse tests/fixtures/routemap/heise_traceroute.txt --offline --origin "Manila, PH" > smoke/parse.json
       - name: Package (Linux AppImage and tar.gz)
         if: runner.os == 'Linux'
@@ -275,6 +282,27 @@ jobs:
     permissions:
       actions: read
     steps:
+      - name: Same structure on every platform
+        if: needs.build.result == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Each platform's packaged smoke test wrote parity.json: the rendered
+          # window's panels, legends, chart series, table columns and look.
+          # They must be identical (routemap/gui/parity.py).
+          gh run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" --pattern 'smoke-*' --dir parity
+          files=$(find parity -name parity.json | sort)
+          echo "$files"
+          first=$(echo "$files" | head -1)
+          [ -n "$first" ] || { echo "::error::no parity.json from any platform"; exit 1; }
+          fail=0
+          for f in $files; do
+            if ! diff -u "$first" "$f" > /dev/null; then
+              echo "::error::$f differs from $first"; diff -u "$first" "$f" || true; fail=1
+            fi
+          done
+          [ "$(echo "$files" | wc -l)" -ge 4 ] || { echo "::error::expected parity.json from 4 or more builds"; fail=1; }
+          exit $fail
       - name: Per-job results
         env:
           GH_TOKEN: ${{ github.token }}

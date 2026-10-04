@@ -28,7 +28,7 @@ from routemap_engine import SqliteCache, baseline, cities, osint, ripe
 
 log = logging.getLogger(__name__)
 
-ONLINE_BUDGET_SECONDS = 30.0
+ONLINE_BUDGET_SECONDS = 50.0      # the slow RIPEstat endpoints may take 20 s and retry once
 MAX_PREFIX_LOOKUPS = 24            # network-info + RPKI per distinct public address
 UNAVAILABLE = "unavailable"
 OFF = "off"
@@ -111,6 +111,7 @@ async def online(route: dict, insight: dict, settings: config.Settings, *, user_
     result: dict = {"status": "partial", "hops": {}, "asns": {}, "prefix": None, "baseline": None,
                     "fetched_at": now.isoformat(timespec="seconds")}
     insight["online"] = result
+    result["errors"] = {}
     try:
         await asyncio.wait_for(_fill(route, insight, result, stat, atlas, now), ONLINE_BUDGET_SECONDS)
         result["status"] = "done"
@@ -120,6 +121,7 @@ async def online(route: dict, insight: dict, settings: config.Settings, *, user_
     except Exception as exc:  # noqa: BLE001 - details are never worth failing a trace
         result["status"] = UNAVAILABLE
         log.warning("event=routemap_insight_failed error=%s", exc.__class__.__name__)
+    result["errors"].update(getattr(stat, "errors", {}) or {})
     return insight
 
 
@@ -151,8 +153,14 @@ async def _fill(route, insight, result, stat, atlas, now):
     await asyncio.gather(*(asn_job(p["asn"]) for p in insight["as_path"]))
 
     dest = _destination(route)
-    if dest is not None:
+    if dest is None:
+        result["errors"]["destination"] = "no public hop answered, so there is no destination prefix to ask about"
+    else:
         prefix = (result["hops"].get(str(dest["hop"])) or {}).get("prefix")
+        if not prefix:
+            result["errors"]["destination"] = (
+                "RIPEstat has no routed prefix for the last answering hop"
+                + (f" ({stat.errors['network-info']})" if getattr(stat, "errors", {}).get("network-info") else ""))
         if prefix:
             paths, vis, updates = await asyncio.gather(
                 stat.ris_paths(prefix), stat.visibility(prefix), stat.bgp_updates(prefix, end=now))
@@ -179,7 +187,7 @@ async def _baseline(route, dest, atlas):
     value = await atlas.typical((origin["lat"], origin["lon"]), origin_cc,
                                 (dest["lat"], dest["lon"]), dest_cc)
     if value is None:
-        return UNAVAILABLE
+        return {"unavailable": getattr(atlas, "error", None) or "RIPE Atlas gave no figure"}
     value["measured_ms"] = dest["min_rtt_ms"]
     return value
 
@@ -256,11 +264,15 @@ def summary(route: dict, ins: dict | None, origin_cc: str | None = None) -> dict
                      "short": (org.split()[0].rstrip(",") if org else ""), "hops": step["hops"],
                      "rpki": _rpki_badge(states)})
     status = online.get("status")
+    errors = online.get("errors") or {}
     out = {"as_path": path, "countries": ins.get("jurisdictions") or [], "origin_cc": origin_cc,
            "anycast": ins.get("anycast"), "status": status or "loading", "baseline": None,
-           "ris": None, "updates": None}
+           "ris": None, "updates": None, "reasons": {}}
     base = online.get("baseline")
-    if isinstance(base, dict):
+    if isinstance(base, dict) and "unavailable" in base:
+        out["baseline"] = UNAVAILABLE
+        out["reasons"]["baseline"] = base["unavailable"]
+    elif isinstance(base, dict):
         delta = base["measured_ms"] - base["ms"]
         # Name the trip, not the anchors' towns: the anchors stand for the two
         # countries, and their towns (an anchor in Makati, another in a village
@@ -296,7 +308,7 @@ def summary(route: dict, ins: dict | None, origin_cc: str | None = None) -> dict
             else:
                 lines.append(f"origin {origins}; {ris['total']} RIS peer paths, none through {via}")
         elif ris is None and status == "done":
-            lines.append("RIS paths unavailable")
+            lines.append("RIS paths unavailable: " + errors.get("looking-glass", "RIPEstat gave no answer"))
         vis_text = (f"visible to {vis['seeing']} of {vis['total']} RIS peers" if vis else None)
         dest = _destination(route)
         rpki = (per_hop.get(str(dest["hop"])) or {}).get("rpki") if dest else None
@@ -304,4 +316,13 @@ def summary(route: dict, ins: dict | None, origin_cc: str | None = None) -> dict
                       "rpki": _rpki_badge([rpki]) if rpki else None,
                       "low_visibility": bool(vis and vis["share"] < 0.8)}
         out["updates"] = prefix.get("updates")
+        if out["updates"] is None:
+            out["reasons"]["updates"] = errors.get("bgp-updates", "RIPEstat gave no answer")
+        if vis is None:
+            out["reasons"]["visibility"] = errors.get("routing-status", "RIPEstat gave no answer")
+    elif status == "done":
+        out["reasons"]["prefix"] = errors.get("destination", "no destination prefix was found")
+    if (route.get("origin") or {}).get("source") != "supplied":
+        out["reasons"]["origin"] = ("no origin was set for this trace, so there is no physics floor and the "
+                                    "local hops have no place on the map (Settings > Origin)")
     return out

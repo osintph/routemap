@@ -41,3 +41,32 @@ __version__ = "0.2.0b1"
 # the project rather than whoever happens to be running it.
 USER_AGENT_PRODUCT = f"{NAME}/{__version__}"
 USER_AGENT = f"{USER_AGENT_PRODUCT} (+{REPO_URL})"
+
+
+def build_commit() -> str:
+    """The commit a packaged build was made from (stamped by
+    packaging/build_nuitka.py into routemap/_build.py), or the working tree's
+    commit when run from source, or "unknown"."""
+    try:
+        from routemap._build import COMMIT  # type: ignore[import-not-found]
+        return COMMIT
+    except ImportError:
+        pass
+    import pathlib
+    import subprocess
+    try:
+        root = pathlib.Path(__file__).resolve().parents[1]
+        out = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], capture_output=True, text=True,
+                             timeout=3)
+        sha = out.stdout.strip()
+        dirty = subprocess.run(["git", "-C", str(root), "status", "--porcelain", "--untracked-files=no"],
+                               capture_output=True, text=True, timeout=3).stdout.strip()
+        return (sha + ("+dirty" if dirty else " (source)")) if sha else "unknown"
+    except (OSError, subprocess.SubprocessError):
+        return "unknown"
+
+
+def version_line() -> str:
+    """'0.2.0b2, commit 1a2b3c4d5e6f': what About, --version and the smoke test show."""
+    commit = build_commit()
+    return f"{__version__}, commit {commit[:12]}{commit[40:] if len(commit) > 40 else ''}"

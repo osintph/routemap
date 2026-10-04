@@ -18,7 +18,7 @@ from PySide6.QtGui import QGuiApplication, QIcon
 from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox
 
 from routemap import config, dbip, insight, service
-from routemap.__about__ import (DISPLAY_NAME, NAME, REPO_URL,
+from routemap.__about__ import (DISPLAY_NAME, NAME, REPO_URL, version_line,
                                 CONTACT_EMAIL, WINDOWS_SIGNED, SITE_LINKED, SITE_URL,
                                 __version__)
 from routemap_engine import (InvalidTarget, Route, SqliteCache, TraceParseError, analyse, atlas,
@@ -83,6 +83,7 @@ class Controller(QObject):
         w.table.customContextMenuRequested.connect(self._table_menu)
         w.map.projectionChanged.connect(self._projection_changed)
         w.refresh_panels = self.refresh_panels
+        w.themeChosen.connect(self.set_theme)
 
     def start(self):
         if self.settings.window_geometry:
@@ -99,6 +100,7 @@ class Controller(QObject):
         self.w.map.set_thresholds(self.settings.rtt_quiet_ms, self.settings.rtt_hot_ms)
         self.w.map.set_projection(self.settings.projection)
         self.w.act_globe.setChecked(self.settings.projection == "globe")
+        self.w.sync_theme_menu(self.settings.theme)
         self._refresh_compare_actions()
         self.show_idle()
         if self.origin is None:
@@ -356,6 +358,8 @@ class Controller(QObject):
             self.error("Nothing to export", "Trace a route, paste a trace or open one first.")
             return
         dialog = dialogs.ExportDialog(self.w, selected="pdf")
+        from routemap.gui import theme as _theme
+        dialog.png_dark.setChecked(_theme.is_dark())
         if not dialog.exec():
             return
         fmt = dialog.selected()
@@ -414,6 +418,9 @@ class Controller(QObject):
         self._refresh_compare_actions()
         self.refresh_history()
         self.w.map.set_thresholds(self.settings.rtt_quiet_ms, self.settings.rtt_hot_ms)
+        from routemap.gui import theme as _theme
+        if self.settings.theme != _theme.choice():
+            self.set_theme(self.settings.theme)
         if self.settings.projection != self.w.map.projection:
             self.w.map.set_projection(self.settings.projection)
             self.w.act_globe.setChecked(self.settings.projection == "globe")
@@ -699,6 +706,18 @@ class Controller(QObject):
         except OSError:
             pass
 
+    def set_theme(self, choice: str):
+        """System, Light or Dark: the window, the map and the exports. Remembered."""
+        from routemap.gui import theme
+        self.settings.theme = choice
+        try:
+            config.save_settings(self.settings)
+        except OSError:
+            pass
+        theme.apply(QApplication.instance(), choice)
+        self.w.sync_theme_menu(choice)
+        self.w._theme_changed()
+
     # ----------------------------------------------------------- compare ---
     def _refresh_compare_actions(self):
         s = self.settings
@@ -877,7 +896,7 @@ class Controller(QObject):
 
     def about(self):
         QMessageBox.about(self.w, f"About {DISPLAY_NAME}", (
-            f"<b>{DISPLAY_NAME}</b> {__version__}<br><br>"
+            f"<b>{DISPLAY_NAME}</b> {_html(version_line())}<br><br>"
             "Hostname-first, physics-checked traceroute maps. The trace runs on this machine.<br><br>"
             f"Free software under the GNU AGPL-3.0: <a href='{REPO_URL}'>{REPO_URL}</a>. "
             "Third-party components keep their own licences: Help \u203a Third-Party Notices."
@@ -1087,6 +1106,8 @@ def run_gui(target: str | None = None, origin_override: tuple | None = None) -> 
     app = make_app()
     service.startup()
     settings = config.load_settings()
+    from routemap.gui import theme
+    theme.apply(app, settings.theme)
     window = MainWindow()
     controller = Controller(window, settings)
     if origin_override:

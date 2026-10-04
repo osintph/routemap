@@ -431,6 +431,7 @@ def web_zoom(pixels_per_degree: float) -> float:
 DETAIL_ZOOM = 3.2        # from here the 1:10m coastline and city labels show
 LABEL_SLACK = 0.7        # show a place a little before its own min_zoom
 MAX_LABELS = 70
+MAX_WORLD_LABELS = 30     # zoomed out: only the largest places, so the route stays readable
 
 
 def visible_places(rect_deg: tuple[float, float, float, float], zoom: float,
@@ -969,7 +970,11 @@ class MapView(QGraphicsView):
         self._place_overlays()
 
     def _update_detail(self):
-        """1:10m land and city labels when zoomed in; 1:50m and no labels otherwise."""
+        """1:10m land when zoomed in, 1:50m otherwise; city labels at every zoom,
+        each place from the zoom Natural Earth gives it (capitals at world zoom).
+        Labels used to start only past DETAIL_ZOOM, so whether a route showed
+        any depended on the window's size (4 Oct 2026: shown on a Mac, not on a
+        smaller Windows window)."""
         scene = self.scene()
         if scene is None:
             return
@@ -987,8 +992,6 @@ class MapView(QGraphicsView):
             if item.scene() is scene:
                 scene.removeItem(item)
         self.label_items = []
-        if not detailed:
-            return
         rect = self.mapToScene(self.viewport().rect()).boundingRect()
         box = (rect.left() / SCALE, -rect.bottom() / SCALE, rect.right() / SCALE, -rect.top() / SCALE)
         font = QFont()
@@ -997,7 +1000,7 @@ class MapView(QGraphicsView):
         taken = [QRectF(QPointF(self.mapFromScene(m.pos())) + m.offset - QPointF(m.w / 2 + 6, m.h / 2 + 6),
                         QSize(int(m.w + 12), int(m.h + 12))) for m in self.markers]
         color = self.palette_.overlay_muted
-        for place in visible_places(box, zoom):
+        for place in visible_places(box, zoom, limit=MAX_LABELS if detailed else MAX_WORLD_LABELS):
             point = QPointF(self.mapFromScene(to_scene(place["lon"], place["lat"])))
             w = metrics.horizontalAdvance(place["name"]) + 8
             area = QRectF(point.x() + 3, point.y() - metrics.height() / 2, w, metrics.height())

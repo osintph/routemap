@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import os
 
-from PySide6.QtCore import QSize, Qt
+from PySide6.QtCore import QSize, Qt, Signal
 from PySide6.QtGui import QAction, QGuiApplication, QKeySequence, QShortcut
 from PySide6.QtWidgets import (QDockWidget, QHBoxLayout, QLabel, QLineEdit, QMainWindow,
                                QProgressBar, QPushButton, QSplitter, QStatusBar, QVBoxLayout,
@@ -28,6 +28,8 @@ ORIGIN_APPROX = "approximate; wrong on a VPN or exit node"
 
 
 class MainWindow(QMainWindow):
+    themeChosen = Signal(str)
+
     def __init__(self):
         super().__init__()
         self.setWindowTitle(DISPLAY_NAME)
@@ -37,7 +39,7 @@ class MainWindow(QMainWindow):
         self._build()
         self._menus()
         self._wire_selection()
-        QGuiApplication.styleHints().colorSchemeChanged.connect(lambda *_: self._theme_changed())
+        QGuiApplication.styleHints().colorSchemeChanged.connect(lambda *_: self._os_scheme_changed())
 
     # ---------------------------------------------------------------- build ---
     def _build(self):
@@ -166,6 +168,17 @@ class MainWindow(QMainWindow):
         self.map.projectionChanged.connect(lambda proj: self.act_globe.setChecked(proj == "globe"))
         replay = QAction("Replay Route", self, shortcut=QKeySequence("Ctrl+R"))
         replay.triggered.connect(self.map.replay)
+        from PySide6.QtGui import QActionGroup
+        theme_menu = view_menu.addMenu("Theme")
+        self.theme_group = QActionGroup(self)
+        self.theme_actions = {}
+        for key, label in (("system", "System"), ("light", "Light"), ("dark", "Dark")):
+            act = QAction(label, self, checkable=True)
+            act.triggered.connect(lambda _=False, k=key: self.themeChosen.emit(k))
+            self.theme_group.addAction(act)
+            theme_menu.addAction(act)
+            self.theme_actions[key] = act
+        self.theme_actions["system"].setChecked(True)
         view_menu.addSeparator()
         view_menu.addAction(self.act_globe)
         view_menu.addAction(replay)
@@ -225,6 +238,24 @@ class MainWindow(QMainWindow):
         if callable(self.closing):
             self.closing()
         super().closeEvent(event)
+
+    def sync_theme_menu(self, choice: str):
+        act = self.theme_actions.get(choice)
+        if act is not None:
+            act.setChecked(True)
+
+    def _os_scheme_changed(self):
+        """The OS switched light/dark: follow it only when the theme is System."""
+        from PySide6.QtWidgets import QApplication
+
+        from routemap.gui import theme
+        if theme.choice() == "system" and not getattr(self, "_reapplying", False):
+            self._reapplying = True
+            try:
+                theme.apply(QApplication.instance(), "system")
+            finally:
+                self._reapplying = False
+            self._theme_changed()
 
     def _theme_changed(self):
         self.map.theme_changed()

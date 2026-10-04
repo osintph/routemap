@@ -94,6 +94,7 @@ class Settings:
     # baseline, and reverse DNS. Off: nothing new leaves the machine.
     online_lookups: bool = True
     projection: str = "flat"                 # "flat" or "globe"
+    theme: str = "system"                    # "system", "light" or "dark": window, map, exports
     rtt_quiet_ms: float = 15.0               # RTT steps below this draw grey
     rtt_hot_ms: float = 60.0                 # and at or above this, fully warm
     sensitive_countries: list = field(default_factory=list)   # ISO codes, upper case
@@ -216,6 +217,8 @@ def normalise(settings: Settings) -> Settings:
     """Clamp values a hand-edited file could break."""
     if settings.projection not in PROJECTIONS:
         settings.projection = "flat"
+    if settings.theme not in ("system", "light", "dark"):
+        settings.theme = "system"
     try:
         quiet = max(0.0, float(settings.rtt_quiet_ms))
         hot = max(quiet + 1.0, float(settings.rtt_hot_ms))

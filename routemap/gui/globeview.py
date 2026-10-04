@@ -592,19 +592,36 @@ class GlobeView(QWidget):
         return None
 
 
-def paint_legend(p: QPainter, bottom_left: QPointF, pal: theme.Palette, route: dict,
-                 quiet_ms: float, hot_ms: float, size: float = 1.0) -> QRectF:
-    """The flat map's legend, painted: sources used, then the RTT step colours."""
+def _legend_rows(route: dict, pal: theme.Palette, quiet_ms: float, hot_ms: float) -> list:
+    """The rows both legends show, in order: (kind, value)."""
+    from routemap.gui.mapview import route_groups
     hops = route.get("hops") or []
     used = [s for s in ("hoiho", "site-code", "ip-db", "local") if any(h.get("source") == s for h in hops)]
     rows: list[tuple[str, object]] = [("title", "Placed by")]
     rows += [("dot", s) for s in used]
+    if any(h.get("precision") == "country" for h in hops):
+        rows.append(("ring", (pal.sources["ip-db"], "Country only (centroid)")))
+    if any(g["silent"] for g in route_groups(route)):
+        rows.append(("ring", (pal.route_gap, "Not placed (yet)")))
     if any(h.get("min_rtt_ms") is not None for h in hops):
         rows.append(("title", "RTT added per step"))
         rows += [("line", (pal.route_quiet, f"under {quiet_ms:.0f} ms")),
                  ("line", (theme.mix(pal.route_warm, pal.route_hot, 0.3), f"{quiet_ms:.0f} to {hot_ms:.0f} ms")),
                  ("line", (pal.route_hot, f"{hot_ms:.0f} ms or more")),
                  ("dash", (pal.route_gap, "silent stretch or country only"))]
+    return rows
+
+
+def legend_rows(route: dict, pal: theme.Palette, quiet_ms: float, hot_ms: float) -> list[tuple[str, str]]:
+    """(kind, text) for each legend row: what both legends say, for comparisons."""
+    return [(k, theme.SOURCE_LABELS[v] if k == "dot" else (v if k == "title" else v[1]))
+            for k, v in _legend_rows(route, pal, quiet_ms, hot_ms)]
+
+
+def paint_legend(p: QPainter, bottom_left: QPointF, pal: theme.Palette, route: dict,
+                 quiet_ms: float, hot_ms: float, size: float = 1.0) -> QRectF:
+    """The flat map's legend, painted: sources used, then the RTT step colours."""
+    rows = _legend_rows(route, pal, quiet_ms, hot_ms)
     font = QFont()
     font.setPointSizeF(9.0 * size)
     bold = QFont(font)
@@ -633,6 +650,11 @@ def paint_legend(p: QPainter, bottom_left: QPointF, pal: theme.Palette, route: d
                 p.setBrush(pal.sources[value])
                 p.drawEllipse(QPointF(x + 5 * size, mid), 5 * size, 5 * size)
                 label = theme.SOURCE_LABELS[value]
+            elif kind == "ring":
+                color, label = value
+                p.setPen(QPen(color, 2 * size))
+                p.setBrush(Qt.NoBrush)
+                p.drawEllipse(QPointF(x + 5 * size, mid), 4.5 * size, 4.5 * size)
             else:
                 color, label = value
                 pen = QPen(color, 3 * size if kind == "line" else 2 * size)

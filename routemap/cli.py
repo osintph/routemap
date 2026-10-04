@@ -39,9 +39,13 @@ def _err(message: str) -> None:
 
 def _headless_qt():
     """A QApplication for rendering PNG and PDF with no window shown."""
+    from routemap import config
+    from routemap.gui import theme
     from routemap.gui.app import headless_platform, make_app
     headless_platform()
-    return make_app()
+    app = make_app()
+    theme.apply(app, config.load_settings().theme)
+    return app
 
 
 def _origin(args, settings):
@@ -300,6 +304,8 @@ def smoke_test(out_dir: str) -> int:
 
     headless_platform()
     app = make_app()
+    from routemap.gui import theme
+    theme.apply(app, "light")          # the same look on every platform's smoke test
     text = resources.files("routemap.gui").joinpath("data/sample_trace.txt").read_text("utf-8")
     route = analyse_sync(text, (14.6, 121.0), sources=OFFLINE).to_dict()
     window = MainWindow()
@@ -316,6 +322,10 @@ def smoke_test(out_dir: str) -> int:
     assert ins["as_path"], "no AS path: the bundled ASN database did not load"
     window.insight.show_summary(route, ins)
     window.map.set_route(route, "heise.de", keep_view=True)
+    app.processEvents()
+    from routemap.gui import parity
+    with open(os.path.join(out_dir, "parity.json"), "w", encoding="utf-8") as handle:
+        json.dump(parity.snapshot(window), handle, indent=1, sort_keys=True)
     window.map.set_projection("globe")
     app.processEvents()
     globe = os.path.join(out_dir, "smoke-globe.png")
@@ -345,7 +355,8 @@ def smoke_test(out_dir: str) -> int:
     # A platform with no fonts writes a PDF with no font objects and no text.
     assert b"/Font" in pdf, "the PDF has no fonts: text did not render on this platform"
     window.close()
-    summary = (f"{NAME} {__version__} smoke test ok: {len(route['hops'])} hops, "
+    from routemap.__about__ import build_commit
+    summary = (f"{NAME} {__version__} commit {build_commit()} smoke test ok: {len(route['hops'])} hops, "
                f"{sum(1 for h in route['hops'] if h['lat'] is not None)} placed; "
                f"AS path {ins['as_path_text']}; "
                f"png {sizes['png']} B, pdf {sizes['pdf']} B, json {sizes['json']} B, {checked}")
@@ -447,7 +458,8 @@ def main(argv: list[str] | None = None) -> int:
         epilog="Also: routemap parse FILE, routemap sites update, routemap cache clear, "
                "routemap data update|import|status.")
     parser.add_argument("target", nargs="?", help="hostname or IP address to trace")
-    parser.add_argument("--version", action="version", version=f"{NAME} {__version__}")
+    from routemap.__about__ import version_line
+    parser.add_argument("--version", action="version", version=f"{NAME} {version_line()}")
     parser.add_argument("--check-update", action="store_true",
                         help="ask GitHub for the latest release tag, and nothing else")
     parser.add_argument("--smoke-test", metavar="DIR", help=argparse.SUPPRESS)
