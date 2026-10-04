@@ -324,7 +324,9 @@ def smoke_test(out_dir: str) -> int:
     window.map.set_route(route, "heise.de", keep_view=True)
     app.processEvents()
     from routemap.gui import parity
-    with open(os.path.join(out_dir, "parity.json"), "w", encoding="utf-8") as handle:
+    # newline="\n": the same bytes on every platform (Windows text mode wrote
+    # \r\n and the cross-platform comparison saw every line differ).
+    with open(os.path.join(out_dir, "parity.json"), "w", encoding="utf-8", newline="\n") as handle:
         json.dump(parity.snapshot(window), handle, indent=1, sort_keys=True)
     window.map.set_projection("globe")
     app.processEvents()
