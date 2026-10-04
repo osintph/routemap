@@ -48,3 +48,20 @@ def test_site_builds_without_scripts_or_external_assets_and_links_resolve(tmp_pa
     assert (out / "donate" / "addresses.txt").exists()
     assert "sponsors" not in home.lower()
     assert (out / "robots.txt").exists() and (out / "404.html").exists()
+
+
+def test_every_screenshot_url_carries_its_content_hash(tmp_path):
+    """Retaken screenshots keep their names; without a hash in the URL,
+    Cloudflare served the previous release's images after a deploy."""
+    import re
+    import subprocess
+    import sys
+    root = pathlib.Path(__file__).resolve().parents[1]
+    subprocess.run([sys.executable, str(root / "site" / "build.py"), "--out", str(tmp_path)], check=True,
+                   capture_output=True)
+    urls = set()
+    for page in tmp_path.rglob("*.html"):
+        urls |= set(re.findall(r'(?:src|srcset)="(/assets/img/[^"]+)"', page.read_text(encoding="utf-8")))
+    assert urls, "no screenshots found"
+    bare = sorted(u for u in urls if "?v=" not in u)
+    assert not bare, bare

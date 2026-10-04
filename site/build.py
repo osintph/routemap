@@ -187,10 +187,21 @@ def expand(text: str) -> str:
     return text
 
 
+def img_url(path: str) -> str:
+    """/assets/img/NAME with a content hash, so a retaken screenshot is a new URL
+    and never a stale copy from Cloudflare's cache (0.2.0's first deploy served
+    beta.5's images for the same names)."""
+    import hashlib
+    file = SITE / path.lstrip("/")
+    if not file.exists():
+        return path
+    return f"{path}?v={hashlib.sha256(file.read_bytes()).hexdigest()[:10]}"
+
+
 def picture(name: str, ext: str, width: str, height: str, cls: str, alt: str) -> str:
     """A screenshot in the site's light and dark mode: the dark image when the
     system is dark, switched by site.js when the visitor overrides the theme."""
-    light, dark = f"/assets/img/{name}-light.{ext}", f"/assets/img/{name}-dark.{ext}"
+    light, dark = img_url(f"/assets/img/{name}-light.{ext}"), img_url(f"/assets/img/{name}-dark.{ext}")
     lazy = "" if "hero" in cls.split() else ' loading="lazy"'
     img = (f'<picture><source data-scheme="dark" srcset="{dark}" media="(prefers-color-scheme: dark)">'
            f'<img src="{light}" width="{width}" height="{height}"{lazy} alt="{html.escape(alt)}"></picture>')
@@ -201,6 +212,7 @@ def picture(name: str, ext: str, width: str, height: str, cls: str, alt: str) ->
 
 def content(name: str) -> str:
     text = expand((SITE / "content" / name).read_text(encoding="utf-8"))
+    text = re.sub(r'src="(/assets/img/[^"?]+)"', lambda m: f'src="{img_url(m.group(1))}"', text)
     # [[pic NAME EXT WIDTH HEIGHT CLASSES|ALT]]
     return re.sub(r"\[\[pic (\S+) (\S+) (\d+) (\d+) ?([^|\]]*)\|([^\]]+)\]\]",
                   lambda m: picture(*m.groups()), text)
