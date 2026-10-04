@@ -65,3 +65,51 @@ def test_every_screenshot_url_carries_its_content_hash(tmp_path):
     assert urls, "no screenshots found"
     bare = sorted(u for u in urls if "?v=" not in u)
     assert not bare, bare
+
+
+BANNED_FONTS = ("Inter", "Geist", "Space Grotesk", "Plus Jakarta Sans", "DM Sans", "Manrope", "Outfit",
+                "Poppins", "Satoshi", "General Sans", "Archivo")
+FONT_SERVICES = ("fonts.googleapis.com", "fonts.gstatic.com", "use.typekit.net", "fonts.bunny.net",
+                 "fontshare.com", "cdnfonts.com", "fonts.adobe.com")
+
+
+def _built(tmp_path):
+    out = tmp_path / "site"
+    subprocess.run([sys.executable, str(ROOT / "site" / "build.py"), "--out", str(out)], check=True,
+                   capture_output=True)
+    return out
+
+
+def test_no_banned_font_and_no_font_service(tmp_path):
+    """site/README.md lists the fonts this site must not use; and no page or
+    stylesheet may load fonts from another server (a visitor's address would
+    go there)."""
+    out = _built(tmp_path)
+    texts = [(f, f.read_text(encoding="utf-8")) for f in list(out.rglob("*.html")) + list(out.rglob("*.css"))]
+    for path, text in texts:
+        for family in BANNED_FONTS:
+            assert not re.search(rf"""["']{re.escape(family)}["']""", text), f"{family} in {path.name}"
+        for host in FONT_SERVICES:
+            assert host not in text, f"{host} in {path.name}"
+    css = (out / "assets" / "style.css").read_text(encoding="utf-8")
+    assert re.search(r"h1, h2, h3 \{ font-family: var\(--display\)", css)
+    body = re.search(r"body \{[^}]*\}", css).group(0)
+    assert "var(--text)" in body and "--mono" not in body, "monospace only for code, commands and tables"
+
+
+def test_the_fonts_cover_every_character_the_site_shows(tmp_path):
+    pytest = __import__("pytest")
+    ttlib = pytest.importorskip("fontTools.ttLib")
+    pytest.importorskip("brotli")
+    import html as _html
+    out = _built(tmp_path)
+    used = set()
+    for page in out.rglob("*.html"):
+        text = re.sub(r"<script.*?</script>|<style.*?</style>", "", page.read_text(encoding="utf-8"), flags=re.S)
+        used |= set(_html.unescape(re.sub(r"<[^>]+>", " ", text)))
+    used -= set("\n\r\t")
+    fonts = ROOT / "site" / "assets" / "fonts"
+    for name in ("newsreader-var.woff2", "schibsted-grotesk-var.woff2", "plex-mono-regular.woff2"):
+        cmap = ttlib.TTFont(fonts / name).getBestCmap()
+        missing = sorted(c for c in used if ord(c) not in cmap)
+        assert not missing, f"{name} lacks {missing}: re-subset it (site/README.md, Typography)"
