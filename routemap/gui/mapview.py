@@ -37,7 +37,7 @@ from PySide6.QtWidgets import (QFrame, QGraphicsItem, QGraphicsObject, QGraphics
                                QGraphicsScene, QGraphicsView, QHBoxLayout, QLabel, QToolButton,
                                QVBoxLayout, QWidget)
 
-from routemap.gui import arcs, geometry, theme
+from routemap.gui import arcs, geometry, navigation, theme
 
 SCALE = 4.0           # scene units per degree
 ATTRIBUTION_BASE = "Natural Earth · GeoNames"
@@ -723,6 +723,10 @@ class MapView(QGraphicsView):
         self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.setFrameShape(QFrame.NoFrame)
         self.setMinimumSize(QSize(360, 240))
+        # Keys (+, -, arrows, 0) work once the map has been clicked.
+        self.setFocusPolicy(Qt.StrongFocus)
+        # Pinch arrives as native gestures on macOS; make sure they reach us.
+        self.viewport().setAttribute(Qt.WA_AcceptTouchEvents, True)
         self._build_overlays()
         self._rebuild()
 
@@ -1081,19 +1085,94 @@ class MapView(QGraphicsView):
             self._declutter()
 
     # ---- navigation
-    def zoom(self, factor: float, user: bool = True):
+    def zoom(self, factor: float, user: bool = True, at=None):
+        """Zoom by *factor* within the limits, keeping the scene point under
+        *at* (view pixels; default the centre) where it is."""
+        vp = self.viewport()
         current = self.transform().m11()
-        floor = self.viewport().height() / (180 * SCALE)
-        target = max(floor, min(current * factor, 400.0))
-        self.scale(target / current, target / current)
+        applied = navigation.zoom_factor(current, factor, vp.width(), vp.height())
+        if abs(applied - 1.0) > 1e-9:
+            pos = at if at is not None else QPointF(vp.rect().center())
+            pos = pos.toPoint() if hasattr(pos, "toPoint") else pos
+            before = self.mapToScene(pos)
+            anchor = self.transformationAnchor()
+            self.setTransformationAnchor(QGraphicsView.NoAnchor)
+            self.scale(applied, applied)
+            self.setTransformationAnchor(anchor)
+            after = self.mapToScene(pos)
+            centre = self.mapToScene(vp.rect().center())
+            self.centerOn(centre + (before - after))
         if user:
             self.user_moved = True
         self._declutter()
 
+    def pan(self, dx: float, dy: float):
+        """Move the view by (dx, dy) view pixels; the scene rect clamps it, so
+        the world cannot be dragged off screen."""
+        h, v = self.horizontalScrollBar(), self.verticalScrollBar()
+        h.setValue(int(round(h.value() - dx)))
+        v.setValue(int(round(v.value() - dy)))
+        self.user_moved = True
+        self._declutter()
+
     def wheelEvent(self, event):
-        steps = event.angleDelta().y() / 120.0
-        if steps:
-            self.zoom(1.25 ** steps)
+        from PySide6.QtGui import QInputDevice
+        device = event.device()
+        touchpad = (device is not None and device.type() == QInputDevice.DeviceType.TouchPad) \
+            or event.phase() != Qt.NoScrollPhase
+        mods = event.modifiers()
+        action = navigation.wheel_action(
+            event.angleDelta().x(), event.angleDelta().y(), event.pixelDelta().x(),
+            event.pixelDelta().y(), touchpad=touchpad,
+            zoom_modifier=bool(mods & (Qt.ControlModifier | Qt.MetaModifier)))
+        if action[0] == "zoom":
+            self.zoom(action[1], at=event.position())
+        elif action[0] == "pan":
+            self.pan(action[1], action[2])
+        event.accept()       # never let a wheel over the map reach anything else
+
+    def viewportEvent(self, event):
+        from PySide6.QtCore import QEvent
+        if event.type() == QEvent.NativeGesture:
+            kind = event.gestureType()
+            if kind == Qt.ZoomNativeGesture:
+                self.zoom(navigation.gesture_factor(event.value()), at=event.position())
+            elif kind == Qt.SmartZoomNativeGesture:
+                self.zoom(navigation.DOUBLE_CLICK_ZOOM, at=event.position())
+            event.accept()
+            return True
+        return super().viewportEvent(event)
+
+    def mouseDoubleClickEvent(self, event):
+        if self.picking:
+            return
+        if event.button() == Qt.LeftButton:
+            self.zoom(navigation.DOUBLE_CLICK_ZOOM, at=event.position())
+            event.accept()
+            return
+        super().mouseDoubleClickEvent(event)
+
+    def keyPressEvent(self, event):
+        key = event.key()
+        step = navigation.KEY_PAN_PX
+        if key in (Qt.Key_Plus, Qt.Key_Equal):
+            self.zoom(navigation.BUTTON_ZOOM)
+        elif key in (Qt.Key_Minus, Qt.Key_Underscore):
+            self.zoom(1 / navigation.BUTTON_ZOOM)
+        elif key == Qt.Key_0:
+            self.fit_route()
+        elif key == Qt.Key_Left:
+            self.pan(step, 0)
+        elif key == Qt.Key_Right:
+            self.pan(-step, 0)
+        elif key == Qt.Key_Up:
+            self.pan(0, step)
+        elif key == Qt.Key_Down:
+            self.pan(0, -step)
+        else:
+            super().keyPressEvent(event)
+            return
+        event.accept()
 
     def fit_route(self, user: bool = True):
         if user:
@@ -1101,8 +1180,16 @@ class MapView(QGraphicsView):
         if self.route_rect.isNull() and self.route is None:
             self.reset_view(user=False)
             return
-        aspect = max(0.2, self.viewport().width() / max(1, self.viewport().height()))
-        self.fitInView(padded(self.route_rect, aspect), Qt.KeepAspectRatio)
+        vp = self.viewport()
+        target = navigation.fit_scale(self.route_rect.width(), self.route_rect.height(),
+                                      vp.width(), vp.height())
+        current = self.transform().m11()
+        if current > 0:
+            anchor = self.transformationAnchor()
+            self.setTransformationAnchor(QGraphicsView.NoAnchor)
+            self.scale(target / current, target / current)
+            self.setTransformationAnchor(anchor)
+        self.centerOn(self.route_rect.center())
         self._declutter()
 
     def reset_view(self, user: bool = True):

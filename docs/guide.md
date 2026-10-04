@@ -81,7 +81,24 @@ warming to the hot colour at 60 ms (both set in **Settings > Map**). A dashed
 line crosses hops that did not answer or a country-only placement.
 
 **Flat** and **Globe** switch projection (View > Globe, Ctrl+G); the globe is
-centred on the route and turns when you drag it. Zoomed in on the flat map, the
+centred on the route and turns when you drag it.
+
+Moving around the map:
+
+| | Flat map | Globe |
+|---|---|---|
+| Mouse wheel | zoom around the pointer | zoom |
+| Trackpad pinch (or Ctrl + scroll) | zoom around the fingers | zoom |
+| Trackpad two-finger scroll | pan | turn |
+| Drag | pan | turn |
+| Double-click | zoom in one step | zoom in one step |
+| `+` and `-` (after clicking the map) | zoom | zoom |
+| Arrow keys | pan | turn |
+| `0`, or the **Fit** button | frame the route | centre on the route |
+
+Zoom stops at the whole world and at city-street level, markers and labels
+keep their size, and selecting a row centres its marker without changing the
+zoom. Zoomed in on the flat map, the
 coastline gets finer and city labels appear. **Replay** (Ctrl+R) draws the
 route again hop by hop.
 

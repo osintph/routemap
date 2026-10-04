@@ -23,7 +23,7 @@ from PySide6.QtCore import QPointF, QRectF, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QBrush, QColor, QFont, QFontMetricsF, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QToolButton, QToolTip, QVBoxLayout, QWidget
 
-from routemap.gui import arcs, geometry, theme
+from routemap.gui import arcs, geometry, navigation, theme
 from routemap.gui.mapview import (ATTRIBUTION_BASE, ATTRIBUTION_DBIP, group_tooltip, hop_range,
                                   is_country_only, place_label, route_groups, uses_dbip, _short)
 from routemap.gui.naturalearth import simplify
@@ -99,6 +99,8 @@ class GlobeView(QWidget):
         self._hits: list[tuple[QRectF, list[int], str]] = []
         self.setMouseTracking(True)
         self.setMinimumSize(QSize(360, 240))
+        self.setFocusPolicy(Qt.StrongFocus)
+        self.setAttribute(Qt.WA_AcceptTouchEvents, True)
         self._settle = QTimer(self)
         self._settle.setSingleShot(True)
         self._settle.setInterval(140)
@@ -516,10 +518,72 @@ class GlobeView(QWidget):
         self.dragging = False
         self.update()
 
+    def rotate_by(self, dx: float, dy: float):
+        """Turn the globe as if dragged by (dx, dy) pixels."""
+        r = min(self.width(), self.height()) * 0.44 * self.zoom_
+        lat = self.center[0] + math.degrees(dy / r)
+        lon = self.center[1] - math.degrees(dx / r)
+        self.center = (max(-85.0, min(85.0, lat)), ((lon + 180) % 360) - 180)
+        self.dragging = True
+        self._settle.start()
+        self.update()
+
     def wheelEvent(self, event):
-        steps = event.angleDelta().y() / 120.0
-        if steps:
-            self.zoom(1.25 ** steps)
+        from PySide6.QtGui import QInputDevice
+        device = event.device()
+        touchpad = (device is not None and device.type() == QInputDevice.DeviceType.TouchPad) \
+            or event.phase() != Qt.NoScrollPhase
+        mods = event.modifiers()
+        action = navigation.wheel_action(
+            event.angleDelta().x(), event.angleDelta().y(), event.pixelDelta().x(),
+            event.pixelDelta().y(), touchpad=touchpad,
+            zoom_modifier=bool(mods & (Qt.ControlModifier | Qt.MetaModifier)))
+        if action[0] == "zoom":
+            self.zoom(action[1])
+        elif action[0] == "pan":
+            self.rotate_by(action[1], action[2])
+        event.accept()
+
+    def event(self, event):
+        from PySide6.QtCore import QEvent
+        if event.type() == QEvent.NativeGesture:
+            kind = event.gestureType()
+            if kind == Qt.ZoomNativeGesture:
+                self.zoom(navigation.gesture_factor(event.value()))
+            elif kind == Qt.SmartZoomNativeGesture:
+                self.zoom(navigation.DOUBLE_CLICK_ZOOM)
+            event.accept()
+            return True
+        return super().event(event)
+
+    def mouseDoubleClickEvent(self, event):
+        if event.button() == Qt.LeftButton and not self._hit(event.position()):
+            self.zoom(navigation.DOUBLE_CLICK_ZOOM)
+            event.accept()
+            return
+        super().mouseDoubleClickEvent(event)
+
+    def keyPressEvent(self, event):
+        key = event.key()
+        step = navigation.KEY_PAN_PX
+        if key in (Qt.Key_Plus, Qt.Key_Equal):
+            self.zoom(navigation.BUTTON_ZOOM)
+        elif key in (Qt.Key_Minus, Qt.Key_Underscore):
+            self.zoom(1 / navigation.BUTTON_ZOOM)
+        elif key == Qt.Key_0:
+            self.fit_route()
+        elif key == Qt.Key_Left:
+            self.rotate_by(step, 0)
+        elif key == Qt.Key_Right:
+            self.rotate_by(-step, 0)
+        elif key == Qt.Key_Up:
+            self.rotate_by(0, step)
+        elif key == Qt.Key_Down:
+            self.rotate_by(0, -step)
+        else:
+            super().keyPressEvent(event)
+            return
+        event.accept()
 
     def _hit(self, pos: QPointF):
         for rect, hops, tip in reversed(self._hits):

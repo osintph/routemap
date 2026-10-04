@@ -41,6 +41,17 @@ uses [Semantic Versioning](https://semver.org/).
 - Command line: `routemap data update|import|status`, `--compare FILE`; PDF
   and `--envelope` JSON carry the route summary.
 
+### Fixed
+
+- **Map navigation.** A trackpad pinch did nothing (macOS sends it as a native
+  gesture, which no part of the map handled); two-finger scroll crept the zoom
+  instead of panning; and after Fit on a long route the wheel could not zoom
+  out, because the zoom floor sat at about the fit's own scale. Now the wheel
+  zooms around the pointer, pinch zooms around the fingers, two-finger scroll
+  pans (turns the globe), double-click zooms in, `+`, `-`, arrows and `0`
+  work after clicking the map, and zoom stops at the whole world and at
+  city-street level.
+
 ### Changed
 
 - An IP database placement between two hops in one area is rejected when the
