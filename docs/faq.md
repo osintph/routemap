@@ -11,8 +11,8 @@ against the GPG-signed checksums of its release.
 
 Free signing programmes for open-source projects exist, but they only accept
 projects with established public adoption. Route Map is new, so Windows
-releases are signed with a Certum code signing certificate paid for by the
-maintainer.
+releases will be signed with a Certum code signing certificate paid for by
+the maintainer, once it is issued. Until then the Windows build is unsigned.
 
 ## Is it free?
 
