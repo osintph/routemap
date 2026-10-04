@@ -2,8 +2,10 @@
 // reads fully without it. It does two things, and sends nothing anywhere:
 //  1. marks the visitor's platform on <html>, so the matching download button
 //     is the one shown first;
-//  2. the light/dark switch: follows the system until the visitor chooses,
-//     then remembers the choice in localStorage (no cookie).
+//  2. the light/dark switch, which it creates: the site follows the system
+//     until the visitor chooses, then remembers the choice in localStorage
+//     (no cookie). Without JavaScript there is no switch and the site follows
+//     the system through prefers-color-scheme alone.
 (function () {
   var root = document.documentElement;
   var ua = navigator.userAgent || "", p = "";
@@ -36,9 +38,14 @@
     b.textContent = dark ? "Light mode" : "Dark mode";
   }
   document.addEventListener("DOMContentLoaded", function () {
-    var b = document.getElementById("theme-toggle");
-    if (b) {
-      b.hidden = false;
+    // The switch exists only when this script runs: with JavaScript off there
+    // is no control that does nothing, and the page follows the OS setting.
+    var nav = document.querySelector('nav[aria-label="Main"]');
+    var b = null;
+    if (nav) {
+      b = document.createElement("button");
+      b.id = "theme-toggle"; b.className = "theme-toggle"; b.type = "button";
+      nav.appendChild(b);
       b.addEventListener("click", function () {
         var next = effective() === "dark" ? "light" : "dark";
         root.setAttribute("data-theme", next);

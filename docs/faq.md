@@ -42,7 +42,9 @@ No. It runs your system's own trace tool as you.
 
 Yes, on every platform: see the [command-line reference](cli.md).
 
-## Does the project site track me?
+## Does the app or the project site track me?
 
-No. getroutemap.app sets no cookies and runs no scripts for tracking or
-analytics; the web server keeps a standard access log.
+The desktop app has no telemetry. The website, getroutemap.app, counts visits
+with Cloudflare Web Analytics, which sets no cookies and does not track
+individuals across sites; it records page views, referrers, countries,
+browsers and devices as totals. The site's privacy page has the details.

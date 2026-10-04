@@ -13,6 +13,8 @@ emoji, and no marketing filler ("blazing fast", "seamless", "revolutionary").
 The visuals are real screenshots and crops of the app; the copy is specific
 (real hostnames, real numbers) and written for people who read traceroutes.
 One display face (Archivo) and one text face (IBM Plex Sans, with Plex Mono
-for trace output), self-hosted; one amber accent on navy; nothing loaded from
-another server; no cookies, no analytics; every page readable without
-JavaScript. No em dashes.
+for trace output), self-hosted; one amber accent on navy; no cookies; every
+page readable without JavaScript. Nothing is loaded from another server except
+Cloudflare Web Analytics, which Cloudflare injects (cookieless, page totals
+only); the CSP allows exactly that script host and nothing else, and the
+privacy page says so. The desktop app itself has no telemetry. No em dashes.

@@ -114,7 +114,7 @@ def test_the_smoke_test_passes_from_source(tmp_path, capsys):
 
 def test_an_atlas_result_renders_as_traceroute_text_the_parser_reads():
     result = {"dst_name": "heise.de", "dst_addr": "193.99.144.80", "result": [
-        {"hop": 1, "result": [{"from": "192.168.1.1", "rtt": 1.2}, {"from": "192.168.1.1", "rtt": 1.0},
+        {"hop": 1, "result": [{"from": "192.0.2.2", "rtt": 1.2}, {"from": "192.0.2.2", "rtt": 1.0},
                               {"x": "*"}]},
         {"hop": 2, "result": [{"x": "*"}, {"x": "*"}, {"x": "*"}]},
         {"hop": 3, "result": [{"from": "62.115.112.222", "rtt": 58.3,

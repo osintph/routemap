@@ -191,7 +191,7 @@ def expand(text: str) -> str:
 def picture(name: str, ext: str, width: str, height: str, cls: str, alt: str) -> str:
     """A screenshot in the site's light and dark mode: the dark image when the
     system is dark, switched by site.js when the visitor overrides the theme."""
-    light, dark = f"/assets/shots/{name}-light.{ext}", f"/assets/shots/{name}-dark.{ext}"
+    light, dark = f"/assets/img/{name}-light.{ext}", f"/assets/img/{name}-dark.{ext}"
     lazy = "" if "hero" in cls.split() else ' loading="lazy"'
     img = (f'<picture><source data-scheme="dark" srcset="{dark}" media="(prefers-color-scheme: dark)">'
            f'<img src="{light}" width="{width}" height="{height}"{lazy} alt="{html.escape(alt)}"></picture>')
@@ -231,7 +231,7 @@ def page(path: str, title: str, body: str, description: str, *, wide: bool = Fal
 <meta property="og:title" content="{html.escape(full_title)}">
 <meta property="og:description" content="{html.escape(description)}">
 <meta property="og:url" content="{url}">
-<meta property="og:image" content="{S['url']}/assets/og-image.jpg">
+<meta property="og:image" content="{S['url']}/assets/og-route-map.jpg">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:image:alt" content="{html.escape(S['product'])} showing a traceroute from Manila to Germany on a world map with its hop table">
@@ -250,7 +250,7 @@ def page(path: str, title: str, body: str, description: str, *, wide: bool = Fal
 <header class="site-header">
   <div class="bar">
     <a class="wordmark" href="/"><img src="/assets/favicon-32.png" alt="" width="24" height="24"><span>{html.escape(S['product'])}</span></a>
-    <nav aria-label="Main">{nav}<a class="gh" href="{L['repository']}">GitHub</a><button id="theme-toggle" class="theme-toggle" type="button" aria-pressed="false" hidden>Dark mode</button></nav>
+    <nav aria-label="Main">{nav}<a class="gh" href="{L['repository']}">GitHub</a></nav>
   </div>
 </header>
 <main id="main"{' class="wide"' if wide else ''}>
@@ -267,7 +267,8 @@ def page(path: str, title: str, body: str, description: str, *, wide: bool = Fal
     <a href="mailto:{S['contact']}">{S['contact']}</a></p>
     <p class="release">Latest release: <a href="{L['releases']}/tag/{LATEST}">{LATEST}</a></p>
     {signed}
-    <p class="quiet">This site sets no cookies and runs no analytics.</p>
+    <p class="quiet">This website counts visits with Cloudflare Web Analytics, which sets no cookies;
+    the desktop app has no telemetry. <a href="/privacy/#this-website">Details</a>.</p>
   </div>
 </footer>
 </body>
@@ -493,9 +494,11 @@ def build_static_pages(rel: Release) -> None:
          wide=True)
     page("/about/", "About", prose(f"About {S['product']}", content("about.html")),
          f"Who builds {S['product']} and why: OSINTPH, the FalconEye Route Map tab, and how to get in touch.")
-    doc_page("/privacy/", ROOT / "PRIVACY.md", "Privacy",
-             f"What {S['product']} sends, to whom and when; what stays on your machine; what this site logs.",
-             lead=content("privacy-lead.html"))
+    page("/privacy/", "Privacy",
+         prose("Privacy", markdown((ROOT / "PRIVACY.md").read_text(encoding="utf-8")) + content("privacy-site.html"),
+               content("privacy-lead.html")),
+         f"What the {S['product']} app sends, to whom and when (no telemetry), and how this website "
+         "counts visits with Cloudflare Web Analytics.")
     doc_page("/code-signing/", ROOT / "CODE_SIGNING_POLICY.md", "Code signing policy",
              f"How {S['product']} Windows releases are signed through SignPath Foundation, and by whom.")
     changelog = markdown((ROOT / "CHANGELOG.md").read_text(encoding="utf-8"))

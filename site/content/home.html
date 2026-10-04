@@ -7,7 +7,8 @@
   {{downloads}}
   <p class="oss"><span class="badge">Free and open source, AGPL-3.0</span>
   <a class="source" href="{{repository}}">github.com/osintph/routemap</a></p>
-  [[pic window jpg 1600 1000 hero|Route Map after a live trace from Manila to heise.de: the route through Hong Kong, Singapore and Marseille to Frankfurt on a world map, and the hop table with location, source, hostname, address and round-trip time]]
+  [[pic window jpg 1600 1000 hero|Route Map with a recorded trace from Manila to heise.de: the route through Hong Kong, Singapore, Marseille and Paris to Frankfurt on a world map, and the hop table with location, source, hostname, address and round-trip time]]
+  <p class="crop-note">A recorded trace from Manila to heise.de, origin set in Settings. The first five hops, the home network and the ISP, are shown with documentation addresses.</p>
 </section>
 
 <section class="story" aria-label="Why it exists">
@@ -29,7 +30,7 @@
       Arelion in Frankfurt. Route Map reads names with CAIDA's Hoiho rules and a table of carrier
       site codes, and falls back to an IP database only when the name says nothing.</p>
     </div>
-    [[pic rule1-sources png 986 764 crop|The hop table's Location and Source columns: hops 7 to 11 placed by carrier site code in Singapore and Frankfurt, hops 4, 5 and 12 to 14 by the IP database, hops 1 to 3 local]]
+    [[pic rule1-sources png 986 764 crop|The hop table: hops 1 to 5 local, hops 6 to 11 placed by carrier site code in Hong Kong, Singapore, Marseille, Paris and Frankfurt, hops 12 to 16 by the IP database, two of them country only]]
   </div>
 
   <div class="rule">
@@ -40,10 +41,8 @@
       about <strong>500 km</strong>, plus 300 km of slack for an approximate origin. Any placement
       farther than that is rejected, whatever its source, and the reason is shown.</p>
     </div>
-    [[pic rule2-rejected png 1474 200 crop wide|The Unplaced panel listing hops 4, 5 and 7 as location impossible for RTT, for example 10,266 km away when the round trip allows at most 6,133 km]]
-    <p class="crop-note">The recorded heise.de trace with the origin deliberately set to Frankfurt:
-    the Manila hops and even Arelion's Singapore router are rejected, because their round trips
-    cannot reach that far.</p>
+    [[pic rule2-rejected png 1474 116 crop wide|The Unplaced panel: hop 7, Arelion's Singapore router, location impossible for RTT, 10,266 km away when the round trip allows at most 6,133 km]]
+    <p class="crop-note">The same trace with the origin deliberately set to Frankfurt: Arelion's Singapore router answered in 58 ms, which cannot reach 10,266 km, so it is rejected even though its own hostname placed it.</p>
   </div>
 
   <div class="rule">
@@ -53,7 +52,7 @@
       hollow. A hop that cannot be placed stays in the table and in the Unplaced panel, with the
       reason it is not on the map.</p>
     </div>
-    [[pic rule3-unplaced png 1056 404 crop|The Unplaced panel: hops 1 to 3 private or carrier NAT addresses, never looked up, and hops 6 and 15 to 19 that did not answer]]
+    [[pic rule3-unplaced png 1083 296 crop|The Unplaced panel for a recorded trace to amazon.com: hops 9, 10, 12 and 16 to 18 did not answer, so there is nothing to locate]]
   </div>
 </section>
 
@@ -66,7 +65,7 @@
   mapped the same way. Export a PNG map, the full trace as JSON, or a PDF report with every hop,
   its source and the raw tool output, from the window or the <a href="/docs/cli/">command line</a>.
   The same engine powers the Route Map tab in OSINTPH's <a href="{{falconeye}}">FalconEye</a>.</p>
-  [[pic statusbar png 2880 54 crop strip|The status bar: origin Manila from the public IP, the command traceroute -m 30 -q 3 -w 1, and checks for the trace, PTR, Hoiho and the IP database]]
+  [[pic statusbar png 2880 54 crop strip|The status bar: origin Manila, PH, set in Settings; the command traceroute -m 30 -q 3 -w 1; and checks for the trace, PTR, Hoiho and the IP database]]
 
   <h3 id="labels">The source labels</h3>
   <dl class="labels">
