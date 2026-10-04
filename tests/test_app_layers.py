@@ -182,3 +182,44 @@ def test_ip_database_answers_are_cached_and_sent_with_sourceapp(monkeypatch):
     assert first == second and "62.115.9.9" not in first
     assert calls == [(["62.115.1.1", "62.115.9.9"], "routemap-desktop"),
                      (["62.115.9.9"], "routemap-desktop")], "a cached answer was asked again, or a miss was cached"
+
+
+def test_one_rpki_term_for_a_prefix_without_a_roa():
+    # The hop table, the PDF, the badge and the AS path all say "not found";
+    # "no ROA" was a second name for the same state.
+    from routemap import insight
+    from routemap.gui import hoptable, report
+    assert hoptable.RPKI_SHORT is report.RPKI_SHORT is insight.RPKI_SHORT
+    assert insight.RPKI_SHORT["unknown"] == "not found" and "not found" in insight.RPKI_LABEL["unknown"]
+    assert "not found" in insight._rpki_badge(["unknown"])["label"]
+    for label in [*insight.RPKI_SHORT.values(), *insight.RPKI_LABEL.values()]:
+        assert "ROA" not in label, label
+
+
+def test_the_engine_commit_shows_until_the_app_is_pinned_to_a_release(monkeypatch):
+    import json
+    import sys
+    import types
+    from importlib import metadata
+
+    from routemap import __about__
+
+    class Dist:
+        def __init__(self, direct):
+            self.direct = direct
+
+        def read_text(self, name):
+            return self.direct if name == "direct_url.json" else None
+
+    monkeypatch.setitem(sys.modules, "routemap._build", None)  # running from source
+    sha = "e28daa527203" + "0" * 28
+    git = json.dumps({"url": "https://github.com/osintph/routemap-engine",
+                      "vcs_info": {"vcs": "git", "commit_id": sha}})
+    for direct, expect in [(git, "commit e28daa527203 (not a release)"), (None, None)]:
+        monkeypatch.setattr(metadata, "distribution", lambda name, d=direct: Dist(d))
+        line = __about__.engine_line()
+        assert (expect in line) if expect else ("commit" not in line), line
+    # A packaged build answers from what the build stamped, release or not.
+    for stamped, has_commit in [("", False), (sha, True)]:
+        monkeypatch.setitem(sys.modules, "routemap._build", types.SimpleNamespace(COMMIT="x", ENGINE_COMMIT=stamped))
+        assert ("commit" in __about__.engine_line()) is has_commit

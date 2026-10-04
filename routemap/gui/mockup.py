@@ -22,7 +22,7 @@ from PySide6.QtCore import QPoint, QSize, Qt, QTimer
 from PySide6.QtGui import QGuiApplication, QPalette
 from PySide6.QtWidgets import QApplication, QLabel, QWidget
 
-from routemap.__about__ import DISPLAY_NAME, __version__
+from routemap.__about__ import DISPLAY_NAME, VERSION
 from routemap_engine import runner
 from routemap.gui import dialogs, geometry, mapview, theme
 from routemap.gui.mainwindow import MainWindow
@@ -205,7 +205,7 @@ def render_all(out: pathlib.Path) -> list[pathlib.Path]:
     window.close()
 
     image = mapview.render_png(route, title="heise.de from Manila",
-                               provenance=f"{DISPLAY_NAME} {__version__} · 3 Oct 2026 13:05 · "
+                               provenance=f"{DISPLAY_NAME} {VERSION} · 3 Oct 2026 13:05 · "
                                           "traceroute -m 30 -q 3 -w 1 · "
                                           f"{geometry.ATTRIBUTION} · GeoNames CC BY 4.0",
                                destination="heise.de")

@@ -13,14 +13,14 @@ import json
 import os
 import sys
 
-from PySide6.QtCore import QByteArray, QObject, Qt, QTimer
-from PySide6.QtGui import QGuiApplication, QIcon
+from PySide6.QtCore import QByteArray, QObject, Qt, QTimer, QUrl
+from PySide6.QtGui import QDesktopServices, QGuiApplication, QIcon
 from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox
 
 from routemap import config, dbip, insight, service
-from routemap.__about__ import (DISPLAY_NAME, NAME, REPO_URL, version_line,
+from routemap.__about__ import (DISPLAY_NAME, NAME, REPO_URL, engine_line, version_line,
                                 CONTACT_EMAIL, WINDOWS_SIGNED, SITE_LINKED, SITE_URL,
-                                __version__)
+                                VERSION)
 from routemap_engine import (InvalidTarget, Route, SqliteCache, TraceParseError, analyse, atlas,
                              available_tools, install_hint, validate_target, whereami)
 from routemap_engine.runner import TraceToolMissing, pick_tool
@@ -884,15 +884,38 @@ class Controller(QObject):
         self._update_task = task
         task.start()
 
-    def _update_result(self, tag):
-        current = f"v{__version__}"
-        if not tag:
-            text = "No release has been published yet."
-        elif _norm(tag) == _norm(current):
-            text = f"You have the latest release, {tag}."
-        else:
-            text = f"The latest release is {tag}; you have {current}.\n\n{REPO_URL}/releases"
-        QMessageBox.information(self.w, "Check for updates", text)
+    def _update_result(self, latest):
+        current = f"v{VERSION}"
+        box = QMessageBox(self.w)
+        box.setWindowTitle("Check for updates")
+        box.setIcon(QMessageBox.Icon.Information)
+        if not latest:
+            box.setText("No release has been published yet.")
+            box.exec()
+            return
+        tag, mine = latest["tag"], service.release_order(current)
+        if service.release_order(tag) == mine:
+            box.setText(f"You have the latest release, {tag}.")
+            box.exec()
+            return
+        if mine and service.release_order(tag) < mine:
+            box.setText(f"You have {current}, newer than the latest release, {tag}.")
+            box.exec()
+            return
+        offer = service.installer_for(latest["assets"])
+        box.setText(f"{DISPLAY_NAME} {tag} is out; you have {current}.")
+        box.setInformativeText(
+            (f"For this computer: {offer[0]}. Your browser downloads it; install it over this "
+             "version, and your settings and history stay." if offer else
+             "The release has no download for this platform; the release page lists every file."))
+        get = box.addButton("Download" if offer else "Open the release page", QMessageBox.ButtonRole.AcceptRole)
+        notes = box.addButton("Release notes", QMessageBox.ButtonRole.HelpRole) if offer else None
+        box.addButton(QMessageBox.StandardButton.Close)
+        box.exec()
+        if box.clickedButton() is get:
+            QDesktopServices.openUrl(QUrl(offer[1] if offer else latest["page"]))
+        elif notes is not None and box.clickedButton() is notes:
+            QDesktopServices.openUrl(QUrl(latest["page"]))
 
     def about(self):
         QMessageBox.about(self.w, f"About {DISPLAY_NAME}", (
@@ -901,8 +924,8 @@ class Controller(QObject):
             f"Free software under the GNU AGPL-3.0: <a href='{REPO_URL}'>{REPO_URL}</a>. "
             "Third-party components keep their own licences: Help \u203a Third-Party Notices."
             "<br>Geolocation engine: "
-            f"<a href='https://github.com/osintph/routemap-engine'>routemap-engine</a> {_engine_version()} "
-            "(AGPL-3.0)<br><br>"
+            f"<a href='https://github.com/osintph/routemap-engine'>routemap-engine</a>"
+            f"{_html(engine_line().removeprefix('routemap-engine'))} (AGPL-3.0)<br><br>"
             "Hostname rules: CAIDA Hoiho. IP geolocation and route details: RIPEstat and RIPE Atlas "
             "(RIPE NCC); IP Geolocation by <a href='https://db-ip.com'>DB-IP</a> (CC BY 4.0). "
             "Cities: GeoNames, CC BY 4.0. Map: Natural Earth. Carrier sites: Arelion's looking "
@@ -1005,17 +1028,6 @@ def mapview_public(address: str) -> bool:
     return classify_address(address) == "public"
 
 
-def _engine_version() -> str:
-    try:
-        from routemap_engine.__about__ import __version__ as v
-        return v
-    except Exception:  # noqa: BLE001
-        return ""
-
-
-def _norm(tag: str) -> str:
-    return tag.lstrip("v").replace("-beta.", "b").replace("-", "")
-
 
 def _html(text: str) -> str:
     import html
@@ -1045,7 +1057,7 @@ def write_export(fmt: str, path: str, current: dict, *, dark_png: bool = False,
         from routemap.gui import geometry
         image = mapview.render_png(
             route, dark=dark_png, title=f"{target} from {_city(route)}", destination=target,
-            provenance=f"{DISPLAY_NAME} {__version__} \u00b7 {report.stamp(when)} \u00b7 "
+            provenance=f"{DISPLAY_NAME} {VERSION} \u00b7 {report.stamp(when)} \u00b7 "
                        f"{label or current.get('source', '')} · {geometry.ATTRIBUTION} · "
                        "GeoNames CC BY 4.0" + (" · IP Geolocation by DB-IP" if mapview.uses_dbip(route) else ""),
             quiet_ms=settings.rtt_quiet_ms, hot_ms=settings.rtt_hot_ms,
@@ -1095,7 +1107,7 @@ def make_app(argv: list[str] | None = None) -> QApplication:
     app.setApplicationName(DISPLAY_NAME)
     app.setApplicationDisplayName(DISPLAY_NAME)
     app.setOrganizationName(NAME)
-    app.setApplicationVersion(__version__)
+    app.setApplicationVersion(VERSION)
     icon_path = os.path.join(os.path.dirname(__file__), "data", "icon.png")
     if os.path.exists(icon_path):
         app.setWindowIcon(QIcon(icon_path))

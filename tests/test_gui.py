@@ -409,3 +409,37 @@ def test_the_map_credits_db_ip_as_soon_as_offline_asns_are_shown(app):
     assert "DB-IP" in window.map.flat.attribution.text()
     assert "DB-IP" in window.map.globe.attribution.text()
     window.close()
+
+
+def test_check_for_updates_offers_this_platforms_installer(app, monkeypatch):
+    from PySide6.QtWidgets import QMessageBox
+
+    from routemap import config, service
+    from routemap.__about__ import VERSION
+    from routemap.gui import app as app_mod
+    from routemap.gui.mainwindow import MainWindow
+    shown, opened = [], []
+
+    def fake_exec(box):
+        shown.append((box.text(), box.informativeText(), [b.text() for b in box.buttons()]))
+        box._clicked = next((b for b in box.buttons() if b.text() == "Download"), None)
+        return 0
+
+    monkeypatch.setattr(QMessageBox, "exec", fake_exec)
+    monkeypatch.setattr(QMessageBox, "clickedButton", lambda box: getattr(box, "_clicked", None))
+    monkeypatch.setattr(app_mod.QDesktopServices, "openUrl", lambda url: opened.append(url.toString()))
+    controller = app_mod.Controller(MainWindow(), config.Settings(online_lookups=False, city_db_declined=True))
+    exe = "routemap-9.0.0-windows-x86_64-setup.exe"
+    assets = {exe: "https://example.invalid/" + exe, "routemap-9.0.0-macos-arm64.dmg": "https://example.invalid/m",
+              "routemap_9.0.0-1_amd64.deb": "https://example.invalid/d", "routemap-9.0.0-1.x86_64.rpm": "x",
+              "routemap-9.0.0-linux-x86_64.AppImage": "https://example.invalid/a",
+              "routemap-9.0.0-macos-x86_64.dmg": "https://example.invalid/i"}
+    controller._update_result({"tag": "v9.0.0", "page": "https://example.invalid/page", "assets": assets})
+    text, info, buttons = shown[-1]
+    expected = service.installer_for(assets)
+    assert "v9.0.0 is out" in text and expected[0] in info and "Download" in buttons
+    assert opened == [expected[1]]
+    controller._update_result({"tag": f"v{VERSION}", "page": "p", "assets": assets})
+    assert shown[-1][0].startswith("You have the latest release")
+    controller._update_result({"tag": "v0.0.1", "page": "p", "assets": assets})
+    assert "newer than the latest release" in shown[-1][0] and len(opened) == 1

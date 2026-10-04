@@ -11,11 +11,13 @@ import asyncio
 import datetime as _dt
 import json
 import os
+import pathlib
+import sys
 import threading
 from typing import Callable
 
 from routemap import config, policy
-from routemap.__about__ import NAME, REPO_SLUG, REPO_URL, USER_AGENT_PRODUCT, __version__
+from routemap.__about__ import NAME, REPO_SLUG, REPO_URL, USER_AGENT_PRODUCT, VERSION
 from routemap_engine import (Route, SqliteCache, TraceOptions, analyse, cities, default_sources,
                              run_trace, sitecodes, whereami)
 from routemap_engine.geo import Sources
@@ -184,7 +186,7 @@ def export_json(route: Route | dict, *, target: str | None, trace_text: str,
     document = {
         "format": EXPORT_FORMAT,
         "format_version": EXPORT_FORMAT_VERSION,
-        "generator": f"{NAME} {__version__}",
+        "generator": f"{NAME} {VERSION}",
         "exported_at": _dt.datetime.now(_dt.timezone.utc).isoformat(timespec="seconds"),
         "target": target,
         "origin_how": origin_how,
@@ -212,8 +214,9 @@ def tool_label(argv: list[str] | None) -> str:
 
 # -------------------------------------------------------------- update check ---
 
-async def latest_release() -> str | None:
-    """The newest release tag on GitHub, pre-releases included. One request."""
+async def latest_release() -> dict | None:
+    """The newest release on GitHub, pre-releases included, as {tag, page, assets:
+    {name: download URL}}; None when there is none. One request."""
     import httpx
 
     async with httpx.AsyncClient() as client:
@@ -223,4 +226,73 @@ async def latest_release() -> str | None:
                                              "Accept": "application/vnd.github+json"})
     response.raise_for_status()
     releases = response.json() or []
-    return releases[0].get("tag_name") if releases else None
+    if not releases:
+        return None
+    rel = releases[0]
+    return {"tag": rel.get("tag_name") or "", "page": rel.get("html_url") or f"{REPO_URL}/releases",
+            "assets": {a["name"]: a["browser_download_url"] for a in rel.get("assets", [])
+                       if a.get("name") and a.get("browser_download_url")}}
+
+
+def release_order(tag: str) -> tuple:
+    """Sortable form of a tag or version in either spelling: 'v0.2.0-beta.2' and
+    '0.2.0b2' are equal, a beta sorts before its final release."""
+    import re
+
+    m = re.match(r"^v?(\d+)\.(\d+)\.(\d+)(?:-?(alpha|beta|rc|a|b)\.?(\d+))?$", tag.strip())
+    if not m:
+        return ()
+    kind = {"alpha": "a", "beta": "b", "a": "a", "b": "b", "rc": "rc"}.get(m.group(4) or "", "z")
+    return (int(m.group(1)), int(m.group(2)), int(m.group(3)), kind, int(m.group(5) or 0))
+
+
+def linux_family(os_release: str | None = None) -> str:
+    """'deb', 'rpm' or '' from /etc/os-release (ID and ID_LIKE)."""
+    if os_release is None:
+        try:
+            os_release = pathlib.Path("/etc/os-release").read_text(encoding="utf-8")
+        except OSError:
+            return ""
+    ids = set()
+    for line in os_release.splitlines():
+        key, _, value = line.partition("=")
+        if key in ("ID", "ID_LIKE"):
+            ids.update(value.strip().strip('"').lower().split())
+    if ids & {"debian", "ubuntu"}:
+        return "deb"
+    if ids & {"fedora", "rhel", "centos", "suse", "opensuse"}:
+        return "rpm"
+    return ""
+
+
+def installer_for(assets: dict[str, str], system: str | None = None, machine: str | None = None,
+                  family: str | None = None, appimage: bool | None = None) -> tuple[str, str] | None:
+    """The release file to offer on this machine, as (name, URL): the Windows
+    installer, the DMG for this Mac's architecture, on Linux the AppImage when
+    running as one, else the .deb or .rpm for the distribution, else the AppImage.
+    None when the release has nothing for this platform."""
+    import platform as _platform
+
+    system = system or sys.platform
+    machine = (machine or _platform.machine()).lower()
+    names = list(assets)
+
+    def first(*suffixes: str) -> tuple[str, str] | None:
+        for suffix in suffixes:
+            for name in names:
+                if name.endswith(suffix):
+                    return name, assets[name]
+        return None
+
+    if system.startswith("win"):
+        return first("-windows-x86_64-setup.exe", "-windows-x86_64.zip")
+    if system == "darwin":
+        arch = "arm64" if machine in ("arm64", "aarch64") else "x86_64"
+        return first(f"-macos-{arch}.dmg")
+    if system.startswith("linux"):
+        if appimage if appimage is not None else bool(os.environ.get("APPIMAGE")):
+            return first("-linux-x86_64.AppImage")
+        family = linux_family() if family is None else family
+        wanted = {"deb": ("_amd64.deb",), "rpm": (".x86_64.rpm",)}.get(family, ())
+        return first(*wanted, "-linux-x86_64.AppImage", "-linux-x86_64.tar.gz")
+    return None

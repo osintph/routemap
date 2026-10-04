@@ -15,6 +15,7 @@ from PySide6.QtGui import QColor, QGuiApplication, QIcon, QKeySequence, QPainter
 from PySide6.QtWidgets import QAbstractItemView, QHeaderView, QTableView
 
 from routemap.gui import theme
+from routemap.insight import RPKI_SHORT
 
 # Ordered by what a reader needs first: where each hop is and how we know, then
 # the evidence. At a 1440-pixel window the first seven are always visible.
@@ -22,8 +23,6 @@ COLUMNS = ["#", "Location", "Source", "ASN", "RPKI", "Hostname", "IP address", "
            "Loss", "Notes"]
 KEYS = ["hop", "place", "source", "asn", "rpki", "hostname", "address", "min", "avg", "loss", "notes"]
 WIDTHS = [32, 132, 150, 78, 64, 186, 112, 76, 76, 50]
-RPKI_SHORT = {"valid": "valid", "unknown": "no ROA", "invalid": "INVALID", "invalid_asn": "INVALID",
-              "invalid_length": "INVALID"}
 NUMERIC = {"hop", "min", "avg", "loss"}
 
 # Short forms of the engine's annotation labels, for a narrow column. The full

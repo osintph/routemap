@@ -9,6 +9,8 @@ build-time literals that cannot import this module (pyproject.toml, the
 PyInstaller spec, the release workflow) are listed in docs/renaming.md.
 """
 
+import re
+
 # Distribution, import-facing and executable name.
 NAME = "routemap"
 # What a person reads: window title, PDF header, About box.
@@ -35,11 +37,25 @@ DONATIONS_PAY_FOR = "code signing, hosting, the RIPE Atlas probe, and maintenanc
 # then says so.
 WINDOWS_SIGNED = False
 
-__version__ = "0.2.0b1"
+# PEP 440, for Python packaging only. Everything a person sees (About,
+# --version, file names, installer, packages, User-Agent) uses VERSION.
+__version__ = "0.2.0b2"
+
+
+def display_version(version: str = __version__) -> str:
+    """'0.2.0b2' -> '0.2.0-beta.2', the release tag's spelling without the v."""
+    m = re.fullmatch(r"(\d+\.\d+\.\d+)(?:(a|b|rc)(\d+))?", version)
+    if not m:
+        return version
+    base, kind, n = m.groups()
+    return base + (f"-{ {'a': 'alpha', 'b': 'beta', 'rc': 'rc'}[kind]}.{n}" if kind else "")
+
+
+VERSION = display_version()
 
 # Upstreams see this product token, so a complaint about our traffic reaches
 # the project rather than whoever happens to be running it.
-USER_AGENT_PRODUCT = f"{NAME}/{__version__}"
+USER_AGENT_PRODUCT = f"{NAME}/{VERSION}"
 USER_AGENT = f"{USER_AGENT_PRODUCT} (+{REPO_URL})"
 
 
@@ -66,7 +82,50 @@ def build_commit() -> str:
         return "unknown"
 
 
+def engine_commit_from_metadata() -> str | None:
+    """The installed engine's commit when it is not a published release: pip
+    records one (PEP 610 direct_url.json) for an install from git, and a local
+    checkout has its own. None for a release from PyPI, which records none."""
+    import json
+    import pathlib
+    import subprocess
+    from importlib import metadata
+    try:
+        direct = metadata.distribution("routemap-engine").read_text("direct_url.json")
+    except metadata.PackageNotFoundError:
+        return None
+    if not direct:
+        return None
+    info = json.loads(direct)
+    if "vcs_info" in info:
+        return info["vcs_info"].get("commit_id") or "unknown"
+    url = info.get("url", "")
+    if url.startswith("file://"):
+        try:
+            out = subprocess.run(["git", "-C", url[len("file://"):], "rev-parse", "HEAD"], capture_output=True,
+                                 text=True, timeout=3)
+            return out.stdout.strip() or "unknown"
+        except (OSError, subprocess.SubprocessError):
+            return "unknown"
+    return "unknown"
+
+
+def engine_line() -> str:
+    """'routemap-engine 0.3.1', or with the commit while the app is not pinned to a release."""
+    try:
+        from routemap_engine.__about__ import __version__ as version
+    except ImportError:
+        return "routemap-engine (not installed)"
+    try:
+        from routemap._build import ENGINE_COMMIT  # type: ignore[import-not-found]
+    except ImportError:
+        ENGINE_COMMIT = engine_commit_from_metadata()
+    if not ENGINE_COMMIT:
+        return f"routemap-engine {version}"
+    return f"routemap-engine {version}, commit {ENGINE_COMMIT[:12]} (not a release)"
+
+
 def version_line() -> str:
-    """'0.2.0b2, commit 1a2b3c4d5e6f': what About, --version and the smoke test show."""
+    """'0.2.0-beta.2, commit 1a2b3c4d5e6f': what About, --version and the smoke test show."""
     commit = build_commit()
-    return f"{__version__}, commit {commit[:12]}{commit[40:] if len(commit) > 40 else ''}"
+    return f"{VERSION}, commit {commit[:12]}{commit[40:] if len(commit) > 40 else ''}"

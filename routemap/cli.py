@@ -28,7 +28,7 @@ import json
 import os
 import sys
 
-from routemap.__about__ import DISPLAY_NAME, NAME, __version__
+from routemap.__about__ import DISPLAY_NAME, NAME, VERSION
 
 SUBCOMMANDS = {"parse", "sites", "cache", "data"}
 
@@ -236,11 +236,14 @@ def check_update() -> int:
     from routemap import service
 
     try:
-        tag = asyncio.run(service.latest_release())
+        latest = asyncio.run(service.latest_release())
     except Exception as exc:  # noqa: BLE001
         _err(f"{NAME}: GitHub did not answer: {exc}")
         return 1
-    print(f"installed: v{__version__}\nlatest:    {tag or 'no release yet'}")
+    print(f"installed: v{VERSION}\nlatest:    {latest['tag'] if latest else 'no release yet'}")
+    if latest and service.release_order(latest["tag"]) > service.release_order(f"v{VERSION}"):
+        offer = service.installer_for(latest["assets"])
+        print(f"download:  {offer[1] if offer else latest['page']}")
     return 0
 
 
@@ -358,7 +361,7 @@ def smoke_test(out_dir: str) -> int:
     assert b"/Font" in pdf, "the PDF has no fonts: text did not render on this platform"
     window.close()
     from routemap.__about__ import build_commit
-    summary = (f"{NAME} {__version__} commit {build_commit()} smoke test ok: {len(route['hops'])} hops, "
+    summary = (f"{NAME} {VERSION} commit {build_commit()} smoke test ok: {len(route['hops'])} hops, "
                f"{sum(1 for h in route['hops'] if h['lat'] is not None)} placed; "
                f"AS path {ins['as_path_text']}; "
                f"png {sizes['png']} B, pdf {sizes['pdf']} B, json {sizes['json']} B, {checked}")
@@ -427,6 +430,14 @@ def utf8_streams(platform: str = sys.platform) -> None:
             pass
 
 
+def _print_and_exit(text: str) -> type[argparse.Action]:
+    class _Print(argparse.Action):
+        def __call__(self, parser, namespace, values, option_string=None):
+            print(text)
+            parser.exit()
+    return _Print
+
+
 def main(argv: list[str] | None = None) -> int:
     utf8_streams()
     argv = list(sys.argv[1:] if argv is None else argv)
@@ -460,8 +471,10 @@ def main(argv: list[str] | None = None) -> int:
         epilog="Also: routemap parse FILE, routemap sites update, routemap cache clear, "
                "routemap data update|import|status.")
     parser.add_argument("target", nargs="?", help="hostname or IP address to trace")
-    from routemap.__about__ import version_line
-    parser.add_argument("--version", action="version", version=f"{NAME} {version_line()}")
+    from routemap.__about__ import engine_line, version_line
+    # Two lines (the app, then the engine); argparse's own version action folds newlines.
+    parser.add_argument("--version", nargs=0, action=_print_and_exit(f"{NAME} {version_line()}\n{engine_line()}"),
+                        help="show the app's and the engine's version and commit, and exit")
     parser.add_argument("--check-update", action="store_true",
                         help="ask GitHub for the latest release tag, and nothing else")
     parser.add_argument("--smoke-test", metavar="DIR", help=argparse.SUPPRESS)

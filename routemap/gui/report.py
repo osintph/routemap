@@ -13,9 +13,10 @@ import datetime as _dt
 from PySide6.QtCore import QMarginsF, QRectF, QSizeF, Qt
 from PySide6.QtGui import QColor, QFont, QFontDatabase, QFontMetricsF, QPageLayout, QPageSize, QPainter, QPdfWriter, QPen
 
-from routemap.__about__ import DISPLAY_NAME, __version__
+from routemap.__about__ import DISPLAY_NAME, VERSION
 from routemap.gui import geometry, mapview, theme
 from routemap.gui.hoptable import NOTE_SHORT
+from routemap.insight import RPKI_SHORT
 
 INK = QColor("#1f2933")
 MUTED = QColor("#5f6b78")
@@ -178,10 +179,10 @@ def write_pdf(path: str, route: dict, *, target: str, trace_text: str, tool_labe
     writer.setPageLayout(QPageLayout(QPageSize(QPageSize.A4), QPageLayout.Portrait,
                                      QMarginsF(16, 14, 16, 12), QPageLayout.Millimeter))
     writer.setTitle(f"Route to {target}")
-    writer.setCreator(f"{DISPLAY_NAME} {__version__}")
+    writer.setCreator(f"{DISPLAY_NAME} {VERSION}")
     painter = QPainter(writer)
     painter.setRenderHint(QPainter.Antialiasing)
-    footer = f"{DISPLAY_NAME} {__version__}"
+    footer = f"{DISPLAY_NAME} {VERSION}"
     flow = _Flow(writer, painter, footer)
 
     hops = route.get("hops") or []
@@ -284,10 +285,6 @@ def write_pdf(path: str, route: dict, *, target: str, trace_text: str, tool_labe
             flow.text(line or " ", 7.5, mono=True, gap=0.2)
     flow.finish()
     painter.end()
-
-
-RPKI_SHORT = {"valid": "valid", "unknown": "no ROA", "invalid": "INVALID", "invalid_asn": "INVALID",
-              "invalid_length": "INVALID"}
 
 
 def _summary_section(flow: "_Flow", route: dict, ins: dict, origin_cc: str | None) -> None:

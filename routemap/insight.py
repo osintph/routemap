@@ -228,6 +228,10 @@ def attributions(insight: dict | None) -> list[str]:
 
 RPKI_LABEL = {"valid": "RPKI valid", "unknown": "RPKI not found", "invalid": "RPKI invalid",
               "invalid_asn": "RPKI invalid (origin AS)", "invalid_length": "RPKI invalid (prefix length)"}
+# The same states in a narrow column (hop table, PDF). "not found" is the RPKI
+# term (RFC 6811) and the one used everywhere: badge, column, AS path, report.
+RPKI_SHORT = {"valid": "valid", "unknown": "not found", "invalid": "INVALID", "invalid_asn": "INVALID",
+              "invalid_length": "INVALID"}
 
 
 def _rpki_badge(states: list[str]) -> dict | None:
