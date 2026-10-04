@@ -182,7 +182,13 @@ def stylesheet(dark: bool) -> str:
     edge = "#2a3643" if dark else "#cdd5dd"
     hover = "#222e3a" if dark else "#eef2f6"
     on_accent = "#10161d" if dark else "#ffffff"
-    return (f"QPushButton {{ padding: 5px 14px; border: 1px solid {edge}; border-radius: 6px; }}"
+    # Fonts for the widget classes macOS gives their own system font: in the
+    # stylesheet, because a platform theme change resets per-class fonts set
+    # with QApplication.setFont (seen in the packaged macOS build, 4 Oct).
+    fonts = (f'QToolButton, QHeaderView, QMenu, QMenuBar, QTabBar, QStatusBar, QToolTip, QCheckBox, '
+             f'QRadioButton, QComboBox, QPushButton, QLineEdit, QSpinBox, QDoubleSpinBox, QTableView, QGroupBox '
+             f'{{ font-family: "{_load_fonts()}"; font-size: {FONT_PX}px; }}')
+    return fonts + (f"QPushButton {{ padding: 5px 14px; border: 1px solid {edge}; border-radius: 6px; }}"
             f"QPushButton:hover {{ background: {hover}; }}"
             f"QPushButton:default {{ background: {accent}; color: {on_accent}; border-color: {accent};"
             f" font-weight: 600; }}"

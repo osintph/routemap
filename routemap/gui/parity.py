@@ -14,6 +14,7 @@ from __future__ import annotations
 
 def snapshot(window) -> dict:
     from PySide6.QtCore import Qt
+    from PySide6.QtGui import QFontInfo
     from PySide6.QtWidgets import QApplication
 
     from routemap.gui import mapview, theme
@@ -41,10 +42,13 @@ def snapshot(window) -> dict:
     font = app.font()
     return {
         "style": app.property("routemapStyle"),
-        "font": {"family": font.family(), "pixel_size": font.pixelSize(),
-                 # Widgets the platform gives its own font (macOS: tool buttons, headers).
-                 "tool_button": QApplication.font("QToolButton").pixelSize(),
-                 "header": QApplication.font("QHeaderView").pixelSize(),
+        # Rendered sizes on real widgets (QFontInfo), including the classes
+        # macOS gives its own font: what the eye sees, not what was asked for.
+        "font": {"family": QFontInfo(window.target.font()).family(),
+                 "pixel_size": QFontInfo(window.target.font()).pixelSize(),
+                 "tool_button": QFontInfo(window.live.toggle.font()).pixelSize(),
+                 "header": QFontInfo(window.table.horizontalHeader().font()).pixelSize(),
+                 "table": QFontInfo(window.table.font()).pixelSize(),
                  "map_marker": flat.markers[0].font.pixelSize() if flat.markers else None},
         "accent": theme.ACCENT["dark" if theme.is_dark() else "light"],
         "sections": sections,
