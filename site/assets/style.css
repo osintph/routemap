@@ -219,6 +219,7 @@ code.sha { display: block; margin-top: var(--s1); font-size: 0.72rem; background
 .gallery-page h1, .gallery-page .lead { margin-bottom: 0; }
 .shot.narrow { max-width: 1028px; }
 .pair { display: grid; grid-template-columns: minmax(0, 4fr) minmax(0, 7fr); gap: var(--s6); align-items: start; }
+.pair.even { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }  /* two screenshots of the same shape */
 
 /* Donations */
 .pay-list { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: var(--s3); margin: var(--s4) 0 var(--s6); }
@@ -233,7 +234,7 @@ code.sha { display: block; margin-top: var(--s1); font-size: 0.72rem; background
 code.address { display: block; font-size: 0.8rem; word-break: break-all; user-select: all; }
 
 @media (max-width: 900px) {
-  .rule, .support-band, .pair, .coins, .doc-layout { grid-template-columns: minmax(0, 1fr); }
+  .rule, .support-band, .pair, .pair.even, .coins, .doc-layout { grid-template-columns: minmax(0, 1fr); }
   .rule .shot.crop:not(.wide) { justify-self: stretch; max-width: 100%; }
   .maker { border-left: 0; padding-left: 0; border-top: 1px solid var(--rule); padding-top: var(--s5); }
   .doc-nav ul { position: static; display: flex; flex-wrap: wrap; gap: var(--s2) var(--s4); }
