@@ -51,7 +51,7 @@ uses [Semantic Versioning](https://semver.org/).
 - **Version spelling**: the version reads `0.2.0-beta.2` everywhere you see it
   (About, `--version`, file names, installer, Settings > Apps, packages), the
   same as the release tag; earlier releases' files used `0.2.0b1`.
-- Requires routemap-engine 0.3.1.
+- Requires routemap-engine 0.4.0.
 
 ### Fixed
 
