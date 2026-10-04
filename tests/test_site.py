@@ -113,3 +113,16 @@ def test_the_fonts_cover_every_character_the_site_shows(tmp_path):
         cmap = ttlib.TTFont(fonts / name).getBestCmap()
         missing = sorted(c for c in used if ord(c) not in cmap)
         assert not missing, f"{name} lacks {missing}: re-subset it (site/README.md, Typography)"
+
+
+
+def test_font_urls_carry_their_content_hash(tmp_path):
+    """A re-subset font keeps its file name; without a hash in the URL the CDN
+    kept serving the previous file (4 Oct 2026)."""
+    out = _built(tmp_path)
+    css = (out / "assets" / "style.css").read_text(encoding="utf-8")
+    urls = re.findall(r'url\("(/assets/fonts/[^"]+)"\)', css)
+    assert urls and all("?v=" in u for u in urls), urls
+    home = (out / "index.html").read_text(encoding="utf-8")
+    for pre in re.findall(r'rel="preload" href="([^"]+)"', home):
+        assert pre in urls, f"preload {pre} must match the stylesheet's URL exactly"

@@ -248,8 +248,8 @@ def page(path: str, title: str, body: str, description: str, *, wide: bool = Fal
 <link rel="icon" href="/assets/favicon-32.png" type="image/png" sizes="32x32">
 <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
 <link rel="manifest" href="/site.webmanifest">
-<link rel="preload" href="/assets/fonts/schibsted-grotesk-var.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="preload" href="/assets/fonts/newsreader-var.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="{img_url('/assets/fonts/schibsted-grotesk-var.woff2')}" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="{img_url('/assets/fonts/newsreader-var.woff2')}" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/assets/style.css?v={ASSET_VERSION['style.css']}">
 <script src="/assets/site.js?v={ASSET_VERSION['site.js']}"></script>
 </head>
@@ -570,6 +570,13 @@ def main(argv: list[str]) -> int:
     import hashlib
     for name in ("style.css", "site.js"):
         ASSET_VERSION[name] = hashlib.sha256((SITE / "assets" / name).read_bytes()).hexdigest()[:10]
+    # Font URLs in the built stylesheet carry their content hash, as images do:
+    # a re-subset font keeps its name, and Cloudflare kept serving the old one.
+    css_out = OUT / "assets" / "style.css"
+    css = re.sub(r'url\("(/assets/fonts/[^"?]+)"\)', lambda m: f'url("{img_url(m.group(1))}")',
+                 css_out.read_text(encoding="utf-8"))
+    css_out.write_text(css, encoding="utf-8")
+    ASSET_VERSION["style.css"] = hashlib.sha256(css.encode("utf-8")).hexdigest()[:10]
     rel = Release(args.tag, args.release_json, args.sums)
     LATEST = rel.tag
     build_home(rel)
