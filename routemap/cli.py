@@ -315,6 +315,7 @@ def smoke_test(out_dir: str) -> int:
     # The bundled DB-IP Lite ASN file unpacked and answered: the AS path works offline.
     assert ins["as_path"], "no AS path: the bundled ASN database did not load"
     window.insight.show_summary(route, ins)
+    window.map.set_route(route, "heise.de", keep_view=True)
     window.map.set_projection("globe")
     app.processEvents()
     globe = os.path.join(out_dir, "smoke-globe.png")

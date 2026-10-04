@@ -568,6 +568,9 @@ class Controller(QObject):
             c["insight"] = saved
         else:
             c["insight"] = insight.offline(c["route"], settings)
+        # The offline step added DB-IP ASNs to the hops: redraw, so the map's
+        # credit line names DB-IP as soon as its data is on screen.
+        self.w.map.set_route(c["route"], c["target"], keep_view=True)
         if self.compare_next is not None:
             old, self.compare_next = self.compare_next, None
             self._start_comparison(old["route"], old.get("label") or "the earlier run")

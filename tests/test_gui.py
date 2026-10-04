@@ -390,3 +390,22 @@ def test_the_summary_panel_and_hop_details_show_offline_insight(app):
     local = route["hops"][0]
     details.show_hop(local, ins, None)
     assert not details.falcon.isEnabled()
+
+
+def test_the_map_credits_db_ip_as_soon_as_offline_asns_are_shown(app):
+    """Regression: the credit line was set when the route was drawn, before the
+    offline step added DB-IP ASNs, so it lacked DB-IP with Online lookups off."""
+    from routemap import config
+    from routemap.gui.app import Controller
+    from routemap.gui.mainwindow import MainWindow
+    window = MainWindow()
+    controller = Controller(window, config.Settings(online_lookups=False, city_db_declined=True))
+    route = _sample_route()
+    controller.current = {"route": route, "target": "heise.de", "trace_text": "", "argv": None,
+                          "source": "file", "origin_how": "coords", "when": None}
+    window.show_result(route, "heise.de", None)
+    assert "DB-IP" not in window.map.flat.attribution.text()
+    controller._after_result()
+    assert "DB-IP" in window.map.flat.attribution.text()
+    assert "DB-IP" in window.map.globe.attribution.text()
+    window.close()
