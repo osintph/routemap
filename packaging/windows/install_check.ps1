@@ -55,10 +55,16 @@ function Check-Mode($mode, $root, $dir, $menu, $scope) {
     Check (Test-Path $cli) "and the files are there"
 
     $uninstall = (Get-ItemProperty $key).UninstallString.Trim('"')
-    $p = Start-Process -FilePath $uninstall -PassThru -Wait -ArgumentList @("/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART")
+    $ulog = "$env:RUNNER_TEMP\uninstall-$($mode.Trim('/')).log"
+    $p = Start-Process -FilePath $uninstall -PassThru -Wait -ArgumentList @("/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/LOG=$ulog")
     Check ($p.ExitCode -eq 0) "uninstaller exited 0"
     # The uninstaller finishes from a copy of itself; give it time to remove the folder.
     for ($i = 0; $i -lt 60 -and (Test-Path $dir); $i++) { Start-Sleep -Seconds 1 }
+    if (Test-Path $dir) {
+        Write-Host "left behind:"; Get-ChildItem $dir -Recurse -Force | ForEach-Object { Write-Host "  $($_.FullName)" }
+        Get-Process | Where-Object { $_.Path -and $_.Path.StartsWith($dir) } | ForEach-Object { Write-Host "  running: $($_.Id) $($_.Path)" }
+        if (Test-Path $ulog) { Get-Content $ulog | Select-Object -Last 40 }
+    }
     Check (-not (Test-Path $dir)) "$dir removed"
     Check (-not (Test-Path $key)) "Settings > Apps entry removed"
     Check (-not (Test-Path (Join-Path $menu "$AppName.lnk"))) "Start menu shortcut removed"

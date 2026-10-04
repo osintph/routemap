@@ -21,7 +21,7 @@ def defines(version: str, commit: str, run_number: str, source: str, out: str) -
         f"/DAppName={DISPLAY_NAME}",
         f"/DAppVersion={version}+{short}",
         f"/DNumericVersion={numeric}",
-        "/DPublisher=osintph",
+        "/DPublisher=OSINTPH",
         f"/DSiteUrl={SITE_URL}",
         f"/DGuiExe={NAME}.exe",
         f"/DCliExe={NAME}-cli.exe",
