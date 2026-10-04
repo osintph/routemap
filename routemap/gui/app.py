@@ -19,7 +19,8 @@ from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox
 
 from routemap import config, service
 from routemap.__about__ import (DISPLAY_NAME, NAME, REPO_URL, SIGNPATH_ATTRIBUTION,
-                                CONTACT_EMAIL, DONATE_URL, SIGNPATH_SIGNED, SITE_URL, __version__)
+                                CONTACT_EMAIL, SIGNPATH_SIGNED, SITE_LINKED, SITE_URL,
+                                __version__)
 from routemap_engine import (InvalidTarget, Route, SqliteCache, TraceParseError, analyse, atlas,
                              available_tools, install_hint, validate_target, whereami)
 from routemap_engine.runner import TraceToolMissing, pick_tool
@@ -542,9 +543,9 @@ class Controller(QObject):
             "(AGPL-3.0)<br><br>"
             "Hostname rules: CAIDA Hoiho. IP geolocation: RIPEstat (RIPE NCC). Cities: GeoNames, "
             "CC BY 4.0. Map: Natural Earth. Carrier sites: Arelion's looking glass. Built with Qt."
-            f"<br><br><a href='{SITE_URL}'>{SITE_URL}</a> \u00b7 "
-            f"<a href='mailto:{CONTACT_EMAIL}'>{CONTACT_EMAIL}</a> \u00b7 "
-            f"<a href='{DONATE_URL}'>Support this project</a>"
+            + ("<br><br>" + (f"<a href='{SITE_URL}'>{SITE_URL}</a> \u00b7 " if SITE_LINKED else "")
+               + f"<a href='mailto:{CONTACT_EMAIL}'>{CONTACT_EMAIL}</a> \u00b7 "
+               + "Support this project: Help \u203a Support")
             + (f"<br><br>{SIGNPATH_ATTRIBUTION}." if SIGNPATH_SIGNED else "")))
 
     def save_window(self):

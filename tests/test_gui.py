@@ -227,3 +227,15 @@ def test_help_menu_support_shows_every_donation_option_in_order(app):
     assert "sponsors" not in text.lower()
     dialog.close()
     window.close()
+
+
+def test_the_app_does_not_link_the_site_until_it_is_approved(app, monkeypatch):
+    """SITE_LINKED is the one switch: off, no getroutemap.app link anywhere in the app."""
+    from routemap import __about__
+    from routemap.gui import dialogs
+    from routemap.gui.mainwindow import MainWindow
+    window = MainWindow()
+    if not __about__.SITE_LINKED:
+        text = " ".join(label.text() for label in dialogs.SupportDialog(window).findChildren(dialogs.QLabel))
+        assert __about__.SITE_URL not in text and "getroutemap.app/" not in text
+    window.close()

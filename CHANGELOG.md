@@ -6,6 +6,25 @@ uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.0-beta.5] - 2026-10-04
+
+### Changed
+
+- **Help > Support Route Map** lists the ways to support the project, in
+  order: Ko-fi, PayPal, Bitcoin and Monero, with the addresses selectable and
+  copyable. It opens only when you choose it. GitHub Sponsors is gone.
+- **Contact**: support@getroutemap.app, in Help > About and Help > Privacy.
+- The bundled sample trace no longer shows the maintainer's home network: the
+  router, LAN, carrier-NAT and first ISP hops carry documentation addresses
+  (192.0.2.0/24, 198.51.100.0/24, 203.0.113.0/24).
+- Settings: the cache line now covers both caches, Hoiho and the IP
+  database, and counts both.
+- The engine comes from PyPI (routemap-engine 0.2.1, the same code as
+  before).
+- Documentation: a fuller user guide (exports, paste mode, settings, RIPE
+  Atlas), troubleshooting, known limitations and a FAQ. Corrected: `mtr --json`
+  output was never supported; `mtr --report` is.
+
 ## [0.1.0-beta.4] - 2026-10-04
 
 ### Changed

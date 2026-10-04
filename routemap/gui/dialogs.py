@@ -12,7 +12,7 @@ from PySide6.QtWidgets import (QButtonGroup, QCheckBox, QComboBox, QDialog, QDia
                                QVBoxLayout, QWidget)
 
 from routemap.__about__ import (CONTACT_EMAIL, DISPLAY_NAME, DONATE_ADDRESSES, DONATE_LINKS,
-                                DONATE_URL, DONATIONS_PAY_FOR)
+                                DONATE_URL, DONATIONS_PAY_FOR, SITE_LINKED)
 from routemap.config import ORIGIN_AUTO, ORIGIN_CITY, ORIGIN_COORDS, ORIGIN_MAP, Settings
 from routemap_engine.runner import DEFAULT_FLAGS
 
@@ -635,9 +635,10 @@ class SupportDialog(QDialog):
             form.addRow(name, row)
             self.address_fields[name] = field
         layout.addLayout(form)
-        more = _note(f"QR codes and a GPG-signed list of these addresses: "
-                     f"<a href='{DONATE_URL}'>{DONATE_URL}</a>. Bug reports and good trace "
-                     f"examples help too: <a href='mailto:{CONTACT_EMAIL}'>{CONTACT_EMAIL}</a>.")
+        where = (f"QR codes and a GPG-signed list of these addresses: "
+                 f"<a href='{DONATE_URL}'>{DONATE_URL}</a>. " if SITE_LINKED else "")
+        more = _note(where + "Bug reports and good trace examples help too: "
+                     f"<a href='mailto:{CONTACT_EMAIL}'>{CONTACT_EMAIL}</a>.")
         more.setOpenExternalLinks(True)
         layout.addWidget(more)
         buttons = QDialogButtonBox(QDialogButtonBox.Close)

@@ -18,6 +18,9 @@ REPO_SLUG = "osintph/routemap"
 REPO_URL = f"https://github.com/{REPO_SLUG}"
 # The project site and the one public contact address.
 SITE_URL = "https://getroutemap.app"
+# False until the project site is approved: the app then does not link it
+# (About box, Support dialog). One switch.
+SITE_LINKED = False
 CONTACT_EMAIL = "support@getroutemap.app"
 # Donations, in the order they are shown everywhere (Help > Support Route Map,
 # README, the site's donate page, .github/FUNDING.yml).
@@ -33,7 +36,7 @@ DONATIONS_PAY_FOR = "code signing, hosting, the RIPE Atlas probe, and maintenanc
 SIGNPATH_SIGNED = False
 SIGNPATH_ATTRIBUTION = "Free code signing provided by SignPath.io, certificate by SignPath Foundation"
 
-__version__ = "0.1.0b4"
+__version__ = "0.1.0b5"
 
 # Upstreams see this product token, so a complaint about our traffic reaches
 # the project rather than whoever happens to be running it.
