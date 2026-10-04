@@ -262,7 +262,12 @@ def summary(route: dict, ins: dict | None, origin_cc: str | None = None) -> dict
     base = online.get("baseline")
     if isinstance(base, dict):
         delta = base["measured_ms"] - base["ms"]
-        src, dst = base["src"].get("city") or "", base["dst"].get("city") or ""
+        # Name the trip, not the anchors' towns: the anchors stand for the two
+        # countries, and their towns (an anchor in Makati, another in a village
+        # near Bremen) read as if the route went there. They are in the detail.
+        dest = _destination(route) or {}
+        src = ((route.get("origin") or {}).get("label") or base["src"].get("city") or "").split(",")[0]
+        dst = (dest.get("place") or base["dst"].get("city") or "").split(",")[0].split(" (")[0]
         out["baseline"] = {"text": f"typical {src} to {dst}: about {base['ms']:.0f} ms; "
                                    f"measured {base['measured_ms']:.0f} ms",
                            "delta": f"{delta:+.0f} ms",
@@ -277,7 +282,11 @@ def summary(route: dict, ins: dict | None, origin_cc: str | None = None) -> dict
         lines = []
         if ris and ris.get("total"):
             origins = ", ".join(f"AS{a}" for a in ris.get("origin_asns") or [])
-            via = " > ".join(f"AS{p['asn']}" for p in path)
+            asns = [p["asn"] for p in path]
+            start = ris.get("compared_from")
+            if start in asns:
+                asns = asns[asns.index(start):]    # RIS peers never carry the access network
+            via = " > ".join(f"AS{a}" for a in asns)
             if ris["agree"]:
                 lines.append(f"origin {origins}; {ris['agree']} of {ris['total']} RIS peer paths "
                              f"carry {via} like this trace")
