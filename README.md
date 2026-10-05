@@ -38,6 +38,12 @@ Download the latest release from
 | macOS 12+ (Intel) | `routemap-<version>-macos-x86_64.dmg` | As above. |
 | Linux x86_64 | `.AppImage` or `.tar.gz` | `chmod +x` the AppImage and run it. Tracing needs `traceroute` (`sudo apt install traceroute`). |
 
+**Not on PyPI.** Route Map is not on PyPI: `pip install routemap` installs an
+unrelated project of the same name, not this app. Install Route Map only from
+[GitHub Releases](https://github.com/osintph/routemap/releases) or
+[getroutemap.app](https://getroutemap.app/download/), and check the download
+against the signed `SHA256SUMS`. Its engine is on PyPI as `routemap-engine`.
+
 The Windows folder also has `routemap-cli.exe`, the command line.
 
 **Code signing.** The Windows build will be signed with a Certum code
