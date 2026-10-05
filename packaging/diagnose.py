@@ -11,13 +11,13 @@ from __future__ import annotations
 import asyncio
 import json
 import platform
-import shutil
 import subprocess
 import sys
 import time
 
 from routemap import config, insight, service
-from routemap_engine import analyse_sync, ripe
+from routemap_engine import analyse_sync, ripe, runner
+from routemap_engine.target import InvalidTarget, validate_target
 
 
 def run(argv: list[str], timeout: int = 150) -> dict:
@@ -31,11 +31,23 @@ def run(argv: list[str], timeout: int = 150) -> dict:
 
 
 def main(target: str) -> int:
+    # The target goes to tracert and traceroute: the same check as the app (RM-18).
+    try:
+        target = validate_target(target)
+    except InvalidTarget as exc:
+        print(f"diagnose: {exc}", file=sys.stderr)
+        return 2
     out = {"platform": platform.platform(), "python": sys.version.split()[0], "tools": {}}
+    # System tools by absolute path only, never one in the current folder (RM-03).
     if sys.platform.startswith("win"):
-        out["tools"]["tracert"] = run(["tracert", "-d", "-h", "30", "-w", "1000", target])
+        tracert = runner.tool_path("tracert")
+        out["tools"]["tracert"] = (run([tracert, "-d", "-h", "30", "-w", "1000", target]) if tracert
+                                   else {"error": "no tracert.exe in System32"})
     else:
-        tr = shutil.which("traceroute") or "/usr/sbin/traceroute"
+        tr = runner.tool_path("traceroute")
+        if tr is None:
+            print("diagnose: traceroute is not installed", file=sys.stderr)
+            return 2
         out["tools"]["traceroute_udp"] = run([tr, "-n", "-m", "30", "-q", "3", "-w", "1", target])
         out["tools"]["traceroute_icmp"] = run([tr, "-I", "-n", "-m", "30", "-q", "3", "-w", "1", target])
         out["tools"]["traceroute_tcp"] = run([tr, "-T" if sys.platform.startswith("linux") else "-P",

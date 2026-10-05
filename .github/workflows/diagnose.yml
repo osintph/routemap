@@ -33,7 +33,10 @@ jobs:
           [ "$RUNNER_OS" = "Linux" ] && { echo "--- man traceroute (probe methods)"; man traceroute | col -b | grep -E "^ +-(I|T|U|q|w|m) " -A3; sysctl net.ipv4.ping_group_range; id; } || true
       - name: Diagnose
         shell: bash
-        run: python packaging/diagnose.py "${{ inputs.target }}" | tee diag.json
+        # The input reaches the script as data, never as shell text (RM-18).
+        env:
+          TARGET: ${{ inputs.target }}
+        run: python packaging/diagnose.py "$TARGET" | tee diag.json
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: diag-${{ matrix.os }}

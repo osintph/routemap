@@ -59,6 +59,22 @@ USER_AGENT_PRODUCT = f"{NAME}/{VERSION}"
 USER_AGENT = f"{USER_AGENT_PRODUCT} (+{REPO_URL})"
 
 
+def _git(folder) -> list[str] | None:
+    """git -C *folder*, or None. Only for a checkout (a folder with .git), and
+    only a git in an absolute PATH folder: never one in the current folder,
+    which Windows and a relative PATH entry would otherwise find first (RM-03)."""
+    import os
+    import pathlib
+    if not (pathlib.Path(folder) / ".git").exists():
+        return None
+    name = "git.exe" if os.name == "nt" else "git"
+    for entry in os.environ.get("PATH", "").split(os.pathsep):
+        exe = os.path.join(entry, name)
+        if os.path.isabs(entry) and os.path.isfile(exe) and os.access(exe, os.X_OK):
+            return [exe, "-C", str(folder)]
+    return None
+
+
 def build_commit() -> str:
     """The commit a packaged build was made from (stamped by
     packaging/build_nuitka.py into routemap/_build.py), or the working tree's
@@ -70,12 +86,13 @@ def build_commit() -> str:
         pass
     import pathlib
     import subprocess
+    git = _git(pathlib.Path(__file__).resolve().parents[1])
+    if git is None:
+        return "unknown"
     try:
-        root = pathlib.Path(__file__).resolve().parents[1]
-        out = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], capture_output=True, text=True,
-                             timeout=3)
+        out = subprocess.run([*git, "rev-parse", "HEAD"], capture_output=True, text=True, timeout=3)
         sha = out.stdout.strip()
-        dirty = subprocess.run(["git", "-C", str(root), "status", "--porcelain", "--untracked-files=no"],
+        dirty = subprocess.run([*git, "status", "--porcelain", "--untracked-files=no"],
                                capture_output=True, text=True, timeout=3).stdout.strip()
         return (sha + ("+dirty" if dirty else " (source)")) if sha else "unknown"
     except (OSError, subprocess.SubprocessError):
@@ -101,9 +118,11 @@ def engine_commit_from_metadata() -> str | None:
         return info["vcs_info"].get("commit_id") or "unknown"
     url = info.get("url", "")
     if url.startswith("file://"):
+        git = _git(url[len("file://"):])
+        if git is None:
+            return "unknown"
         try:
-            out = subprocess.run(["git", "-C", url[len("file://"):], "rev-parse", "HEAD"], capture_output=True,
-                                 text=True, timeout=3)
+            out = subprocess.run([*git, "rev-parse", "HEAD"], capture_output=True, text=True, timeout=3)
             return out.stdout.strip() or "unknown"
         except (OSError, subprocess.SubprocessError):
             return "unknown"

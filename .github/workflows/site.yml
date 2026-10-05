@@ -52,9 +52,11 @@ jobs:
         with:
           python-version: "3.12"
       - name: Build
+        env:
+          TAG_INPUT: ${{ inputs.tag }}
         run: |
           python -m pip install -r site/requirements.txt
-          TAG="${{ inputs.tag }}"
+          TAG="$TAG_INPUT"
           [ -n "$TAG" ] || TAG="$(gh release list --repo "$GITHUB_REPOSITORY" --limit 1 --json tagName --jq '.[0].tagName')"
           gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json tagName,publishedAt,assets > release.json
           gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern SHA256SUMS --dir sums

@@ -85,6 +85,8 @@ jobs:
           "$BIN" parse tests/fixtures/routemap/heise_mtr.txt --offline --origin "Manila, PH" > smoke/parse.json
       - name: Package (macOS dmg, ad-hoc signed)
         if: runner.os == 'macOS'
+        env:
+          VERSION: ${{ steps.v.outputs.version }}
         run: |
           APP="build/nuitka/Route Map.app"
           # sign-macos: Developer ID + notarytool when vars.APPLE_SIGNING == 'true' (off).
@@ -97,7 +99,7 @@ jobs:
           # the system scans the new image; retry a few times before giving up.
           for attempt in 1 2 3 4 5; do
             hdiutil create -volname "Route Map" -srcfolder dmgroot -ov -format UDZO \
-              "out/routemap-${{ steps.v.outputs.version }}-${{ matrix.target }}.dmg" && break
+              "out/routemap-$VERSION-${{ matrix.target }}.dmg" && break
             [ "$attempt" = 5 ] && exit 1
             echo "hdiutil failed (attempt $attempt); retrying in 15 s"; sleep 15
           done
@@ -135,9 +137,11 @@ jobs:
       - name: Package (Windows zip)
         if: runner.os == 'Windows'
         shell: pwsh
+        env:
+          VERSION: ${{ steps.v.outputs.version }}
         run: |
           New-Item -ItemType Directory -Force out | Out-Null
-          Compress-Archive -Path "build/nuitka/windows/Route Map" -DestinationPath "out/routemap-${{ steps.v.outputs.version }}-${{ matrix.target }}.zip"
+          Compress-Archive -Path "build/nuitka/windows/Route Map" -DestinationPath "out/routemap-$env:VERSION-${{ matrix.target }}.zip"
       - name: Installer (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
@@ -152,9 +156,11 @@ jobs:
       - name: Defender scan of every Windows artifact (fails on a detection)
         if: runner.os == 'Windows'
         shell: pwsh
+        env:
+          VERSION: ${{ steps.v.outputs.version }}
         run: |
           New-Item -ItemType Directory -Force smoke | Out-Null
-          pwsh packaging/defender_scan.ps1 -Report smoke/defender.txt "build/nuitka/windows/Route Map" "out/routemap-${{ steps.v.outputs.version }}-${{ matrix.target }}.zip" (Get-ChildItem out -Filter "*-setup.exe").FullName
+          pwsh packaging/defender_scan.ps1 -Report smoke/defender.txt "build/nuitka/windows/Route Map" "out/routemap-$env:VERSION-${{ matrix.target }}.zip" (Get-ChildItem out -Filter "*-setup.exe").FullName
       # ---- Linux --------------------------------------------------------------------
       - name: Compile (Linux)
         if: runner.os == 'Linux'
@@ -170,8 +176,10 @@ jobs:
           build/nuitka/routemap parse tests/fixtures/routemap/heise_traceroute.txt --offline --origin "Manila, PH" > smoke/parse.json
       - name: Package (Linux AppImage and tar.gz)
         if: runner.os == 'Linux'
+        env:
+          VERSION: ${{ steps.v.outputs.version }}
         run: |
-          V="${{ steps.v.outputs.version }}"
+          V="$VERSION"
           mkdir -p out AppDir/usr/bin
           cp build/nuitka/routemap AppDir/usr/bin/routemap
           cp packaging/linux/AppRun AppDir/AppRun
@@ -188,7 +196,9 @@ jobs:
           ./out/routemap-$V-linux-x86_64.AppImage --appimage-extract-and-run --version
       - name: Package (Linux .deb and .rpm)
         if: runner.os == 'Linux'
-        run: sh packaging/linux/build_packages.sh build/nuitka/routemap "${{ steps.v.outputs.version }}" "$GITHUB_RUN_NUMBER" out
+        env:
+          VERSION: ${{ steps.v.outputs.version }}
+        run: sh packaging/linux/build_packages.sh build/nuitka/routemap "$VERSION" "$GITHUB_RUN_NUMBER" out
 
       - name: Sizes, and file names GitHub keeps as they are
         shell: bash
