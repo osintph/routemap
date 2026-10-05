@@ -1,10 +1,10 @@
 <p class="lead">Route Map is built by <a href="{{builder}}">OSINTPH</a>.</p>
-<h2>Why</h2>
-<p>Most traceroute maps put each router where an IP geolocation database says it is. For backbone
-routers that is often where the operator registered the address block, not where the router
-stands, and the map ends up showing paths the packets never took. Route Map was written to do the
-opposite: believe the operator's own router names first, check every placement against the speed
-of light in fibre, and say plainly where each placement came from.</p>
+<h2>What it does</h2>
+<p>Route Map places each router where its operator says it is. Backbone routers carry their site
+in their names, while an IP geolocation database often has only the country or the place where
+the address block was registered. So Route Map reads the operator's router names first, checks
+every placement against the speed of light in fibre, and says plainly where each placement came
+from, so the map shows the path the packets took.</p>
 <h2>FalconEye</h2>
 <p>The placement engine, <a href="{{engine}}">routemap-engine</a>, started in
 <a href="{{falconeye}}">FalconEye</a>, OSINTPH's web application, where it powers the Route Map tab.

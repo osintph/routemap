@@ -162,9 +162,6 @@ html[data-platform] .dl.generic { display: none; }
 @media (max-width: 700px) { .shot.crop img { max-width: none; width: 640px; } .shot.crop.wide img { width: 760px; } }
 
 /* Home: story */
-.story { margin: var(--s9) 0 0; padding: var(--s6) 0 0; border-top: 2px solid var(--ink); }
-.story p { font-family: var(--text); font-size: clamp(1.15rem, 1rem + 0.7vw, 1.5rem); line-height: 1.5; color: var(--ink); max-width: 46ch; font-weight: 400; }
-.story code { font-size: 0.85em; }
 
 /* Home: the rules, one running section */
 .rules h2 { margin-bottom: var(--s6); }
@@ -172,7 +169,9 @@ html[data-platform] .dl.generic { display: none; }
 .rule-text p { max-width: 52ch; margin: 0; }
 .rule .shot img { box-shadow: 0 1px 0 var(--rule); }
 .rule .shot.wide { grid-column: 1 / -1; }
-.crop-note { grid-column: 1 / -1; font-size: 0.92rem; color: var(--muted); max-width: var(--measure); margin: calc(-1 * var(--s3)) 0 0; }
+/* Never a negative margin: it pulled the note 12 px up over the screenshot above it. */
+.crop-note { grid-column: 1 / -1; font-size: 0.92rem; color: var(--muted); max-width: var(--measure); margin: var(--s3) 0 0; }
+.rule .crop-note { margin-top: 0; }
 .rule .shot.crop:not(.wide) { max-width: 560px; justify-self: end; }
 
 /* Home: prose band */
@@ -279,3 +278,4 @@ table.compare th[scope="row"] { font-weight: 600; color: var(--ink); white-space
 table.compare td:nth-child(2) { color: var(--ink); }
 table.compare sup a { text-decoration: none; }
 .sources { font-size: 0.9rem; color: var(--muted); }
+picture { display: block; }

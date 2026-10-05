@@ -283,3 +283,16 @@ def test_sitemap_lists_every_page_with_its_last_content_change():
         dates = re.findall(r"<lastmod>([^<]+)</lastmod>", sitemap)
         assert all(re.fullmatch(r"\d{4}-\d\d-\d\dT[\d:]+[+-]\d\d:\d\d|\d{4}-\d\d-\d\dT[\d:]+Z", d) for d in dates)
     assert "Sitemap: https://getroutemap.app/sitemap.xml" in (out / "robots.txt").read_text()
+
+
+def test_no_image_renders_outside_its_figure_or_under_text():
+    """A caption pulled up by a negative margin covered the bottom 12 px of the
+    home page screenshot (its status bar) at every width. Measured in Chrome at a
+    phone width and a 13-inch laptop width, light and dark."""
+    import pytest
+    sys.path.insert(0, str(ROOT / "site" / "check"))
+    import figures
+    if not figures.find_chrome():
+        pytest.skip("Chrome is not installed")
+    problems = figures.check(_built(), widths=(390, 1366), schemes=("light", "dark"))
+    assert not problems, "\n".join(problems)

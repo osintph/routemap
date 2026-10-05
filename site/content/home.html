@@ -12,15 +12,6 @@
   <p class="crop-note">A recorded trace from Manila to heise.de, origin set in Settings. The first five hops, the home network and the ISP, are shown with documentation addresses.</p>
 </section>
 
-<section class="story" aria-label="Why it exists">
-  <p>On October 2 a commercial traceroute visualiser drew my path from Manila to amazon.com
-  through Harare. The hop was a Tata router between Hong Kong and San Jose, answering in 215 ms,
-  the same as San Jose; a detour through Zimbabwe would have added well over 100 ms. A trace to
-  heise.de was worse: every Arelion backbone hop was blank, while the hostnames spelled out
-  <code>hnk</code>, <code>sng</code>, <code>mei</code>, <code>prs</code>, <code>ffm</code>. The
-  answer was in the DNS all along, and Route Map reads it.</p>
-</section>
-
 <section class="rules" aria-labelledby="rules">
   <h2 id="rules">How it places a hop</h2>
 
@@ -28,9 +19,12 @@
     <div class="rule-text">
       <h3>Hostname first</h3>
       <p>Operators name routers after their sites: <code>ffm-b16-link.ip.twelve99.net</code> is
-      Arelion in Frankfurt. Route Map reads names with CAIDA's Hoiho rules and a table of carrier
-      site codes, and falls back to an IP database only when the name says nothing: DB-IP Lite
-      on your machine, or RIPEstat online.</p>
+      Arelion in Frankfurt, and <code>hnk</code>, <code>sng</code>, <code>mei</code> and
+      <code>prs</code> are Hong Kong, Singapore, Marseille and Paris. For backbone routers an IP
+      database often knows only the country, or the place where the address block was registered.
+      Route Map reads the names first, with CAIDA's Hoiho rules and a table of carrier site codes,
+      and falls back to an IP database only when the name says nothing: DB-IP Lite on your
+      machine, or RIPEstat online.</p>
     </div>
     [[pic rule1-sources png 1286 764 crop|The hop table: hops 1 to 5 local, hops 6 to 11 placed by carrier site code in Hong Kong, Singapore, Marseille, Paris and Frankfurt on Arelion's network, AS1299 with valid RPKI; hop 12 not placed; hops 13 to 15 placed in Frankfurt by DB-IP, AS12306]]
   </div>
