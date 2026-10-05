@@ -1,19 +1,19 @@
 <article class="gallery-page">
 <h1>Screenshots</h1>
-<p class="lead">A recorded trace from Manila to heise.de, origin set in Settings, drawn by
-the app on the macOS desktop; the first five hops (the home network and the ISP) carry documentation
+<p class="lead">A live trace from Manila to heise.de with Route Map 0.2.0-beta.3's built-in
+prober, origin set in Settings; the first six hops (the home network and the ISP) carry documentation
 addresses. The images follow this site's light or dark mode, as the app follows the system.</p>
 <figure class="shot">
-  [[pic window jpg 1600 1000 bare|Route Map on macOS with a recorded trace from Manila to heise.de: the map, the route summary, the hop table and the details of hop 7]]
-  <figcaption><strong>macOS.</strong> Sixteen hops: the local network, then Hong Kong, Singapore, Marseille, Paris and Frankfurt on Arelion's backbone (AS1299), then Plus.line in Frankfurt (AS12306). Lines warm with the RTT each step added; the summary has the AS path with RPKI, the countries, a RIPE Atlas baseline and the RIS view.</figcaption>
+  [[pic window jpg 1600 1000 bare|Route Map 0.2.0-beta.3 on macOS with a live trace from Manila to heise.de: the map, the route summary, the hop table and the details of hop 7]]
+  <figcaption><strong>macOS.</strong> Fifteen hops: the home network and the ISP, then Stockholm and Frankfurt on Arelion's backbone (AS1299), then Plus.line in Germany (AS12306). Lines warm with the RTT each step added; the summary has the AS path with RPKI, the countries, a RIPE Atlas baseline and the RIS view.</figcaption>
 </figure>
 <figure class="shot">
   [[pic globe jpg 1600 1000 bare|The same route on the globe, centred on the path, with hop 7's details]]
   <figcaption><strong>Globe.</strong> Centred on the route; drag to turn it.</figcaption>
 </figure>
 <figure class="shot">
-  [[pic compare jpg 1600 1000 bare|A later run compared with the recorded one, the earlier path faint and dashed]]
-  <figcaption><strong>Trace again and compare.</strong> A run on 4 October against the recording of 3 October: same path to Singapore, Marseille and Paris gone, and heise.de no longer answering after hop 14.</figcaption>
+  [[pic compare jpg 1600 1000 bare|Today's live run compared with the run of 3 October, the earlier path faint and dashed]]
+  <figcaption><strong>Trace again and compare.</strong> A run on 5 October against the run of 3 October: the route now leaves through Stockholm instead of Hong Kong, Singapore, Marseille and Paris.</figcaption>
 </figure>
 <figure class="shot narrow">
   [[pic windows png 1028 749 bare|Route Map 0.2.0-beta.1 on Windows with the bundled sample trace to heise.de, mapped offline: carrier site codes and the AS path from the bundled DB-IP Lite ASN]]
@@ -31,6 +31,6 @@ addresses. The images follow this site's light or dark mode, as the app follows 
 </div>
 <figure class="shot">
   [[pic rule1-sources png 1286 764 bare|The hop table's Location, Source, ASN and RPKI columns]]
-  <figcaption><strong>The Source column</strong>: local for the home network and ISP, site codes for Arelion's backbone, DB-IP for the German hops; hop 12 is not placed because the round trip rules out the database's answer.</figcaption>
+  <figcaption><strong>The Source column</strong>: local for the home network, an IP database for the ISP and the German hops, site codes for Arelion's backbone; hop 10 did not answer, so it is not placed.</figcaption>
 </figure>
 </article>

@@ -8,8 +8,8 @@
   {{downloads}}
   <p class="oss"><span class="badge">Free and open source, AGPL-3.0</span>
   <a class="source" href="{{repository}}">github.com/osintph/routemap</a></p>
-  [[pic window jpg 1600 1000 hero|Route Map with a recorded trace from Manila to heise.de: great-circle lines through Hong Kong, Singapore, Marseille and Paris to Frankfurt, coloured by the round-trip time each step added; beside the map the AS path with RPKI badges, the countries crossed, a RIPE Atlas baseline, the RIS view and 48 hours of BGP updates; below, the hop table with ASN and RPKI, and the details of hop 7 in Singapore]]
-  <p class="crop-note">A recorded trace from Manila to heise.de, origin set in Settings. The first five hops, the home network and the ISP, are shown with documentation addresses.</p>
+  [[pic window jpg 1600 1000 hero|Route Map 0.2.0-beta.3 with a live trace from Manila to heise.de: great-circle lines through Stockholm and Frankfurt to Stuttgart, coloured by the round-trip time each step added; beside the map the AS path with RPKI badges, the countries crossed, a RIPE Atlas baseline, the RIS view and 48 hours of BGP updates; below, the hop table with ASN and RPKI, and the details of hop 7 in Stockholm]]
+  <p class="crop-note">A live trace from Manila to heise.de with the built-in prober, origin set in Settings. The first six hops, the home network and the ISP, are shown with documentation addresses.</p>
 </section>
 
 <section class="rules" aria-labelledby="rules">
@@ -18,15 +18,15 @@
   <div class="rule">
     <div class="rule-text">
       <h3>Hostname first</h3>
-      <p>Operators name routers after their sites: <code>ffm-b16-link.ip.twelve99.net</code> is
-      Arelion in Frankfurt, and <code>hnk</code>, <code>sng</code>, <code>mei</code> and
-      <code>prs</code> are Hong Kong, Singapore, Marseille and Paris. For backbone routers an IP
+      <p>Operators name routers after their sites: <code>ffm-bb2-link.ip.twelve99.net</code> is
+      Arelion in Frankfurt, and <code>sto</code>, <code>hnk</code>, <code>sng</code> and
+      <code>prs</code> are Stockholm, Hong Kong, Singapore and Paris. For backbone routers an IP
       database often knows only the country, or the place where the address block was registered.
       Route Map reads the names first, with CAIDA's Hoiho rules and a table of carrier site codes,
       and falls back to an IP database only when the name says nothing: DB-IP Lite on your
       machine, or RIPEstat online.</p>
     </div>
-    [[pic rule1-sources png 1286 764 crop|The hop table: hops 1 to 5 local, hops 6 to 11 placed by carrier site code in Hong Kong, Singapore, Marseille, Paris and Frankfurt on Arelion's network, AS1299 with valid RPKI; hop 12 not placed; hops 13 to 15 placed in Frankfurt by DB-IP, AS12306]]
+    [[pic rule1-sources png 1286 764 crop|The hop table: hops 1 to 3 local and 4 to 6 the ISP; hops 7 to 9 placed by carrier site code in Stockholm and Frankfurt on Arelion's network, AS1299 with valid RPKI; hop 10 not placed; hops 11 to 15 placed by an IP database in France and Germany, AS1299 and AS12306]]
   </div>
 
   <div class="rule">
@@ -38,8 +38,8 @@
       farther than that is rejected, whatever its source, and the reason is shown. So is a
       database answer that would need a detour the round trip did not pay for.</p>
     </div>
-    [[pic rule2-rejected png 2330 180 crop wide|The Unplaced panel: hop 12, plusline-ic-323934.ip.twelve99-cust.net, location impossible for RTT: 6,964 km from hop 11 in Frankfurt and back again by hop 13, which needs 70 ms more RTT; it rose 46 ms]]
-    <p class="crop-note">The IP database puts hop 12 in Chicago, between two Frankfurt hops. Going there and back would add at least 70 ms; the round trip rose 46 ms, so the placement is rejected.</p>
+    [[pic rule2-rejected png 2330 180 crop wide|The Unplaced panel for a live trace to www.spiegel.de: hop 9, link11-ic-369430.ip.twelve99-cust.net, location impossible for RTT: 10,744 km away but the round trip allows at most 3,054 km; hop 11 rejected the same way]]
+    <p class="crop-note">The IP database puts hop 9 in France, 10,744 km from Manila. It answered in 27 ms, which allows at most 3,054 km, so the placement is rejected.</p>
   </div>
 
   <div class="rule">
@@ -49,7 +49,7 @@
       hollow. A hop that cannot be placed stays in the table and in the Unplaced panel, with the
       reason it is not on the map.</p>
     </div>
-    [[pic rule3-unplaced png 1354 436 crop|The Unplaced panel for a recorded trace to amazon.com: hops 9, 10, 12 and 16 to 18 did not answer, so there is nothing to locate]]
+    [[pic rule3-unplaced png 1354 436 crop|The Unplaced panel for a live trace to amazon.com: hop 6 and hops 12 to 30 did not answer, so there is nothing to locate]]
   </div>
 </section>
 
@@ -63,12 +63,12 @@
   Trace again and the app compares the two runs.</p>
   <div class="pair even">
     <figure class="shot">
-      [[pic globe jpg 1600 1000 bare|The same route on the globe, centred on the path from Manila to Frankfurt, with the route summary and hop details beside it]]
+      [[pic globe jpg 1600 1000 bare|The same route on the globe, centred on the path from Manila to Frankfurt, with the RTT chart and hop 7's details beside it]]
       <figcaption><strong>Globe</strong>, centred on the route; drag to turn it.</figcaption>
     </figure>
     <figure class="shot">
-      [[pic compare jpg 1600 1000 bare|A later run compared with the recorded one: the earlier path faint and dashed, and the summary saying Marseille and Paris are gone and the destination did not answer this time]]
-      <figcaption><strong>Trace again and compare</strong>: Marseille and Paris are gone, and the destination stopped answering.</figcaption>
+      [[pic compare jpg 1600 1000 bare|Today's live run compared with the run of 3 October: the earlier path through Hong Kong, Singapore, Marseille and Paris faint and dashed, and the summary saying the route now goes through Stockholm]]
+      <figcaption><strong>Trace again and compare</strong>: two days later the route went through Stockholm instead of Hong Kong, Singapore, Marseille and Paris.</figcaption>
     </figure>
   </div>
   <p>No submarine cables or exchange points yet: the cable data is sold under licence, and
@@ -84,7 +84,7 @@
   mapped the same way. Export a PNG map, the full trace as JSON, or a PDF report with every hop,
   its source and the raw tool output, from the window or the <a href="/docs/cli/">command line</a>.
   The same engine powers the Route Map tab in OSINTPH's <a href="{{falconeye}}">FalconEye</a>.</p>
-  [[pic statusbar png 2880 54 crop strip|The status bar: origin Manila, PH, set in Settings; the command traceroute -m 30 -q 3 -w 1; and checks for the trace, PTR, Hoiho and the IP database]]
+  [[pic statusbar png 2880 54 crop strip|The status bar: origin Manila, NCR, PH, set in Settings; the built-in prober's settings icmp -m 30 -q 3 -w 1; and checks for the trace, PTR, Hoiho and the IP database]]
 
   <h3 id="labels">The source labels</h3>
   <dl class="labels">
