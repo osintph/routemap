@@ -375,7 +375,7 @@ def page(path: str, title: str, body: str, description: str, *, wide: bool = Fal
 <a class="skip" href="#main">Skip to content</a>
 <header class="site-header">
   <div class="bar">
-    <a class="wordmark" href="/"><img src="/assets/favicon-32.png" srcset="/assets/favicon-32.png 32w, /assets/icon-192.png 192w" sizes="24px" alt="" width="24" height="24"><span>{html.escape(S['product'])}</span></a>
+    <a class="wordmark" href="/"><img src="/assets/favicon-32.png" srcset="/assets/favicon-32.png 32w, /assets/favicon-64.png 64w" sizes="24px" alt="" width="24" height="24"><span>{html.escape(S['product'])}</span></a>
     <nav aria-label="Main">{nav}<a class="gh" href="{L['repository']}">GitHub</a></nav>
   </div>
 </header>
