@@ -33,8 +33,26 @@ _HOSTNAME = re.compile(r"[A-Za-z0-9_.:-]{1,253}")
 _WHEN = re.compile(r"\d{4}-\d\d-\d\dT[\d:.]+(?:Z|[+-]\d\d:?\d\d)?")
 
 
+# No value Route Map writes comes near these: a number past them, a NaN or an
+# infinity is a malformed file, refused with its place named, so it can never
+# reach Qt as a value it cannot hold (an int past 64 bits, a float overflow).
+MAX_NUMBER = 1e9
+NUMBER_LIMITS = {"asn": 2**32 - 1}
+
+
 class ImportRejected(ValueError):
     """The file is not something the app will show."""
+
+
+def parse_json(text: str):
+    """json.loads that refuses NaN and Infinity, and a file nested deeper than
+    the parser can follow (RecursionError), as ImportRejected."""
+    def constant(name):
+        raise ImportRejected(f"the file holds {name}, which is not a number")
+    try:
+        return json.loads(text, parse_constant=constant)
+    except RecursionError:
+        raise ImportRejected("the file is nested too deeply to be a route export") from None
 
 
 def read_file(path: str) -> str:
@@ -98,7 +116,23 @@ def _field(key: str, value):
     return value
 
 
-def _coerce(value, node: dict, key: str = ""):
+def _number(value, node: dict, where: str):
+    """A number within the schema's range and below MAX_NUMBER, or ImportRejected."""
+    key = where.rsplit(".", 1)[-1]
+    try:
+        size = abs(float(value))
+    except OverflowError:
+        size = float("inf")
+    limit = NUMBER_LIMITS.get(key, MAX_NUMBER)
+    low, high = node.get("minimum", -limit), node.get("maximum", limit)
+    if not math.isfinite(size) or size > limit or not low <= value <= high:
+        if not math.isfinite(size):
+            raise ImportRejected(f"{where} is larger than any number a route holds")
+        raise ImportRejected(f"{where} is {value:.3g}, outside what a route holds")
+    return value
+
+
+def _coerce(value, node: dict, key: str = "", where: str = "route"):
     node = _resolve(node)
     types = node.get("type")
     types = [types] if isinstance(types, str) else list(types or [])
@@ -111,16 +145,11 @@ def _coerce(value, node: dict, key: str = ""):
     if isinstance(value, bool):
         return value if "boolean" in types else _DROP
     if isinstance(value, (int, float)) and ("integer" in types or "number" in types):
-        if isinstance(value, float) and not math.isfinite(value):
-            return _DROP
+        value = _number(value, node, where)
         if "integer" in types and "number" not in types:
             if isinstance(value, float) and not value.is_integer():
                 return _DROP
             value = int(value)
-        if "minimum" in node and value < node["minimum"]:
-            return _DROP
-        if "maximum" in node and value > node["maximum"]:
-            return _DROP
         return value
     if isinstance(value, str) and "string" in types:
         cleaned = text(value, node.get("maxLength", MAX_TEXT))
@@ -130,16 +159,19 @@ def _coerce(value, node: dict, key: str = ""):
     if isinstance(value, list) and "array" in types:
         item = node.get("items") or {}
         out = []
-        for v in value[:MAX_ITEMS]:
-            c = _coerce(v, item, {"addresses": "address", "hostnames": "hostname"}.get(key, key))
+        for i, v in enumerate(value[:MAX_ITEMS]):
+            c = _coerce(v, item, {"addresses": "address", "hostnames": "hostname"}.get(key, key), f"{where}[{i}]")
             if c is not _DROP:
                 out.append(c)
         return out
     if isinstance(value, dict) and "object" in types:
+        props = node.get("properties") or {}
+        if "lat" in props and "lon" in props and (value.get("lat") is None) != (value.get("lon") is None):
+            raise ImportRejected(f"{where} has a latitude or a longitude without the other")
         out = {}
         for k, sub in (node.get("properties") or {}).items():
             if k in value:
-                c = _coerce(value[k], sub, k)
+                c = _coerce(value[k], sub, k, f"{where}.{k}")
                 if c is not _DROP:
                     out[k] = c
         missing = [k for k in node.get("required") or [] if k not in out]

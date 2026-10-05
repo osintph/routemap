@@ -11,7 +11,6 @@ import pathlib
 import httpx
 import pytest
 
-os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtCore import Qt  # noqa: E402
 from PySide6.QtGui import Qt as QtGui_Qt  # noqa: E402
