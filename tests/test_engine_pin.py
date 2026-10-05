@@ -35,4 +35,5 @@ def test_the_release_build_and_the_tests_install_from_the_lock():
         text = (ROOT / ".github" / "workflows" / workflow).read_text(encoding="utf-8")
         assert "pip install --require-hashes -r requirements/app.txt" in text, workflow
     build = (ROOT / ".github" / "workflows" / "build.yml").read_text(encoding="utf-8")
-    assert 'pip install --no-deps ".[gui]"' in build or "pip install --no-deps ." in build
+    # The app itself adds nothing to what the lock installed.
+    assert re.search(r"pip install --no-deps (--no-build-isolation )?(\.|\"\.\[gui\]\")\s*$", build, flags=re.M)
