@@ -1,0 +1,8 @@
+# What the packaged app runs on: the engine from PyPI, the DB-IP reader and Qt.
+# requirements/app.txt locks these and everything they pull in, with hashes:
+#   uv pip compile requirements/app.in --universal --python-version 3.11 \
+#       --generate-hashes -o requirements/app.txt
+# The same pins are in pyproject.toml; tests/test_engine_pin.py keeps them equal.
+routemap-engine[offline]==0.4.1
+maxminddb==3.2.0
+PySide6==6.11.2

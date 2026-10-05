@@ -25,11 +25,10 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "Topic :: System :: Networking",
 ]
-# The engine is its own public package (AGPL-3.0), from PyPI.
+# The engine is its own public package (AGPL-3.0), from PyPI. The release build
+# installs it from requirements/app.txt, pinned by the hashes of its PyPI files.
 dependencies = [
-    # Development pin: the engine's main branch at the built-in prober and the
-    # failure reasons, not yet on PyPI. Back to a PyPI release before any tag.
-    "routemap-engine[offline]==0.4.0",
+    "routemap-engine[offline]==0.4.1",
     # Reads the DB-IP Lite files; pinned so the packaged build is reproducible.
     "maxminddb==3.2.0",
 ]
