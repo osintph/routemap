@@ -10,11 +10,14 @@ Put the two standalone Windows builds into one folder and finish the exes.
 2. Embed packaging/windows/routemap.manifest in both exes as resource 1, with
    the Windows SDK's mt.exe, and read it back to check it is there.
 3. Add LICENSE, NOTICE and THIRD_PARTY_NOTICES.md.
+4. Write BUILD-INFO.txt (version and commit), which scripts/sign-windows.ps1
+   reads instead of running the unsigned routemap-cli.exe (RM-05).
 """
 from __future__ import annotations
 
 import filecmp
 import glob
+import os
 import pathlib
 import shutil
 import subprocess
@@ -25,7 +28,7 @@ OUT = ROOT / "build" / "nuitka"
 sys.path.insert(0, str(ROOT))
 # Not "from packaging import ...": that name is the pip "packaging" library.
 sys.path.insert(0, str(ROOT / "packaging"))
-from routemap.__about__ import DISPLAY_NAME  # noqa: E402
+from routemap.__about__ import DISPLAY_NAME, VERSION  # noqa: E402
 from build_nuitka import numeric_version  # noqa: E402
 
 TARGET = OUT / "windows" / DISPLAY_NAME
@@ -75,11 +78,24 @@ def embed_manifest(mt: str) -> None:
         print(f"{exe}: manifest embedded and read back")
 
 
+def write_build_info(target: pathlib.Path, commit: str, version: str = VERSION) -> pathlib.Path:
+    """BUILD-INFO.txt: what this folder was built from, as plain lines a signer
+    can read without running anything in it."""
+    if len(commit) != 40 or any(c not in "0123456789abcdef" for c in commit):
+        sys.exit(f"not a commit: {commit!r}")
+    path = target / "BUILD-INFO.txt"
+    path.write_text(f"version={version}\ncommit={commit}\n", encoding="ascii", newline="\n")
+    return path
+
+
 def main() -> int:
     merge(OUT / "entry_gui.dist", OUT / "entry_cli.dist")
     embed_manifest(mt_exe())
     for name in ("LICENSE", "NOTICE", "THIRD_PARTY_NOTICES.md"):
         shutil.copy2(ROOT / name, TARGET / name)
+    commit = os.environ.get("GITHUB_SHA") or subprocess.run(
+        ["git", "rev-parse", "HEAD"], capture_output=True, text=True, cwd=ROOT).stdout.strip()
+    write_build_info(TARGET, commit)
     files = sum(1 for p in TARGET.rglob("*") if p.is_file())
     size = sum(p.stat().st_size for p in TARGET.rglob("*") if p.is_file())
     print(f"{TARGET}: {files} files, {size / 1e6:.1f} MB")

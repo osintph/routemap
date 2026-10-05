@@ -1,17 +1,26 @@
 # Signs a Windows release with the Certum code signing certificate (SimplySign),
 # by hand on the maintainer's Windows machine. CI builds stay unsigned.
 #
-#   pwsh scripts/sign-windows.ps1 -Zip routemap-0.2.0-beta.2-windows-x86_64.zip `
-#        -Setup routemap-0.2.0-beta.2-windows-x86_64-setup.exe -Thumbprint <SHA-1> [-Out signed]
+#   pwsh scripts/sign-windows.ps1 -Zip routemap-0.2.0-beta.3-windows-x86_64.zip `
+#        -Setup routemap-0.2.0-beta.3-windows-x86_64-setup.exe `
+#        -Sums SHA256SUMS -SumsSig SHA256SUMS.asc -Thumbprint <SHA-1> [-Out signed]
 #
-# -Zip and -Setup are the unsigned files from the release (or the build run).
-# Run it from a clone of this repository checked out at the release's commit,
-# with SimplySign Desktop running and logged in (it presents the certificate in
-# the current user's store), the Windows SDK's signtool.exe and Python 3.
+# -Zip and -Setup are the unsigned files from the release; -Sums and -SumsSig
+# are that release's SHA256SUMS and its GPG signature. Run it from a clone of
+# this repository checked out at the release's commit, with SimplySign Desktop
+# running and logged in (it presents the certificate in the current user's
+# store), the Windows SDK's signtool.exe, Python 3 and GnuPG (gpg on PATH).
 #
 # What it does, stopping at the first failure:
+#   0. checks SHA256SUMS.asc against the release key in RELEASE-KEY.asc (or
+#      -ReleaseKey), and the zip's and the installer's SHA-256 against
+#      SHA256SUMS, before anything is unpacked (RM-05): files swapped on the
+#      release or a wrong download stop here, before the signing session
+#      touches them
 #   1. checks the certificate (in the store, code signing, not expired), the
-#      clone's commit against the build's, and that the files are unsigned
+#      clone's commit against the build's (read from BUILD-INFO.txt in the zip;
+#      nothing from the unsigned files is ever run), and that the files are
+#      unsigned
 #   2. signs routemap.exe and routemap-cli.exe (SHA-256, RFC 3161 timestamp)
 #   3. rebuilds the installer around the signed folder with the same version,
 #      commit and build number; Inno Setup signs Setup and its uninstaller
@@ -23,7 +32,10 @@
 param(
     [Parameter(Mandatory = $true)] [string] $Zip,
     [Parameter(Mandatory = $true)] [string] $Setup,
+    [Parameter(Mandatory = $true)] [string] $Sums,
+    [Parameter(Mandatory = $true)] [string] $SumsSig,
     [Parameter(Mandatory = $true)] [string] $Thumbprint,
+    [string] $ReleaseKey = "",
     [string] $Out = "signed",
     [string] $TimestampUrl = "http://time.certum.pl",
     [string] $SignTool = "",
@@ -34,6 +46,33 @@ $ErrorActionPreference = "Stop"
 $Root = Resolve-Path (Join-Path $PSScriptRoot "..")
 function Step($text) { Write-Host "`n== $text" }
 function Fail($why) { Write-Host "FAILED: $why" -ForegroundColor Red; exit 1 }
+
+# ---- 0. the files are the release's ------------------------------------------
+Step "Checking SHA256SUMS against the release key, and both files against SHA256SUMS"
+if (-not $ReleaseKey) { $ReleaseKey = Join-Path $Root "RELEASE-KEY.asc" }
+foreach ($f in @($Zip, $Setup, $Sums, $SumsSig, $ReleaseKey)) { if (-not (Test-Path $f)) { Fail "$f not found" } }
+$gpgHome = Join-Path ([System.IO.Path]::GetTempPath()) ("routemap-sign-" + [guid]::NewGuid())
+New-Item -ItemType Directory $gpgHome | Out-Null
+try {
+    & gpg --homedir $gpgHome --batch --quiet --import $ReleaseKey 2>$null
+    if ($LASTEXITCODE -ne 0) { Fail "gpg could not import $ReleaseKey" }
+    # The only key in this keyring is the release key, so GOODSIG means it signed.
+    $status = & gpg --homedir $gpgHome --batch --status-fd 1 --verify $SumsSig $Sums 2>$null
+    if ($LASTEXITCODE -ne 0 -or -not ($status | Select-String -SimpleMatch "[GNUPG:] GOODSIG ")) {
+        Fail "$SumsSig is not a good signature of $Sums by the release key"
+    }
+} finally { Remove-Item -Recurse -Force $gpgHome -ErrorAction SilentlyContinue }
+$listed = @{}
+foreach ($line in Get-Content $Sums) {
+    if ($line -match '^([0-9a-f]{64})  (\S+)$') { $listed[$Matches[2]] = $Matches[1] }
+}
+foreach ($f in @($Zip, $Setup)) {
+    $name = Split-Path $f -Leaf
+    $hash = (Get-FileHash $f -Algorithm SHA256).Hash.ToLower()
+    if (-not $listed.ContainsKey($name)) { Fail "$name is not in $Sums" }
+    if ($listed[$name] -ne $hash) { Fail "$name has SHA-256 $hash; SHA256SUMS says $($listed[$name])" }
+    Write-Host "ok: $name matches the signed SHA256SUMS"
+}
 
 # ---- 1. preconditions --------------------------------------------------------
 Step "Checking the certificate, the tools and the files"
@@ -74,9 +113,13 @@ foreach ($exe in $exes) {
     if (-not (Test-Path $exe)) { Fail "$exe is not in the zip" }
     if ((Get-AuthenticodeSignature $exe).Status -ne "NotSigned") { Fail "$exe is already signed" }
 }
-$v = & (Join-Path $folder "routemap-cli.exe") --version | Select-Object -First 1
-if ("$v" -notmatch "commit ([0-9a-f]{12})") { Fail "routemap-cli.exe --version says '$v'" }
-$commit12 = $Matches[1]
+# The commit from BUILD-INFO.txt (written by packaging/assemble_windows.py and
+# covered by the signed SHA256SUMS): nothing in the unsigned folder is run.
+$info = Join-Path $folder "BUILD-INFO.txt"
+if (-not (Test-Path $info)) { Fail "the zip has no BUILD-INFO.txt (built before 0.2.0-beta.3?)" }
+$commitLine = Get-Content $info | Where-Object { $_ -match '^commit=([0-9a-f]{40})$' } | Select-Object -First 1
+if (-not $commitLine) { Fail "BUILD-INFO.txt names no commit" }
+$commit12 = ($commitLine -replace '^commit=', '').Substring(0, 12)
 if ($short -and -not $commit12.StartsWith($short)) { Fail "the zip is commit $commit12, the installer $short" }
 $head = (git -C $Root rev-parse HEAD).Trim()
 if (-not $head.StartsWith($commit12)) {

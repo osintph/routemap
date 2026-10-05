@@ -185,12 +185,22 @@ jobs:
           Export-Certificate -Cert $c -FilePath "$env:RUNNER_TEMP\test.cer" | Out-Null
           Import-Certificate -FilePath "$env:RUNNER_TEMP\test.cer" -CertStoreLocation Cert:\LocalMachine\Root | Out-Null
           "THUMB=$($c.Thumbprint)" >> $env:GITHUB_ENV
+      - name: SHA256SUMS signed with a throwaway test key (stands in for the release key)
+        shell: bash
+        run: |
+          export GNUPGHOME="$RUNNER_TEMP/gnupg"; mkdir -m 700 "$GNUPGHOME"
+          gpg --batch --passphrase '' --quick-gen-key "Route Map signing-script test (not a release key)" ed25519 sign 1d
+          gpg --batch --armor --export > "$RUNNER_TEMP/test-key.asc"
+          mkdir sums && cp dist/*-windows-x86_64.zip setup/*-setup.exe sums/
+          (cd sums && sha256sum -- * > SHA256SUMS && gpg --batch --armor --detach-sign --output SHA256SUMS.asc SHA256SUMS)
       - name: Sign, rebuild, verify
         shell: pwsh
         run: |
-          $zip = (Get-ChildItem dist -Filter "*-windows-x86_64.zip").FullName
-          $setup = (Get-ChildItem setup -Filter "*-setup.exe").FullName
-          pwsh scripts/sign-windows.ps1 -Zip $zip -Setup $setup -Thumbprint $env:THUMB -Out signed -AnyCheckout
+          $env:PATH = "C:\Program Files\Git\usr\bin;$env:PATH"   # gpg
+          $zip = (Get-ChildItem sums -Filter "*-windows-x86_64.zip").FullName
+          $setup = (Get-ChildItem sums -Filter "*-setup.exe").FullName
+          pwsh scripts/sign-windows.ps1 -Zip $zip -Setup $setup -Sums sums/SHA256SUMS -SumsSig sums/SHA256SUMS.asc `
+            -ReleaseKey "$env:RUNNER_TEMP/test-key.asc" -Thumbprint $env:THUMB -Out signed -AnyCheckout
           if ($LASTEXITCODE -ne 0) { exit 1 }
       - name: The signed installer installs, and its uninstaller is signed
         shell: pwsh
