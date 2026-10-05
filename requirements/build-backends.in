@@ -1,0 +1,8 @@
+# Build backends, installed (hash-checked) before anything is built without an
+# isolated environment: hatchling for the app itself, setuptools and wheel for
+# Nuitka, which PyPI has only as a source archive. Compile with
+# requirements/compile.sh; never edit the .txt by hand.
+hatchling
+setuptools
+wheel
+toml

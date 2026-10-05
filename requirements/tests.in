@@ -1,0 +1,10 @@
+# What the test suite needs on top of requirements/app.txt (the "dev" extra
+# in pyproject.toml, pinned here with hashes for CI). Compile with
+# requirements/compile.sh; never edit the .txt by hand.
+pytest
+jsonschema
+PyYAML
+segno==1.6.6
+fonttools==4.60.2
+Pillow==12.3.0
+brotli==1.2.0

@@ -1,0 +1,5 @@
+# The release build's compiler (build.yml), on top of requirements/app.txt,
+# and jsonschema, which the build machine's checks use (it is not bundled).
+# Compile with requirements/compile.sh; never edit the .txt by hand.
+nuitka==4.2.2
+jsonschema

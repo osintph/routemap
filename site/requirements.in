@@ -1,0 +1,4 @@
+# The project site's build (site/build.py): QR codes and image variants.
+# Compile with requirements/compile.sh; never edit site/requirements.txt by hand.
+segno==1.6.6
+Pillow==12.3.0
