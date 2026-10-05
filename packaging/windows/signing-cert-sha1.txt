@@ -1,0 +1,6 @@
+unset
+# The SHA-1 thumbprint of the Certum code signing certificate that signs Route
+# Map's Windows releases, 40 hex digits on the first line, or "unset". It is
+# public (anyone can read it from a signed file). resign-release.yml accepts a
+# signed Windows file only when its signer has this thumbprint, and refuses
+# every signed file while it says "unset". Changing it is a reviewed commit.
