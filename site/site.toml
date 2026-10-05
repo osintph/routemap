@@ -9,7 +9,7 @@ url = "https://getroutemap.app"
 contact = "support@getroutemap.app"
 tagline = "traceroute on a world map, placed by hostname, checked by physics"
 statement = "Route Map draws a traceroute on a world map, placing each router by its own hostname and checking every placement against the round-trip time."
-description = "Route Map draws a traceroute on a world map, placing each router by its own hostname and checking every placement against the round-trip time. Free and open source for Windows, macOS and Linux."
+description = "See a traceroute on a world map. Route Map places each router by its hostname and checks it against the round-trip time. Free and open source for Windows, macOS and Linux."
 
 [links]
 repository = "https://github.com/osintph/routemap"

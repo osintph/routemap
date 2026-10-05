@@ -272,6 +272,14 @@ def test_sitemap_lists_every_page_with_its_last_content_change():
     shallow = subprocess.run(["git", "-C", str(ROOT), "rev-parse", "--is-shallow-repository"],
                              capture_output=True, text=True).stdout.strip()
     if shallow == "false":
+        sys.path.insert(0, str(ROOT / "site"))
+        import build
+        # A page gets a date when its sources have history (a new, uncommitted page has none yet).
+        with_history = {p for p in locs if subprocess.run(
+            ["git", "-C", str(ROOT), "log", "-1", "--format=%cI", "--", *build.PAGE_SOURCES[p]],
+            capture_output=True, text=True).stdout.strip()}
+        dated = set(re.findall(r"<loc>https://getroutemap\.app([^<]+)</loc><lastmod>", sitemap))
+        assert dated == with_history and with_history
         dates = re.findall(r"<lastmod>([^<]+)</lastmod>", sitemap)
-        assert len(dates) == len(locs) and all(re.fullmatch(r"\d{4}-\d\d-\d\dT[\d:]+[+-]\d\d:\d\d|\d{4}-\d\d-\d\dT[\d:]+Z", d) for d in dates)
+        assert all(re.fullmatch(r"\d{4}-\d\d-\d\dT[\d:]+[+-]\d\d:\d\d|\d{4}-\d\d-\d\dT[\d:]+Z", d) for d in dates)
     assert "Sitemap: https://getroutemap.app/sitemap.xml" in (out / "robots.txt").read_text()

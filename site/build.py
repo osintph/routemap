@@ -52,6 +52,7 @@ LOCAL_DOCS = {"PRIVACY.md": "/privacy/", "CODE_SIGNING_POLICY.md": "/code-signin
               "CHANGELOG.md": "/changelog/", "guide.md": "/docs/guide/", "cli.md": "/docs/cli/",
               "faq.md": "/docs/faq/", "limitations.md": "/docs/limitations/",
               "troubleshooting.md": "/docs/troubleshooting/", "testing.md": "/docs/testing/",
+              "reading-a-traceroute.md": "/docs/reading-a-traceroute/",
               "RELEASE-KEY.asc": "/release-key.asc"}
 
 PLATFORMS = [
@@ -331,11 +332,70 @@ def software(rel: "Release", operating_systems: str) -> dict:
             "publisher": organization()}
 
 
+# The title and meta description each page shows in search results, written for
+# what people search for (approved 5 Oct 2026): one page per intent, the product
+# named once, the important words first because results shorten both to fit
+# the screen (developers.google.com/search/docs/appearance/title-link and
+# /snippet). None keeps the page's own description.
+SEARCH = {
+    "/": ("{p}: free, open source visual traceroute on a world map",
+          "See a traceroute on a world map. {p} places each router by its hostname and checks it against the "
+          "round-trip time. Free and open source for Windows, macOS and Linux."),
+    "/download/": ("Download {p} for Windows, macOS and Linux",
+                   "Free download of {p}, a visual traceroute: Windows installer, macOS DMG for Apple silicon and "
+                   "Intel, Linux .deb, .rpm and AppImage, with signed checksums."),
+    "/docs/": ("{p} documentation",
+               "How to install {p}, run a first trace, read the map and the hop table, use the command line, and "
+               "fix common problems."),
+    "/docs/guide/": ("{p} user guide: install, trace and read the map",
+                     "Install {p}, run a first trace and read the result: what each source label means, the route "
+                     "summary, exports, pasting a trace, settings and RIPE Atlas."),
+    "/docs/reading-a-traceroute/": ("How to read a traceroute: hops, round-trip times and stars",
+                                    "What each line of a traceroute means, why round-trip times jump or drop, what "
+                                    "the stars mean, and how to tell a slow hop from a slow path."),
+    "/docs/cli/": ("{p} command line: trace, parse and export from a terminal",
+                   "Run a trace, map an existing traceroute or tracert output, and export JSON, PNG or PDF from a "
+                   "terminal. Every command, option and exit code."),
+    "/docs/faq/": ("{p} questions and answers",
+                   "Short answers about {p}: why Windows and macOS warn on first start, what it costs, where "
+                   "locations come from, what it sends, and pasted traces."),
+    "/docs/troubleshooting/": ("{p} troubleshooting: Defender, Gatekeeper and traces",
+                               "Fixes for common {p} problems: Defender or SmartScreen on Windows, Gatekeeper on "
+                               "macOS, traces that do not start, and an origin that is wrong behind a VPN."),
+    "/docs/limitations/": ("What {p} cannot do (yet)",
+                           "The limits of {p} and of traceroute itself: unsigned builds, how good an IP database "
+                           "location is, and what a trace cannot show."),
+    "/docs/testing/": ("Testing a {p} beta",
+                       "Which file to install for a {p} beta, what to try, how to check the exact build, and how "
+                       "to report what you found without exposing your own network."),
+    "/screenshots/": ("{p} screenshots: map, globe, comparison and exports",
+                      "{p} on macOS and Windows in light and dark: the map, the globe, comparing two runs, the hop "
+                      "table, and the PNG and PDF exports."),
+    "/compare/": ("{p} and commercial visual traceroute tools",
+                  "How {p} differs from paid visual traceroute tools: price, platforms, source code, and how each "
+                  "hop gets its location. Facts with sources."),
+    "/about/": ("About {p} and OSINTPH",
+                "Who builds {p} and why, its sister tool in FalconEye, and how to get in touch."),
+    "/support/": ("{p} support: questions and bug reports",
+                  "Get help with {p}, report a bug or a wrong placement, or support the project."),
+    "/donate/": ("Donate to {p}", None),
+    "/privacy/": ("{p} privacy: what the app sends and to whom", None),
+    "/code-signing/": ("{p} code signing policy", None),
+    "/changelog/": ("{p} changelog: what changed in each release",
+                    "Every {p} release and what changed in it, newest first."),
+}
+
+
 def page(path: str, title: str, body: str, description: str, *, wide: bool = False,
          og: tuple[str, str] | None = None, structured: str = "") -> None:
     nav = "".join(f'<a href="{href}"{CURRENT if path.startswith(href) else ""}>{label}</a>'
                   for href, label in NAV)
     full_title = f"{S['product']}: {S['tagline']}" if path == "/" else f"{title} | {S['product']}"
+    if path in SEARCH:
+        search_title, search_description = SEARCH[path]
+        full_title = search_title.format(p=S["product"])
+        if search_description:
+            description = search_description.format(p=S["product"])
     url = S["url"] + path
     og_path, og_alt = og or OG_DEFAULT
     og_alt = og_alt.format(product=S["product"])
@@ -388,6 +448,7 @@ def page(path: str, title: str, body: str, description: str, *, wide: bool = Fal
     {html.escape(S['product'])} is free and open source under the
     <a href="{L['repository']}/blob/main/LICENSE">GNU AGPL-3.0</a>.</p>
     <p class="links"><a href="{L['repository']}">Source on GitHub</a>
+    <a href="/compare/">Compared with paid tools</a>
     <a href="/privacy/">Privacy</a> <a href="/code-signing/">Code signing policy</a>
     <a href="/release-key.asc">Release key</a> <a href="/.well-known/security.txt">security.txt</a>
     <a href="mailto:{S['contact']}">{S['contact']}</a></p>
@@ -413,7 +474,8 @@ DOC_PAGES = [("/docs/guide/", "guide.md", "User guide"), ("/docs/cli/", "cli.md"
              ("/docs/faq/", "faq.md", "Questions"),
              ("/docs/troubleshooting/", "troubleshooting.md", "Troubleshooting"),
              ("/docs/limitations/", "limitations.md", "Known limitations"),
-             ("/docs/testing/", "testing.md", "Testing a beta")]
+             ("/docs/testing/", "testing.md", "Testing a beta"),
+             ("/docs/reading-a-traceroute/", "reading-a-traceroute.md", "How to read a traceroute")]
 
 
 def doc_nav(current: str) -> str:
@@ -649,7 +711,8 @@ def build_docs() -> None:
               "Short answers to the usual questions.",
               "Defender, Gatekeeper, no trace tool, the origin behind a VPN.",
               "What Route Map does not do, or does not do yet.",
-              "Installing a beta, what to try, and how to report what you found."]
+              "Installing a beta, what to try, and how to report what you found.",
+              "Hops, round-trip times and stars: what each line of a traceroute means."]
     index = "".join(f'<li><a href="{p}">{t}</a><span>{b}</span></li>'
                     for (p, _f, t), b in zip(DOC_PAGES, blurbs))
     page("/docs/", "Docs", prose("Documentation", f'<ul class="doc-index">{index}</ul>'),
@@ -662,6 +725,7 @@ def build_docs() -> None:
         "troubleshooting.md": f"Fixing common {S['product']} problems: Defender, Gatekeeper, missing traceroute, VPN origin.",
         "limitations.md": f"Known limitations of {S['product']}: unsigned builds, IP database hints, what traceroute cannot see.",
         "testing.md": f"Testing a {S['product']} beta: which file to install, what to try, how to report it.",
+        "reading-a-traceroute.md": "What each line of a traceroute means.",
     }
     for path, name, title in DOC_PAGES:
         doc_page(path, ROOT / "docs" / name, title, descriptions[name], aside=doc_nav(path))
@@ -671,6 +735,8 @@ def build_static_pages(rel: Release) -> None:
     page("/screenshots/", "Screenshots", content("screenshots.html"),
          f"Screenshots of {S['product']} {rel.tag}: light and dark, macOS and Windows, PNG and PDF exports.",
          wide=True)
+    page("/compare/", "Compared with paid tools", content("compare.html"),
+         "How Route Map differs from paid visual traceroute tools.")
     page("/about/", "About", prose(f"About {S['product']}", content("about.html")),
          f"Who builds {S['product']} and why: OSINTPH, the FalconEye Route Map tab, and how to get in touch.")
     page("/privacy/", "Privacy",
@@ -700,10 +766,11 @@ PAGE_SOURCES = {
                    "site/content/download-firststart.html"],
     "/screenshots/": ["site/content/screenshots.html", "site/assets/img"],
     "/docs/": ["docs/guide.md", "docs/cli.md", "docs/faq.md", "docs/troubleshooting.md",
-               "docs/limitations.md", "docs/testing.md"],
+               "docs/limitations.md", "docs/testing.md", "docs/reading-a-traceroute.md"],
     "/docs/guide/": ["docs/guide.md"], "/docs/cli/": ["docs/cli.md"], "/docs/faq/": ["docs/faq.md"],
     "/docs/troubleshooting/": ["docs/troubleshooting.md"], "/docs/limitations/": ["docs/limitations.md"],
-    "/docs/testing/": ["docs/testing.md"],
+    "/docs/testing/": ["docs/testing.md"], "/docs/reading-a-traceroute/": ["docs/reading-a-traceroute.md"],
+    "/compare/": ["site/content/compare.html"],
     "/changelog/": ["CHANGELOG.md"], "/privacy/": ["PRIVACY.md", "site/content/privacy-site.html",
                                                   "site/content/privacy-lead.html"],
     "/code-signing/": ["CODE_SIGNING_POLICY.md"], "/about/": ["site/content/about.html"],

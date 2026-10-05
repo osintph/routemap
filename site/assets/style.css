@@ -275,3 +275,7 @@ button { font-family: var(--text); }
 .crumbs { font-size: 0.92rem; color: var(--muted); margin: 0 0 var(--s3); }
 .crumbs a { color: var(--muted); }
 .wordmark img { width: 24px; height: 24px; }
+table.compare th[scope="row"] { font-weight: 600; color: var(--ink); white-space: nowrap; }
+table.compare td:nth-child(2) { color: var(--ink); }
+table.compare sup a { text-decoration: none; }
+.sources { font-size: 0.9rem; color: var(--muted); }
