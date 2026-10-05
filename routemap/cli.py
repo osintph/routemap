@@ -183,10 +183,10 @@ def cmd_parse(args) -> int:
 
     service.startup()
     settings = config.load_settings()
+    from routemap import imported
     try:
-        with open(args.file, encoding="utf-8", errors="replace") as handle:
-            text = handle.read()
-    except OSError as exc:
+        text = imported.read_file(args.file)
+    except imported.ImportRejected as exc:
         _err(f"{NAME}: {exc}")
         return 2
     origin, how = _origin(args, settings)

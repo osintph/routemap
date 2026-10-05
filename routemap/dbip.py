@@ -40,6 +40,12 @@ ATTRIBUTION_URL = "https://db-ip.com"
 LICENCE = "CC BY 4.0"
 BUNDLED_ASN = "data/dbip-asn-lite.mmdb.gz"
 DOWNLOAD_TIMEOUT = 60.0
+# Ceilings well above the real files (City Lite is about 60 MB packed and
+# 125 MB unpacked), so a misbehaving server or a gzip bomb cannot fill the
+# disk (RM-12). A redirect is followed only to https on db-ip.com.
+MAX_PACKED_BYTES = 250_000_000
+MAX_UNPACKED_BYTES = 500_000_000
+DOWNLOAD_HOST = "db-ip.com"
 _NAME = re.compile(r"^dbip-(city|asn)-lite-(\d{4}-\d{2})\.mmdb$")
 
 
@@ -163,8 +169,17 @@ def import_file(source: str | os.PathLike, kind: str = "city") -> Database:
     try:
         if src.name.endswith(".gz"):
             with gzip.open(src, "rb") as fin, open(config.private_file(staging), "wb") as fout:
-                shutil.copyfileobj(fin, fout)
+                written = 0
+                while chunk := fin.read(1 << 20):
+                    written += len(chunk)
+                    if written > MAX_UNPACKED_BYTES:
+                        raise DatabaseError(f"{src.name} unpacks to more than {_mb(MAX_UNPACKED_BYTES)}, "
+                                            "larger than any DB-IP Lite file.")
+                    fout.write(chunk)
         else:
+            if src.stat().st_size > MAX_UNPACKED_BYTES:
+                raise DatabaseError(f"{src.name} is larger than any DB-IP Lite file "
+                                    f"(over {_mb(MAX_UNPACKED_BYTES)}).")
             shutil.copyfile(src, config.private_file(staging))
         month = _check(staging, kind, shown=src.name)
         target = data_dir() / f"dbip-{kind}-lite-{month}.mmdb"
@@ -187,6 +202,18 @@ def candidate_months(today: _dt.date | None = None) -> list[str]:
     return [first.strftime("%Y-%m"), previous.strftime("%Y-%m")]
 
 
+def _mb(size: int) -> str:
+    return f"{size / 1_000_000:,.0f} MB"
+
+
+def _only_db_ip(request) -> None:
+    """Every request of the download, the first and each redirect: https on db-ip.com only."""
+    host = request.url.host or ""
+    if request.url.scheme != "https" or not (host == DOWNLOAD_HOST or host.endswith("." + DOWNLOAD_HOST)):
+        raise DatabaseError(f"The download was redirected to {request.url.scheme}://{host}, "
+                            "not to https on db-ip.com; stopped.")
+
+
 def download(kind: str, *, user_agent: str,
              progress: Callable[[int, int | None], None] | None = None,
              cancelled: Callable[[], bool] = lambda: False,
@@ -207,20 +234,25 @@ def download(kind: str, *, user_agent: str,
         os.close(fd)
         try:
             with httpx.Client(transport=transport, timeout=DOWNLOAD_TIMEOUT, follow_redirects=True,
-                              headers={"User-Agent": user_agent}) as client:
+                              headers={"User-Agent": user_agent},
+                              event_hooks={"request": [_only_db_ip]}) as client:
                 with client.stream("GET", url) as response:
                     if response.status_code == 404:
                         last_error = f"{month} is not published yet"
                         continue
                     response.raise_for_status()
                     total = int(response.headers.get("content-length") or 0) or None
+                    if total and total > MAX_PACKED_BYTES:
+                        raise DatabaseError(f"The server offers {_mb(total)}, larger than any DB-IP Lite file.")
                     done = 0
                     with open(tmp_gz, "wb") as handle:
                         for chunk in response.iter_bytes(1 << 16):
                             if cancelled():
                                 raise DatabaseError("Download cancelled.")
-                            handle.write(chunk)
                             done += len(chunk)
+                            if done > MAX_PACKED_BYTES:
+                                raise DatabaseError("The download is larger than any DB-IP Lite file; stopped.")
+                            handle.write(chunk)
                             if progress:
                                 progress(done, total)
             return import_file(tmp_gz, kind)
