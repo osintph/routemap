@@ -38,6 +38,7 @@ from PySide6.QtWidgets import (QFrame, QGraphicsItem, QGraphicsObject, QGraphics
                                QVBoxLayout, QWidget)
 
 from routemap.gui import arcs, geometry, navigation, theme
+from routemap.gui.text import markup, plain
 
 SCALE = 4.0           # scene units per degree
 ATTRIBUTION_BASE = "Natural Earth · GeoNames"
@@ -749,14 +750,14 @@ class MapView(QGraphicsView):
         self.legend_layout.setContentsMargins(10, 8, 10, 8)
         self.legend_layout.setSpacing(3)
 
-        self.attribution = QLabel(ATTRIBUTION_BASE, self)
+        self.attribution = plain(ATTRIBUTION_BASE, self)
         self.attribution.setObjectName("attribution")
 
         self.card = _Overlay(self)
         card = QVBoxLayout(self.card)
         card.setContentsMargins(22, 18, 22, 18)
         card.setSpacing(6)
-        self.card_title = QLabel(self.card)
+        self.card_title = plain("", self.card)
         self.card_title.setObjectName("cardTitle")
         self.card_body = QLabel(self.card)
         self.card_body.setWordWrap(True)
@@ -804,19 +805,19 @@ class MapView(QGraphicsView):
                 old.hide()
                 old.setParent(None)
                 old.deleteLater()
-        title = QLabel("<b>Placed by</b>")
+        title = markup("<b>Placed by</b>")
         self.legend_layout.addWidget(title)
         for source in sources:
             row = QWidget()
             line = QHBoxLayout(row)
             line.setContentsMargins(0, 0, 0, 0)
             line.setSpacing(6)
-            dot = QLabel()
+            dot = plain()
             dot.setFixedSize(10, 10)
             color = self.palette_.sources[source]
             dot.setStyleSheet(f"background: {color.name()}; border-radius: 5px;")
             line.addWidget(dot)
-            line.addWidget(QLabel(theme.SOURCE_LABELS[source]))
+            line.addWidget(plain(theme.SOURCE_LABELS[source]))
             line.addStretch(1)
             self.legend_layout.addWidget(row)
         for kind in extra or []:
@@ -824,7 +825,7 @@ class MapView(QGraphicsView):
             line = QHBoxLayout(row)
             line.setContentsMargins(0, 0, 0, 0)
             line.setSpacing(6)
-            dot = QLabel()
+            dot = plain()
             dot.setFixedSize(10, 10)
             color = (self.palette_.sources["ip-db"] if kind == "country"
                      else self.palette_.route_gap)
@@ -832,12 +833,12 @@ class MapView(QGraphicsView):
             dot.setStyleSheet(f"background: transparent; border: 2px {style} {color.name()};"
                               " border-radius: 5px;")
             line.addWidget(dot)
-            line.addWidget(QLabel("Country only (centroid)" if kind == "country"
+            line.addWidget(plain("Country only (centroid)" if kind == "country"
                                   else "Not placed (yet)"))
             line.addStretch(1)
             self.legend_layout.addWidget(row)
         if rtt:
-            head = QLabel("<b>RTT added per step</b>")
+            head = markup("<b>RTT added per step</b>")
             self.legend_layout.addWidget(head)
             q, hot = self.quiet_ms, self.hot_ms
             for color, text in ((self.palette_.route_quiet, f"under {q:.0f} ms"),
@@ -848,22 +849,22 @@ class MapView(QGraphicsView):
                 line = QHBoxLayout(row)
                 line.setContentsMargins(0, 0, 0, 0)
                 line.setSpacing(6)
-                swatch = QLabel()
+                swatch = plain()
                 swatch.setFixedSize(18, 4)
                 swatch.setStyleSheet(f"background: {color.name()}; border-radius: 2px;")
                 line.addWidget(swatch)
-                line.addWidget(QLabel(text))
+                line.addWidget(plain(text))
                 line.addStretch(1)
                 self.legend_layout.addWidget(row)
             dash = QWidget()
             line = QHBoxLayout(dash)
             line.setContentsMargins(0, 0, 0, 0)
             line.setSpacing(6)
-            swatch = QLabel("- - -")
+            swatch = plain("- - -")
             swatch.setFixedWidth(18)
             swatch.setStyleSheet(f"color: {self.palette_.route_gap.name()}; font-weight: 700;")
             line.addWidget(swatch)
-            line.addWidget(QLabel("silent stretch or country only"))
+            line.addWidget(plain("silent stretch or country only"))
             line.addStretch(1)
             self.legend_layout.addWidget(dash)
         # Children added to a visible widget are only shown on the next event

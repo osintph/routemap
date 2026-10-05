@@ -27,6 +27,7 @@ from routemap.gui import arcs, geometry, navigation, theme
 from routemap.gui.mapview import (ATTRIBUTION_BASE, ATTRIBUTION_DBIP, group_tooltip, hop_range,
                                   is_country_only, place_label, route_groups, uses_dbip, _short)
 from routemap.gui.naturalearth import simplify
+from routemap.gui.text import plain
 
 COARSE_TOLERANCE_DEG = 0.6
 MIN_ZOOM, MAX_ZOOM = 0.6, 12.0
@@ -125,12 +126,12 @@ class GlobeView(QWidget):
             button.setMinimumWidth(46)
             button.clicked.connect(slot)
             box.addWidget(button)
-        self.attribution = QLabel(ATTRIBUTION_BASE, self)
+        self.attribution = plain(ATTRIBUTION_BASE, self)
         self.attribution.setObjectName("attribution")
         self.card = _Overlay(self)
         card = QVBoxLayout(self.card)
         card.setContentsMargins(22, 18, 22, 18)
-        self.card_title = QLabel(self.card)
+        self.card_title = plain("", self.card)
         self.card_title.setObjectName("cardTitle")
         self.card_body = QLabel(self.card)
         self.card_body.setWordWrap(True)

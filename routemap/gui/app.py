@@ -17,7 +17,7 @@ from PySide6.QtCore import QByteArray, QObject, Qt, QTimer, QUrl
 from PySide6.QtGui import QDesktopServices, QGuiApplication, QIcon
 from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox
 
-from routemap import config, dbip, insight, service
+from routemap import config, dbip, imported, insight, service
 from routemap.__about__ import (DISPLAY_NAME, NAME, REPO_URL, engine_line, version_line,
                                 CONTACT_EMAIL, WINDOWS_SIGNED, SITE_LINKED, SITE_URL,
                                 VERSION)
@@ -301,28 +301,30 @@ class Controller(QObject):
             "Traces and route exports (*.txt *.log *.json);;All files (*)")
         if not path:
             return
+        self.open_path(path)
+
+    def open_path(self, path: str):
+        """Open a trace or a route export. An export is rebuilt from the route
+        format before anything in it is shown (imported.export), and its saved
+        insight is computed again rather than trusted."""
         try:
-            with open(path, encoding="utf-8", errors="replace") as handle:
-                text = handle.read()
-        except OSError as exc:
+            text = imported.read_file(path)
+        except imported.ImportRejected as exc:
             self.error("Could not open the file", str(exc))
             return
         if path.lower().endswith(".json"):
             try:
-                document = json.loads(text)
-                route = document["route"]
-                Route.from_dict(route)
-            except (ValueError, KeyError, TypeError):
-                self.error("Not a route export", "That JSON file is not a routemap export.")
+                doc = imported.export(json.loads(text))
+                Route.from_dict(doc["route"])
+            except (ValueError, KeyError, TypeError) as exc:
+                self.error("Not a route export", f"That JSON file is not a routemap export. {exc}")
                 return
-            trace = document.get("trace") or {}
-            self.current = {"route": route, "target": document.get("target") or os.path.basename(path),
-                            "trace_text": trace.get("text") or "", "argv": trace.get("argv"),
-                            "source": trace.get("source") or FILE,
-                            "origin_how": document.get("origin_how"), "when": _dt.datetime.now().astimezone()}
-            self.w.show_result(route, self.current["target"], self.current["argv"],
+            self.current = {"route": doc["route"], "target": doc["target"] or os.path.basename(path),
+                            "trace_text": doc["trace_text"], "argv": doc["argv"], "source": doc["source"],
+                            "origin_how": doc["origin_how"], "when": _dt.datetime.now().astimezone()}
+            self.w.show_result(doc["route"], self.current["target"], self.current["argv"],
                                trace_text=self.current["trace_text"])
-            self._after_result(saved=document.get("insight"))
+            self._after_result()
             return
         self.analyse_text(text, os.path.basename(path), FILE)
 
@@ -752,14 +754,13 @@ class Controller(QObject):
         if not path:
             return
         try:
-            with open(path, encoding="utf-8") as handle:
-                document = json.load(handle)
-            old = document["route"]
+            doc = imported.export(json.loads(imported.read_file(path)))
+            old = doc["route"]
             Route.from_dict(old)
-        except (OSError, ValueError, KeyError, TypeError):
-            self.error("Not a route export", "That JSON file is not a routemap export.")
+        except (ValueError, KeyError, TypeError) as exc:
+            self.error("Not a route export", f"That JSON file is not a routemap export. {exc}")
             return
-        label = (document.get("exported_at") or os.path.basename(path))[:16].replace("T", " ")
+        label = (doc["exported_at"] or os.path.basename(path))[:16].replace("T", " ")
         self._start_comparison(old, label)
         self.refresh_panels()
 

@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (QFrame, QHBoxLayout, QHeaderView, QLabel, QListWi
                                QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
 
 from routemap.gui import theme
+from routemap.gui.text import plain
 
 
 class UnplacedPanel(QWidget):
@@ -153,7 +154,7 @@ class HistoryPanel(QWidget):
         self.list.setSpacing(3)
         self.list.setAlternatingRowColors(True)
         self.list.itemActivated.connect(lambda item: self.opened.emit(self.list.row(item)))
-        self.note = QLabel(self)
+        self.note = plain("", self)
         self.note.setWordWrap(True)
         self.clear_button = QPushButton("Clear history", self)
         self.clear_button.clicked.connect(self.cleared)
@@ -166,7 +167,7 @@ class HistoryPanel(QWidget):
         for entry in entries:
             item = QListWidgetItem(f"{entry['target']}\n{entry['when']} · "
                                    f"{entry['hops']} hops, {entry['placed']} placed")
-            item.setToolTip(entry.get("tool", ""))
+            item.setToolTip(html.escape(str(entry.get("tool") or "")))
             self.list.addItem(item)
         if enabled:
             self.note.setText(f"Last {limit} traces, kept in your config folder.")

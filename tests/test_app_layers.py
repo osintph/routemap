@@ -37,13 +37,14 @@ def test_settings_default_round_trip_and_survive_junk(isolated_config):
 
 def test_history_is_capped_newest_first_and_off_means_nothing_stored(isolated_config):
     s = config.load_settings()
-    route = {"hops": [{"lat": 1.0}, {"lat": None}]}
+    # A real route: history entries are rebuilt from the route format when read.
+    route = json.loads((pathlib.Path(__file__).parent / "fixtures" / "gui" / "heise_route.json").read_text())["route"]
     for i in range(config.HISTORY_LIMIT + 5):
         config.add_history(config.history_entry(route, target=f"t{i}", trace_text="x",
                                                 argv=None, source="paste"), s)
     entries = config.load_history()
     assert len(entries) == config.HISTORY_LIMIT and entries[0]["target"] == f"t{config.HISTORY_LIMIT + 4}"
-    assert entries[0]["placed"] == 1
+    assert entries[0]["placed"] == sum(1 for h in route["hops"] if h.get("lat") is not None)
     assert config.clear_history() == config.HISTORY_LIMIT
     s.history_enabled = False
     config.add_history(config.history_entry(route, target="x", trace_text="", argv=None,

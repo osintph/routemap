@@ -10,6 +10,7 @@ marker selects its rows; Esc clears both.
 """
 from __future__ import annotations
 
+import html
 import os
 
 from PySide6.QtCore import QSize, Qt, Signal
@@ -23,6 +24,7 @@ from routemap.gui.hoptable import HopTable
 from routemap.gui.insightpanel import HopDetails, InsightPanel
 from routemap.gui.mappane import MapPane
 from routemap.gui.panels import HistoryPanel, LiveOutput, SourceStatus, UnplacedPanel
+from routemap.gui.text import esc
 
 ORIGIN_APPROX = "approximate; wrong on a VPN or exit node"
 
@@ -271,7 +273,7 @@ class MainWindow(QMainWindow):
                 "city": " <span style='color:gray'>(set in Settings)</span>",
                 "coords": " <span style='color:gray'>(coordinates set in Settings)</span>",
                 "map": " <span style='color:gray'>(picked on the map)</span>"}.get(how, "")
-        self.origin_label.setText(f"<b>Origin</b> {label}{note}")
+        self.origin_label.setText(f"<b>Origin</b> {esc(label)}{note}")
 
     def set_tool_status(self, argv: list[str] | None, missing_hint: str | None = None):
         if missing_hint:
@@ -280,7 +282,7 @@ class MainWindow(QMainWindow):
         if argv:
             parts = [os.path.basename(argv[0])] + list(argv[1:])
             shown = " ".join(parts[:-1] if len(parts) > 1 else parts)
-            self.tool_label.setText(f"<code>{shown}</code>")
+            self.tool_label.setText(f"<code>{html.escape(shown)}</code>")
 
     def set_state(self, text: str = ""):
         self.state_label.setText(text)
@@ -331,8 +333,8 @@ class MainWindow(QMainWindow):
         self.live.start(argv)
         for line in lines or []:
             self.live.append(line)
-        self.summary.setText(f"<b>Tracing {target}</b>")
-        self.set_state(f"Tracing <b>{target}</b>…")
+        self.summary.setText(f"<b>Tracing {esc(target)}</b>")
+        self.set_state(f"Tracing <b>{esc(target)}</b>…")
         self.set_tool_status(argv)
 
     def update_live(self, route: dict, target: str, hop_note: str = ""):
@@ -342,9 +344,9 @@ class MainWindow(QMainWindow):
         self.table.set_hops(hops)
         self.unplaced.set_hops(hops)
         self.map.set_route(route, destination=None, keep_view=True)
-        self.summary.setText(f"<b>Tracing {target}</b> <span style='color:gray'>· "
+        self.summary.setText(f"<b>Tracing {esc(target)}</b> <span style='color:gray'>· "
                              f"{len(hops)} hops so far, {placed} placed</span>")
-        self.set_state(f"Tracing <b>{target}</b>: {hop_note or f'hop {len(hops)}'}")
+        self.set_state(f"Tracing <b>{esc(target)}</b>: {esc(hop_note or f'hop {len(hops)}')}")
 
     def show_result(self, route: dict, target: str, argv: list[str] | None,
                     expand_unplaced: bool = False, trace_text: str | None = None,
@@ -365,12 +367,13 @@ class MainWindow(QMainWindow):
         if trace_text is not None:
             self.live.set_text(trace_text, argv)
         self.map.set_route(route, destination=target, keep_view=keep_view)
-        warnings = "".join(f"<br><span style='color:#b7791f'>{w}</span>"
+        # Every value from the route is escaped: a route can come from a file.
+        warnings = "".join(f"<br><span style='color:#b7791f'>{html.escape(str(w))}</span>"
                            for w in route.get("warnings") or [])
         ruleset = route.get("hoiho_ruleset_date")
-        detail = route.get("parser_label", "")
+        detail = html.escape(str(route.get("parser_label") or ""))
         if ruleset:
-            detail += f" · Hoiho ruleset {ruleset}"
+            detail += f" · Hoiho ruleset {html.escape(str(ruleset))}"
         self.summary.setText(
             f"<b>{len(hops)} hops</b>, {placed} placed on the map "
             f"<span style='color:gray'>· {detail}</span>{warnings}")

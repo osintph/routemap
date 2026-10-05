@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (QFrame, QGridLayout, QHBoxLayout, QLabel, QPushBu
 
 from routemap import insight as insight_mod
 from routemap.gui import theme
+from routemap.gui.text import markup, plain
 from routemap_engine import geo
 
 BADGE = {"valid": ("#0f7a50", "#e3f4ec"), "invalid": ("#b42318", "#fde8e6"),
@@ -43,17 +44,22 @@ def _muted(text: str) -> str:
 
 def heading(text: str) -> QLabel:
     label = QLabel(text.upper())
+    # Headings name things from the data (a prefix, a comparison): plain text.
+    label.setTextFormat(Qt.PlainText)
     label.setStyleSheet("font-size: 10px; font-weight: 700; letter-spacing: 1px;"
                         f"color: {theme.current().overlay_muted.name()};")
     return label
 
 
 def rich(text: str = "") -> QLabel:
+    """A label for markup this module builds, with every data value escaped.
+    It opens no links: nothing in the panel links anywhere, and a link that
+    came from data must not open a file or a URL scheme on one click (RM-01)."""
     label = QLabel(text)
     label.setTextFormat(Qt.RichText)
     label.setWordWrap(True)
-    label.setTextInteractionFlags(Qt.TextSelectableByMouse | Qt.LinksAccessibleByMouse)
-    label.setOpenExternalLinks(True)
+    label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+    label.setOpenExternalLinks(False)
     label.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Minimum)
     return label
 
@@ -221,7 +227,7 @@ class InsightPanel(QScrollArea):
         if s["as_path"]:
             parts = []
             for step in s["as_path"]:
-                name = f"<b>AS{step['asn']}</b> {html.escape(step['short'])}"
+                name = f"<b>AS{html.escape(str(step['asn']))}</b> {html.escape(str(step['short']))}"
                 if step.get("rpki"):
                     name += " " + badge(step["rpki"]["label"], step["rpki"]["state"])
                 parts.append(name)
@@ -239,7 +245,7 @@ class InsightPanel(QScrollArea):
             if s["origin_cc"]:
                 parts.append(f"{s['origin_cc']} {_muted('(origin)')}")
             for c in s["countries"]:
-                item = c["cc"] + (" " + _muted("(country only)") if c["country_only"] else "")
+                item = html.escape(str(c["cc"])) + (" " + _muted("(country only)") if c["country_only"] else "")
                 if c["sensitive"]:
                     item += " " + badge("sensitive", "sensitive")
                 parts.append(item)
@@ -350,7 +356,7 @@ class HopDetails(QFrame):
         layout.setContentsMargins(10, 8, 10, 8)
         layout.setSpacing(4)
         top = QHBoxLayout()
-        self.title = QLabel()
+        self.title = markup()
         self.title.setTextFormat(Qt.RichText)
         self.title.setTextInteractionFlags(Qt.TextSelectableByMouse)
         top.addWidget(self.title, 1)
@@ -366,7 +372,7 @@ class HopDetails(QFrame):
         layout.addLayout(self.grid)
         self.rows: dict[str, QLabel] = {}
         for i, key in enumerate(("Address", "Placed", "ASN", "Prefix", "RIR", "RPKI", "Abuse", "AS overview")):
-            name = QLabel(key)
+            name = plain(key)
             name.setStyleSheet(f"color: {theme.current().overlay_muted.name()}; font-weight: 600;")
             value = rich()
             self.grid.addWidget(name, i, 0, Qt.AlignTop)
@@ -395,7 +401,8 @@ class HopDetails(QFrame):
         public = next((a for a in hop.get("addresses") or [] if geo.classify_address(a) == "public"), None)
         self.address = public
         name = hop.get("hostname") or ""
-        self.title.setText(f"<b>Hop {hop['hop']}</b>" + (f" &middot; {html.escape(name)}" if name else ""))
+        self.title.setText(f"<b>Hop {html.escape(str(hop['hop']))}</b>"
+                           + (f" &middot; {html.escape(str(name))}" if name else ""))
         self.falcon.setEnabled(bool(public))
         r = self.rows
         r["Address"].setText(html.escape(", ".join(hop.get("addresses") or []) or "no answer"))
@@ -416,7 +423,7 @@ class HopDetails(QFrame):
                 "overview", {}) or {}
             org = org if isinstance(org, str) else org.get("holder") or ""
             src = " " + _muted("(DB-IP)" if hop.get("asn_source") == "dbip" else "(RIPEstat)")
-            r["ASN"].setText(f"AS{asn}, {html.escape(org)}{src}")
+            r["ASN"].setText(f"AS{html.escape(str(asn))}, {html.escape(str(org))}{src}")
         else:
             r["ASN"].setText(_muted("none (local or no answer)" if not public else "unknown"))
         prefix = detail.get("prefix")

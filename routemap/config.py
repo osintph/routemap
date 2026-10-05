@@ -157,7 +157,12 @@ def load_history() -> list[dict]:
         entries = json.loads(history_path().read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return []
-    return [e for e in entries if isinstance(e, dict) and "route" in e] if isinstance(entries, list) else []
+    if not isinstance(entries, list):
+        return []
+    # Rebuilt like an export: the file may have been written by anything (hardening 3).
+    from routemap import imported
+    rebuilt = (imported.history_entry(e) for e in entries[:HISTORY_LIMIT])
+    return [e for e in rebuilt if e is not None]
 
 
 def add_history(entry: dict, settings: Settings) -> list[dict]:

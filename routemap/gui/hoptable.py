@@ -130,7 +130,7 @@ class HopModel(QAbstractTableModel):
         return self.text(hop, column).lower()
 
     def tooltip(self, hop: dict) -> str:
-        lines = [f"<b>Hop {hop['hop']}</b>"]
+        lines = [f"<b>Hop {html.escape(str(hop['hop']))}</b>"]
         if hop.get("addresses"):
             lines.append("Addresses: " + html.escape(", ".join(hop["addresses"])))
         if hop.get("hostnames"):
@@ -148,7 +148,7 @@ class HopModel(QAbstractTableModel):
             lines.append("IP database: " + ("DB-IP Lite City, on this machine" if hop.get("ip_provider") == "dbip"
                                             else "RIPEstat, online"))
         if hop.get("asn"):
-            lines.append(f"AS{hop['asn']} " + html.escape(hop.get("as_org") or ""))
+            lines.append(f"AS{html.escape(str(hop['asn']))} " + html.escape(str(hop.get("as_org") or "")))
         detail = self.details.get(str(hop["hop"])) or {}
         if detail.get("prefix"):
             lines.append(f"Routed prefix {html.escape(detail['prefix'])}, RPKI "
