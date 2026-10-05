@@ -1,0 +1,110 @@
+# Re-signs a published release's SHA256SUMS after its files changed: renamed,
+# or the Windows files replaced by the Certum-signed ones that
+# scripts/sign-windows.ps1 makes.
+#
+#   gh workflow run resign-release.yml -f tag=v0.2.0-beta.2 -f build_run=<the tag's build run id> \
+#      [-f extra_hashes="<sha256>  <file>"...]
+#
+# It signs nothing it cannot account for. Every file in the release must match,
+# by SHA-256, a file that the tag's own build run produced, or a line in
+# extra_hashes (exactly what sign-windows.ps1 printed; Windows files only).
+# Any other file fails the run before anything is signed. The build run must be
+# a successful build.yml run of the tag's commit, and its artifacts must still
+# exist (GitHub keeps them 90 days).
+name: resign-release
+run-name: re-sign SHA256SUMS of ${{ inputs.tag }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag, e.g. v0.2.0-beta.2"
+        required: true
+      build_run:
+        description: "The build.yml run id that built that tag"
+        required: true
+      extra_hashes:
+        description: "Lines '<sha256>  <file>' printed by scripts/sign-windows.ps1 (optional)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  resign:
+    name: Check every file, then sign
+    runs-on: ubuntu-24.04
+    # The GPG release key lives in this environment.
+    environment: downloads
+    permissions:
+      contents: write
+      actions: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ inputs.tag }}
+      BUILD_RUN: ${{ inputs.build_run }}
+      EXTRA: ${{ inputs.extra_hashes }}
+      GPG_RELEASE_KEY: ${{ secrets.GPG_RELEASE_KEY }}
+      GPG_RELEASE_PASSPHRASE: ${{ secrets.GPG_RELEASE_PASSPHRASE }}
+    steps:
+      - name: Inputs
+        run: |
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-z]+\.[0-9]+)?$ ]] || { echo "::error::not a release tag: $TAG"; exit 1; }
+          [[ "$BUILD_RUN" =~ ^[0-9]+$ ]] || { echo "::error::build_run must be a run id"; exit 1; }
+          [ -n "$GPG_RELEASE_KEY" ] || { echo "::error::GPG_RELEASE_KEY is not set"; exit 1; }
+      - name: The build run built this tag
+        run: |
+          commit=$(gh api "repos/$GITHUB_REPOSITORY/commits/$TAG" --jq .sha)
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$BUILD_RUN" --jq '.path, .conclusion, .head_sha' > run.txt
+          { read -r path; read -r conclusion; read -r sha; } < run.txt
+          [ "$path" = ".github/workflows/build.yml" ] || { echo "::error::run $BUILD_RUN is $path"; exit 1; }
+          [ "$conclusion" = "success" ] || { echo "::error::run $BUILD_RUN concluded $conclusion"; exit 1; }
+          [ "$sha" = "$commit" ] || { echo "::error::run $BUILD_RUN built $sha, $TAG is $commit"; exit 1; }
+          echo "$TAG is $commit, built by run $BUILD_RUN"
+      - name: What the build produced
+        run: |
+          gh run download "$BUILD_RUN" --repo "$GITHUB_REPOSITORY" --pattern 'routemap-*' --dir built
+          find built -type f -exec sha256sum {} + | awk '{print $1}' | sort -u > built.sha256
+          echo "$(wc -l < built.sha256) files from the build run"
+      - name: Hashes from sign-windows.ps1
+        run: |
+          : > extra.txt
+          while IFS= read -r line; do
+            line="${line%$'\r'}"; [ -z "${line// }" ] && continue
+            [[ "$line" =~ ^([0-9a-f]{64})\ \ (routemap-[A-Za-z0-9._+-]+-windows-x86_64(-setup\.exe|\.zip))$ ]] \
+              || { echo "::error::not a sign-windows.ps1 line for a Windows file: $line"; exit 1; }
+            echo "${BASH_REMATCH[1]}  ${BASH_REMATCH[2]}" >> extra.txt
+          done <<< "$EXTRA"
+          cat extra.txt
+      - name: Every file in the release is accounted for
+        run: |
+          mkdir rel && cd rel
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY"
+          rm -f SHA256SUMS SHA256SUMS.asc
+          fail=0
+          for f in *; do
+            h=$(sha256sum "$f" | awk '{print $1}')
+            if grep -qx "$h" ../built.sha256; then
+              echo "ok  $f  (built by run $BUILD_RUN)"
+            elif grep -qx "$h  $f" ../extra.txt; then
+              echo "ok  $f  (signed with sign-windows.ps1)"
+            else
+              echo "::error::$f ($h) is neither a file of run $BUILD_RUN nor a sign-windows.ps1 hash"; fail=1
+            fi
+          done
+          [ "$(ls | wc -l)" -gt 0 ] || { echo "::error::the release has no files"; fail=1; }
+          exit $fail
+      - name: SHA256SUMS, signature, verify
+        run: |
+          cd rel
+          sha256sum -- * > SHA256SUMS
+          echo "$GPG_RELEASE_KEY" | gpg --batch --import
+          FPR="$(gpg --batch --list-secret-keys --with-colons | awk -F: '/^fpr/ {print $10; exit}')"
+          echo "$GPG_RELEASE_PASSPHRASE" | gpg --batch --yes --pinentry-mode loopback --passphrase-fd 0 \
+            --local-user "$FPR" --armor --detach-sign --output SHA256SUMS.asc SHA256SUMS
+          gpg --batch --verify SHA256SUMS.asc SHA256SUMS
+          sha256sum -c SHA256SUMS
+          cat SHA256SUMS
+      - name: Upload
+        run: gh release upload "$TAG" rel/SHA256SUMS rel/SHA256SUMS.asc --clobber --repo "$GITHUB_REPOSITORY"

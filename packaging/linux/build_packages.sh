@@ -5,6 +5,12 @@
 #   sh packaging/linux/build_packages.sh <binary> <version> <run number> <out dir>
 #
 # nfpm 2.47.0 is downloaded and checked against its pinned SHA-256.
+#
+# The files are named like the release's other files,
+# routemap-<version>-linux-x86_64.deb and .rpm: GitHub does not allow "~" in
+# a release file name and silently changes it. The version inside each
+# package keeps the Debian and RPM spelling (0.2.0~beta.2), so a beta still
+# sorts before the final release.
 set -eu
 binary="$1"; version="$2"; run="$3"; out="$4"
 NFPM_URL=https://github.com/goreleaser/nfpm/releases/download/v2.47.0/nfpm_2.47.0_Linux_x86_64.tar.gz
@@ -15,8 +21,10 @@ curl -fsSL -o "$tmp/nfpm.tar.gz" "$NFPM_URL"
 echo "$NFPM_SHA256  $tmp/nfpm.tar.gz" | sha256sum -c -
 tar -xzf "$tmp/nfpm.tar.gz" -C "$tmp" nfpm
 python3 "$here/make_packages.py" "$(cd "$(dirname "$binary")" && pwd)/$(basename "$binary")" "$version" "$run" > "$tmp/nfpm.yaml"
-mkdir -p "$out"
-"$tmp/nfpm" package -f "$tmp/nfpm.yaml" -p deb -t "$out/"
-"$tmp/nfpm" package -f "$tmp/nfpm.yaml" -p rpm -t "$out/"
-dpkg-deb --info "$out"/*.deb
-dpkg-deb --contents "$out"/*.deb
+mkdir -p "$out" "$tmp/pkg"
+"$tmp/nfpm" package -f "$tmp/nfpm.yaml" -p deb -t "$tmp/pkg/"
+"$tmp/nfpm" package -f "$tmp/nfpm.yaml" -p rpm -t "$tmp/pkg/"
+deb="$out/routemap-$version-linux-x86_64.deb"; rpm="$out/routemap-$version-linux-x86_64.rpm"
+mv "$tmp"/pkg/*.deb "$deb"; mv "$tmp"/pkg/*.rpm "$rpm"
+dpkg-deb --info "$deb"
+dpkg-deb --contents "$deb"

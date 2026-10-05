@@ -293,6 +293,8 @@ def installer_for(assets: dict[str, str], system: str | None = None, machine: st
         if appimage if appimage is not None else bool(os.environ.get("APPIMAGE")):
             return first("-linux-x86_64.AppImage")
         family = linux_family() if family is None else family
-        wanted = {"deb": ("_amd64.deb",), "rpm": (".x86_64.rpm",)}.get(family, ())
+        # Release file names since 0.2.0-beta.2, then the nfpm-style names before.
+        wanted = {"deb": ("-linux-x86_64.deb", "_amd64.deb"),
+                  "rpm": ("-linux-x86_64.rpm", ".x86_64.rpm")}.get(family, ())
         return first(*wanted, "-linux-x86_64.AppImage", "-linux-x86_64.tar.gz")
     return None

@@ -56,15 +56,14 @@ LOCAL_DOCS = {"PRIVACY.md": "/privacy/", "CODE_SIGNING_POLICY.md": "/code-signin
 
 PLATFORMS = [
     # key, group, label, file pattern, note. Per platform the installer comes
-    # first. {v} is the version, {d} its Debian and RPM spelling (0.2.0~beta.2);
-    # a * (the build number in package names) is filled in from the release's files.
+    # first. {v} is the version; a * in a pattern is filled in from the release's files.
     ("windows", "windows", "Installer", "routemap-{v}-windows-x86_64-setup.exe",
      "Windows 10/11, x86_64; Start menu, uninstaller, upgrades in place"),
     ("windows-zip", "windows", "Zip", "routemap-{v}-windows-x86_64.zip", "no install: extract and run"),
     ("macos", "macos", "Apple silicon", "routemap-{v}-macos-arm64.dmg", "macOS 12+, dmg"),
     ("macos-intel", "macos", "Intel", "routemap-{v}-macos-x86_64.dmg", "macOS 12+, dmg"),
-    ("linux-deb", "linux", "Debian, Ubuntu (.deb)", "routemap_{d}-*_amd64.deb", "x86_64, apt; menu entry"),
-    ("linux-rpm", "linux", "Fedora, RHEL, openSUSE (.rpm)", "routemap-{d}-*.x86_64.rpm",
+    ("linux-deb", "linux", "Debian, Ubuntu (.deb)", "routemap-{v}-linux-x86_64.deb", "x86_64, apt; menu entry"),
+    ("linux-rpm", "linux", "Fedora, RHEL, openSUSE (.rpm)", "routemap-{v}-linux-x86_64.rpm",
      "x86_64, dnf or zypper; menu entry"),
     ("linux", "linux", "AppImage", "routemap-{v}-linux-x86_64.AppImage", "x86_64, any distribution, no install"),
     ("linux-tar", "linux", "tar.gz", "routemap-{v}-linux-x86_64.tar.gz", "x86_64, no install"),
@@ -374,7 +373,7 @@ class Release:
         Without the release's file list (a local build), every pattern is listed."""
         import fnmatch
         for key, group, label, pattern, note in PLATFORMS:
-            name = pattern.format(v=self.version, d=self.version.replace("-", "~", 1))
+            name = pattern.format(v=self.version)
             if self.sizes:
                 if "*" in name:
                     name = next((n for n in sorted(self.sizes) if fnmatch.fnmatchcase(n, name)), "")

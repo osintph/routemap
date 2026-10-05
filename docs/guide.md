@@ -20,9 +20,9 @@ Download the latest release from
   notarised, so the first start is blocked: right-click it, choose **Open**,
   then **Open** again (on macOS 15: System Settings > Privacy & Security >
   **Open Anyway**).
-- **Linux x86_64**: `sudo apt install ./routemap_<version>-<build>_amd64.deb`
+- **Linux x86_64**: `sudo apt install ./routemap-<version>-linux-x86_64.deb`
   (Debian, Ubuntu and relatives) or `sudo dnf install
-  ./routemap-<version>-<build>.x86_64.rpm` (Fedora, RHEL; `zypper install` on
+  ./routemap-<version>-linux-x86_64.rpm` (Fedora, RHEL; `zypper install` on
   openSUSE). Route Map is then in the applications menu and `routemap` on the
   PATH. Without installing: `chmod +x` the `.AppImage` and run it, or unpack the
   `.tar.gz` and run `./routemap`. Where the distribution does not allow

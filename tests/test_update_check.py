@@ -8,7 +8,7 @@ ASSETS = {name: BASE + name for name in [
     f"routemap-{V}-macos-arm64.dmg", f"routemap-{V}-macos-x86_64.dmg",
     f"routemap-{V}-windows-x86_64-setup.exe", f"routemap-{V}-windows-x86_64.zip",
     f"routemap-{V}-linux-x86_64.AppImage", f"routemap-{V}-linux-x86_64.tar.gz",
-    "routemap_0.2.0~beta.2-12_amd64.deb", "routemap-0.2.0~beta.2-12.x86_64.rpm",
+    f"routemap-{V}-linux-x86_64.deb", f"routemap-{V}-linux-x86_64.rpm",
     "SHA256SUMS", "SHA256SUMS.asc"]}
 
 
@@ -21,8 +21,10 @@ def test_each_platform_gets_its_installer():
     assert pick(system="win32", machine="AMD64") == f"routemap-{V}-windows-x86_64-setup.exe"
     assert pick(system="darwin", machine="arm64") == f"routemap-{V}-macos-arm64.dmg"
     assert pick(system="darwin", machine="x86_64") == f"routemap-{V}-macos-x86_64.dmg"
-    assert pick(system="linux", machine="x86_64", family="deb", appimage=False).endswith("_amd64.deb")
-    assert pick(system="linux", machine="x86_64", family="rpm", appimage=False).endswith(".x86_64.rpm")
+    assert pick(system="linux", machine="x86_64", family="deb", appimage=False) == f"routemap-{V}-linux-x86_64.deb"
+    assert pick(system="linux", machine="x86_64", family="rpm", appimage=False) == f"routemap-{V}-linux-x86_64.rpm"
+    nfpm_style = {"routemap_0.2.0~beta.1-9_amd64.deb": "d", "routemap-0.2.0~beta.1-9.x86_64.rpm": "r"}
+    assert service.installer_for(nfpm_style, system="linux", family="deb", appimage=False)[1] == "d"
     assert pick(system="linux", machine="x86_64", family="", appimage=False).endswith(".AppImage")
     assert pick(system="linux", machine="x86_64", family="deb", appimage=True).endswith(".AppImage")
     assert service.installer_for(ASSETS, system="win32")[1] == BASE + f"routemap-{V}-windows-x86_64-setup.exe"

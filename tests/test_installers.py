@@ -6,6 +6,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "packaging" / "windows"))
 sys.path.insert(0, str(ROOT / "packaging" / "linux"))
+sys.path.insert(0, str(ROOT / "packaging"))
 
 import iss_defines  # noqa: E402
 import make_packages  # noqa: E402
@@ -59,3 +60,17 @@ def test_every_version_a_person_sees_uses_the_tag_spelling():
                  "routemap/gui/mockup.py"]:
         text = (ROOT / path).read_text()
         assert "__version__" not in text.replace("routemap_engine.__about__ import __version__", ""), path
+
+
+def test_release_file_names_survive_github():
+    """GitHub turned "~" in a release file name into ".", so SHA256SUMS and
+    the download page no longer matched the .deb and .rpm (0.2.0-beta.2)."""
+    import re
+    import release_notes  # noqa: E402
+    notes = release_notes.notes("v0.2.0-beta.2")
+    names = re.findall(r"routemap[-_][^\s`]*\.(?:deb|rpm|exe|zip|dmg|AppImage|tar\.gz)", notes)
+    assert names and all(re.fullmatch(r"[A-Za-z0-9._+*-]+", n) for n in names), names
+    script = (ROOT / "packaging/linux/build_packages.sh").read_text()
+    assert 'routemap-$version-linux-x86_64.deb' in script and 'routemap-$version-linux-x86_64.rpm' in script
+    build = (ROOT / ".github/workflows/build.yml").read_text()
+    assert "^[A-Za-z0-9._+-]+$" in build

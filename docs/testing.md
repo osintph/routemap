@@ -19,8 +19,8 @@ Take the installer for your system:
 | Windows 10/11 | `routemap-<version>-windows-x86_64-setup.exe` |
 | macOS, Apple silicon | `routemap-<version>-macos-arm64.dmg` |
 | macOS, Intel | `routemap-<version>-macos-x86_64.dmg` |
-| Debian, Ubuntu and relatives | `routemap_<version>-<build>_amd64.deb` |
-| Fedora, RHEL, openSUSE | `routemap-<version>-<build>.x86_64.rpm` |
+| Debian, Ubuntu and relatives | `routemap-<version>-linux-x86_64.deb` |
+| Fedora, RHEL, openSUSE | `routemap-<version>-linux-x86_64.rpm` |
 
 The [download page](https://getroutemap.app/download/) has the install,
 upgrade and uninstall steps, and what to do when Windows SmartScreen or macOS

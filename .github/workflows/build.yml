@@ -190,9 +190,14 @@ jobs:
         if: runner.os == 'Linux'
         run: sh packaging/linux/build_packages.sh build/nuitka/routemap "${{ steps.v.outputs.version }}" "$GITHUB_RUN_NUMBER" out
 
-      - name: Sizes
+      - name: Sizes, and file names GitHub keeps as they are
         shell: bash
-        run: ls -l out/
+        run: |
+          ls -l out/
+          # GitHub changes other characters in release file names (it turned
+          # "~" into "."), which breaks SHA256SUMS and every link to the file.
+          bad=$(ls out | grep -vE '^[A-Za-z0-9._+-]+$' || true)
+          [ -z "$bad" ] || { echo "::error::release file names GitHub would change: $bad"; exit 1; }
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: routemap-${{ matrix.target }}

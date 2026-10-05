@@ -35,8 +35,8 @@ REST = """- **macOS 12+**: open the `.dmg` for your Mac (`macos-arm64` for Apple
   choose **Open**, then **Open** again (on macOS 15, System Settings > Privacy &
   Security > **Open Anyway**). Or: `xattr -d com.apple.quarantine "/Applications/Route Map.app"`.
 - **Linux x86_64**: on Debian, Ubuntu and their relatives,
-  `sudo apt install ./routemap_<debversion>_amd64.deb`; on Fedora, RHEL and
-  openSUSE, `sudo dnf install ./routemap-<debversion>.x86_64.rpm` (or `zypper
+  `sudo apt install ./routemap-<version>-linux-x86_64.deb`; on Fedora, RHEL and
+  openSUSE, `sudo dnf install ./routemap-<version>-linux-x86_64.rpm` (or `zypper
   install`). Route Map is then in the applications menu and `routemap` on the
   PATH. Without installing: `chmod +x` the `.AppImage` and run it, or unpack the
   `.tar.gz` and run `./routemap`. Where the distribution does not allow
@@ -55,7 +55,6 @@ routemap`. Settings and history stay until you delete their folder:
 
 def notes(tag: str, fingerprint: str = "", windows_signed: bool = False) -> str:
     version = tag.lstrip("v")
-    debversion = version.replace("-", "~", 1)
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     match = re.search(rf"^## \[{re.escape(version)}\].*?$(.*?)(?=^## \[|\Z)", changelog, re.M | re.S)
     body = match.group(1).strip() if match else f"Release {version}."
@@ -70,7 +69,7 @@ def notes(tag: str, fingerprint: str = "", windows_signed: bool = False) -> str:
     return "\n\n".join([
         "## Install",
         ((WINDOWS_SIGNED if windows_signed else WINDOWS_UNSIGNED) + "\n" + REST)
-        .replace("<version>", version).replace("<debversion>", debversion + "-*"),
+        .replace("<version>", version),
         verify,
         f"Problems or ideas: [open an issue]({REPO_URL}/issues).",
         "---",

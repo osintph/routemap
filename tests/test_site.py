@@ -136,7 +136,7 @@ def test_the_download_page_puts_the_installer_first_for_each_platform(tmp_path):
     v, tag = "0.2.0-beta.2", "v0.2.0-beta.2"
     names = [f"routemap-{v}-windows-x86_64-setup.exe", f"routemap-{v}-windows-x86_64.zip",
              f"routemap-{v}-macos-arm64.dmg", f"routemap-{v}-macos-x86_64.dmg",
-             "routemap_0.2.0~beta.2-57_amd64.deb", "routemap-0.2.0~beta.2-57.x86_64.rpm",
+             f"routemap-{v}-linux-x86_64.deb", f"routemap-{v}-linux-x86_64.rpm",
              f"routemap-{v}-linux-x86_64.AppImage", f"routemap-{v}-linux-x86_64.tar.gz", "SHA256SUMS"]
     rel = tmp_path / "release.json"
     rel.write_text(json.dumps({"tagName": tag, "publishedAt": "2026-10-05T00:00:00Z",
