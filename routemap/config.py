@@ -40,6 +40,10 @@ def config_dir() -> Path:
     override = os.environ.get("ROUTEMAP_CONFIG_DIR")
     if override:
         return Path(override)
+    return _default_config_dir()
+
+
+def _default_config_dir() -> Path:
     if sys.platform == "darwin":
         return Path.home() / "Library" / "Application Support" / NAME
     if sys.platform.startswith("win"):
@@ -47,8 +51,67 @@ def config_dir() -> Path:
     return Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / NAME
 
 
+# The files the app keeps in its folder; each is 0600 and the folder 0700
+# (RM-11): they name where the user traces to and through.
+OWN_FILES = ("settings.json", "history.json", "cache.sqlite3", "ipgeo-cache.sqlite3",
+             "ripe-cache.sqlite3", "site_codes.tsv")
+SQLITE_COMPANIONS = ("", "-wal", "-shm", "-journal")
+
+
+def private_dir(path: Path) -> Path:
+    """Create *path* as 0700. An existing folder is tightened when it is the
+    app's own (the default config folder or one inside it), never a folder a
+    ROUTEMAP_CONFIG_DIR override points at, which may hold anything."""
+    path = Path(path)
+    if not path.exists():
+        path.mkdir(mode=0o700, parents=True, exist_ok=True)
+        os.chmod(path, 0o700)
+    elif os.name != "nt":
+        own = _default_config_dir()
+        if path == own or own in path.parents:
+            os.chmod(path, 0o700)
+    return path
+
+
+def private_file(path: Path) -> Path:
+    """*path* as 0600, created empty when missing (SQLite gives its journal
+    files the database's own mode, so a cache made this way stays private)."""
+    path = Path(path)
+    private_dir(path.parent)
+    if os.name == "nt":
+        path.touch(exist_ok=True)
+        return path
+    os.close(os.open(path, os.O_CREAT | os.O_WRONLY, 0o600))
+    for suffix in SQLITE_COMPANIONS:
+        try:
+            os.chmod(str(path) + suffix, 0o600)
+        except FileNotFoundError:
+            pass
+    return path
+
+
+def tighten() -> None:
+    """At start: the folder an older version made 0755, and its files 0644."""
+    if os.name == "nt":
+        return
+    root = config_dir()
+    if not root.is_dir():
+        return
+    private_dir(root)
+    for name in OWN_FILES:
+        for suffix in SQLITE_COMPANIONS:
+            if (root / (name + suffix)).is_file():
+                os.chmod(root / (name + suffix), 0o600)
+    data = root / "data"
+    if data.is_dir() and not data.is_symlink():
+        private_dir(data)
+        for item in data.iterdir():
+            if item.is_file() and not item.is_symlink() and ".mmdb" in item.name:
+                os.chmod(item, 0o600)
+
+
 def _atomic_write(path: Path, text: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
+    private_dir(path.parent)
     fd, tmp = tempfile.mkstemp(prefix=path.name + ".", dir=path.parent)
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as handle:

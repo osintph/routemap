@@ -31,6 +31,7 @@ EXPORT_FORMAT_VERSION = 2
 
 def startup() -> None:
     """Things to settle once per process: a refreshed site-code table, if any."""
+    config.tighten()
     sitecodes.use_data_file(config.site_codes_path())
 
 
@@ -90,13 +91,13 @@ def sources_for(settings: config.Settings) -> Sources:
 
     online = bool(settings.online_lookups)
     ttl = max(1, settings.cache_ttl_days) * 86400
-    hoiho_cache = SqliteCache(config.cache_path(), ttl_seconds=ttl)
+    hoiho_cache = SqliteCache(config.private_file(config.cache_path()), ttl_seconds=ttl)
     base = default_sources(user_agent=user_agent(), cache=hoiho_cache,
                            use_hoiho=online and settings.use_hoiho and policy.HOIHO_ALLOWED,
                            use_ip_db=False, use_ptr=online and settings.use_ptr)
     ripestat = None
     if online and settings.use_ip_db and policy.RIPESTAT_ALLOWED:
-        ip_cache = SqliteCache(config.ip_cache_path(), ttl_seconds=ttl)
+        ip_cache = SqliteCache(config.private_file(config.ip_cache_path()), ttl_seconds=ttl)
 
         async def ripestat(addresses: list[str]) -> dict:
             """RIPEstat, with answers kept locally for the cache lifetime. Only real

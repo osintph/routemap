@@ -93,7 +93,7 @@ def online_allowed(settings: config.Settings) -> bool:
 
 
 def client(settings: config.Settings, user_agent: str, sourceapp: str) -> ripe.RipeStat:
-    cache = SqliteCache(config.ripe_cache_path(), ttl_seconds=30 * 86400)
+    cache = SqliteCache(config.private_file(config.ripe_cache_path()), ttl_seconds=30 * 86400)
     return ripe.RipeStat(user_agent=user_agent, sourceapp=sourceapp, cache=cache)
 
 
@@ -106,7 +106,8 @@ async def online(route: dict, insight: dict, settings: config.Settings, *, user_
         return insight
     stat = stat or client(settings, user_agent, sourceapp)
     atlas = atlas or baseline.Baseline(user_agent=user_agent,
-                                       cache=SqliteCache(config.ripe_cache_path(), ttl_seconds=86400))
+                                       cache=SqliteCache(config.private_file(config.ripe_cache_path()),
+                                                         ttl_seconds=86400))
     now = now or _dt.datetime.now(_dt.timezone.utc)
     result: dict = {"status": "partial", "hops": {}, "asns": {}, "prefix": None, "baseline": None,
                     "fetched_at": now.isoformat(timespec="seconds")}

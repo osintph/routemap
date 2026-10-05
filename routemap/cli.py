@@ -209,8 +209,10 @@ def cmd_sites(args) -> int:
     if args.action != "update":
         return 2
     out = config.site_codes_path()
-    out.parent.mkdir(parents=True, exist_ok=True)
+    config.private_dir(out.parent)
     code = sitegen.main((["--dry-run"] if args.dry_run else []) + ["--out", str(out)])
+    if out.exists():
+        config.private_file(out)
     if code == 0 and not args.dry_run:
         _err(f"{NAME}: the updated table is used from now on instead of the bundled one. "
              f"Delete {out} to go back to the bundled table.")

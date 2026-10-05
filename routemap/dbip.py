@@ -63,6 +63,10 @@ def data_dir() -> Path:
     return config.config_dir() / "data"
 
 
+def _private_data_dir() -> Path:
+    return config.private_dir(data_dir())
+
+
 def _check(path: Path, kind: str, shown: str | None = None) -> str:
     """Open *path*; return its build month, or raise DatabaseError naming *shown*."""
     shown = shown or path.name
@@ -125,7 +129,7 @@ def city_database() -> Database | None:
 
 
 def _install_bytes(data: bytes, target: Path, kind: str) -> None:
-    target.parent.mkdir(parents=True, exist_ok=True)
+    config.private_dir(target.parent)
     fd, tmp = tempfile.mkstemp(prefix=target.name + ".", dir=target.parent)
     try:
         with os.fdopen(fd, "wb") as handle:
@@ -155,13 +159,13 @@ def import_file(source: str | os.PathLike, kind: str = "city") -> Database:
     """Install a .mmdb or .mmdb.gz the user chose (an air-gapped machine)."""
     src = Path(source)
     staging = data_dir() / f".import-{kind}.mmdb"
-    staging.parent.mkdir(parents=True, exist_ok=True)
+    _private_data_dir()
     try:
         if src.name.endswith(".gz"):
-            with gzip.open(src, "rb") as fin, open(staging, "wb") as fout:
+            with gzip.open(src, "rb") as fin, open(config.private_file(staging), "wb") as fout:
                 shutil.copyfileobj(fin, fout)
         else:
-            shutil.copyfile(src, staging)
+            shutil.copyfile(src, config.private_file(staging))
         month = _check(staging, kind, shown=src.name)
         target = data_dir() / f"dbip-{kind}-lite-{month}.mmdb"
         os.replace(staging, target)
@@ -195,7 +199,7 @@ def download(kind: str, *, user_agent: str,
     """
     import httpx
 
-    data_dir().mkdir(parents=True, exist_ok=True)
+    _private_data_dir()
     last_error = None
     for month in candidate_months(today):
         url = URL.format(kind=kind, month=month)
