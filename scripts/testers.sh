@@ -49,6 +49,10 @@ remote() {
 
 valid_login() { [[ "$1" =~ ^[a-z0-9][a-z0-9._-]{1,31}$ ]] || die "login must be 2-32 of a-z 0-9 . _ - : $1"; }
 
+# The login as a sed and grep pattern: of the characters a login may hold, only
+# the dot means something there ("any character"), so a.b would also match aXb.
+pattern() { printf '%s' "${1//./\\.}"; }
+
 new_password() {
     # 20 characters from a 56-symbol alphabet without look-alikes (no 0 O 1 l I),
     # from the OS's cryptographic random source. (Not tr < /dev/urandom | head:
@@ -62,9 +66,10 @@ hash_password() {
 }
 
 set_entry() {
-    local login="$1" hash="$2"
+    local login="$1" hash="$2" re
+    re="$(pattern "$1")"
     # Remove any existing or disabled line for the login, then append the new one.
-    remote "$SUDO touch '$HTPASSWD_FILE' && $SUDO sed -i -e '/^$login:/d' -e '/^#disabled:$login:/d' '$HTPASSWD_FILE' \
+    remote "$SUDO touch '$HTPASSWD_FILE' && $SUDO sed -i -e '/^$re:/d' -e '/^#disabled:$re:/d' '$HTPASSWD_FILE' \
             && printf '%s\n' '$login:$hash' | $SUDO tee -a '$HTPASSWD_FILE' > /dev/null"
 }
 
@@ -86,7 +91,7 @@ cmd_add() {
     done
     [[ -n "$login" && -n "$name" && -n "$email" ]] || die "add needs --login, --name and --email"
     valid_login "$login"
-    if remote "grep -q '^$login:' '$HTPASSWD_FILE' 2>/dev/null"; then
+    if remote "grep -q '^$(pattern "$login"):' '$HTPASSWD_FILE' 2>/dev/null"; then
         die "login $login already exists (disable it first, or choose another)"
     fi
 
@@ -139,15 +144,15 @@ MAIL
 
 cmd_disable() {
     local login="${1:-}"; valid_login "$login"
-    remote "grep -q '^$login:' '$HTPASSWD_FILE'" || die "no active login $login"
-    remote "$SUDO sed -i 's/^$login:/#disabled:$login:/' '$HTPASSWD_FILE'"
+    remote "grep -q '^$(pattern "$login"):' '$HTPASSWD_FILE'" || die "no active login $login"
+    remote "$SUDO sed -i 's/^$(pattern "$login"):/#disabled:$login:/' '$HTPASSWD_FILE'"
     ledger_row disable "$login" "" ""
     echo "disabled $login (the download site refuses it from now on)"
 }
 
 cmd_enable() {
     local login="${1:-}"; valid_login "$login"
-    remote "grep -q '^#disabled:$login:' '$HTPASSWD_FILE'" || die "no disabled login $login"
+    remote "grep -q '^#disabled:$(pattern "$login"):' '$HTPASSWD_FILE'" || die "no disabled login $login"
     local password hash
     password="$(new_password)"
     hash="$(hash_password "$password")"

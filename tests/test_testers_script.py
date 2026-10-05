@@ -43,3 +43,31 @@ def test_add_list_disable_enable_and_the_welcome_email(tmp_path):
     assert enabled.returncode == 0 and htpasswd.read_text().startswith("jdoe:$6$")
     assert run("add", "--login", "Bad Login!", "--name", "x", "--email", "x@y").returncode != 0
     assert (tmp_path / "testers.csv").read_text().count("jdoe") == 3
+
+
+def test_a_login_with_a_dot_matches_only_itself(tmp_path):
+    """RM-19: a dot in a login is a literal dot, not "any character", in every
+    add, disable and enable; the other tester's line is never touched."""
+    htpasswd = tmp_path / "testers.htpasswd"
+    conf = tmp_path / "testers.env"
+    conf.write_text(f"DOWNLOAD_HOST=unused\nHTPASSWD_FILE={htpasswd}\n"
+                    f"DOWNLOAD_URL=https://downloads.example.org/\nGPG_FINGERPRINT='AAAA'\n")
+    env = dict(os.environ, TESTERS_REMOTE_LOCAL="1", ROUTEMAP_TESTERS_ENV=str(conf),
+               ROUTEMAP_TESTERS_LEDGER=str(tmp_path / "testers.csv"), PYTHON=sys.executable)
+    run = lambda *a: subprocess.run(["bash", "scripts/testers.sh", *a], cwd=ROOT, env=env,
+                                    capture_output=True, text=True)
+    other = "aXb:$6$other$keepme\n"
+
+    htpasswd.write_text(other)
+    added = run("add", "--login", "a.b", "--name", "A B", "--email", "ab@example.org")
+    assert added.returncode == 0, added.stderr
+    assert other in htpasswd.read_text(), "add for a.b removed aXb"
+
+    assert run("disable", "a.b").returncode == 0
+    assert other in htpasswd.read_text(), "disable a.b touched aXb"
+
+    htpasswd.write_text("#disabled:aXb:$6$other$keepme\n")
+    assert run("enable", "a.b").returncode != 0, "enable a.b found aXb's disabled line"
+    htpasswd.write_text(other)
+    assert run("disable", "a.b").returncode != 0, "disable a.b found aXb"
+    assert htpasswd.read_text() == other
