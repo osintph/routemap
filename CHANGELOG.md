@@ -4,6 +4,47 @@ All notable changes to this project are documented here. The format is based
 on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 uses [Semantic Versioning](https://semver.org/).
 
+## [0.2.0-beta.4] - 2026-10-05
+
+Fixes from a validation round on beta.3. The engine is routemap-engine
+0.4.2, which has its own list.
+
+### Security
+
+- **Engine 0.4.2: compressed answers no longer get past the 2 MB cap.** In
+  0.4.1 the cap on answers from the online sources counted the bytes as they
+  arrived, before decompression, so a small compressed answer could decode to
+  hundreds of megabytes and exhaust the app's memory. The engine now asks
+  every source for an uncompressed answer and refuses one that arrives
+  compressed anyway, before decoding any of it. The app installs it from
+  PyPI by hash, as before.
+
+### Fixed
+
+- **A malformed export ends in a clear error, never in a crash inside the
+  window.** Three kinds of route file got past the checks added in beta.3
+  and failed later, two of them while drawing: a number no route holds (an
+  RTT, loss or distance far out of range), a place with a latitude but no
+  longitude, and JSON nested too deeply to parse. Open, Compare with an
+  Export, `routemap-cli --compare` and the history file now refuse such a
+  file and say where the problem is; a settings file nested too deeply falls
+  back to the defaults. Exports and history files written by beta.1, beta.2
+  and beta.3 open unchanged.
+- **Windows: upgrading an all-users install that beta.2 put in a chosen
+  folder retires that folder.** beta.2 let an install for all users go into
+  any folder and put it on the machine PATH; since beta.3 such installs go
+  into Program Files only, and the old folder and its PATH entry stayed
+  behind. The installer now takes the old folder and its `bin` off the
+  machine PATH, deletes there only Route Map's own files (following no
+  junction or symbolic link) and removes the folder once it is empty.
+
+### Changed
+
+- **Route Map is not on PyPI.** `pip install routemap` installs an unrelated
+  project of the same name. The README and the download page now say that
+  Route Map comes only from its GitHub Releases and getroutemap.app, and that
+  its engine is the `routemap-engine` package.
+
 ## [0.2.0-beta.3] - 2026-10-05
 
 Fixes from a security review of the app, the engine and the release path. The
