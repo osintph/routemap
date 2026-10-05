@@ -109,6 +109,12 @@ def test_resign_release_takes_no_typed_hashes_and_checks_every_windows_file():
     assert "signing-cert-sha1.txt" in text
 
 
-def test_the_pinned_thumbprint_file_is_a_thumbprint_or_says_it_is_unset():
-    value = (ROOT / "packaging" / "windows" / "signing-cert-sha1.txt").read_text().split("#")[0].strip()
-    assert value == "unset" or (len(value) == 40 and all(c in "0123456789ABCDEF" for c in value)), value
+def test_the_pinned_thumbprint_is_absent_or_a_thumbprint_and_absent_refuses_every_signature():
+    """No Certum certificate yet: the file is absent, and an empty pin refuses."""
+    pin = ROOT / "packaging" / "windows" / "signing-cert-sha1.txt"
+    if pin.exists():
+        value = pin.read_text().splitlines()[0].strip()
+        assert len(value) == 40 and all(c in "0123456789ABCDEF" for c in value), value
+    for empty in ("", " ", "unset"):
+        with pytest.raises(sc.SignatureCheckError, match="no pinned certificate"):
+            sc.check_signer(b"MZ", empty)

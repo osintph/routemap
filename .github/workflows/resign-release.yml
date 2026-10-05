@@ -11,7 +11,8 @@
 #   - the zip: the same files as the build's zip, each identical except
 #     routemap.exe and routemap-cli.exe, which must be the build's bytes plus a
 #     valid Authenticode signature from the certificate in
-#     packaging/windows/signing-cert-sha1.txt (packaging/windows/signed_check.py);
+#     packaging/windows/signing-cert-sha1.txt, absent until the certificate exists
+#     (packaging/windows/signed_check.py);
 #   - the installer, which sign-windows.ps1 rebuilds around the signed folder
 #     (so its bytes cannot match the build's): a valid Authenticode signature
 #     from that certificate.
@@ -77,7 +78,11 @@ jobs:
           echo "$(wc -l < built.sha256) files from the build run"
       - name: Every file in the release is accounted for
         run: |
-          PIN="$(sed -n '1p' packaging/windows/signing-cert-sha1.txt | tr -d '[:space:]')"
+          # Absent until the Certum certificate exists; an empty pin refuses every signed file.
+          PIN=""
+          if [ -f packaging/windows/signing-cert-sha1.txt ]; then
+            PIN="$(sed -n '1p' packaging/windows/signing-cert-sha1.txt | tr -d '[:space:]')"
+          fi
           CA=/etc/ssl/certs/ca-certificates.crt
           verify() { osslsigncode verify -in "$1" -CAfile "$CA" -TSA-CAfile "$CA" > "$RUNNER_TEMP/verify.txt" 2>&1 \
                        || { cat "$RUNNER_TEMP/verify.txt"; echo "::error::$1: the Authenticode signature does not verify"; return 1; }; }
