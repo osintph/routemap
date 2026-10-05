@@ -12,6 +12,7 @@ import datetime as _dt
 import json
 import os
 import pathlib
+import re
 import sys
 import threading
 from typing import Callable
@@ -215,24 +216,68 @@ def tool_label(argv: list[str] | None) -> str:
 
 # -------------------------------------------------------------- update check ---
 
+RELEASE_TAG = re.compile(r"v\d+\.\d+\.\d+(?:-[a-z]+\.\d+)?")
+ASSET_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._+-]{0,199}")
+SHA256 = re.compile(r"sha256:([0-9a-f]{64})")
+
+
+def release_url(url) -> str | None:
+    """*url* when it is a page or file of this repository on github.com over
+    https, else None (hardening 9): the update check opens nothing else."""
+    from urllib.parse import urlsplit
+    if not isinstance(url, str) or any(c in url for c in "\\@ \t\r\n"):
+        return None
+    parts = urlsplit(url)
+    path = parts.path
+    if (parts.scheme != "https" or parts.netloc != "github.com" or not path.startswith(f"/{REPO_SLUG}/")
+            or ".." in path.split("/") or "%2e" in path.lower() or "%5c" in path.lower()):
+        return None
+    return url
+
+
 async def latest_release() -> dict | None:
     """The newest release on GitHub, pre-releases included, as {tag, page, assets:
-    {name: download URL}}; None when there is none. One request."""
-    import httpx
+    {name: download URL}, digests: {name: SHA-256}}; None when there is none.
+    One request, read under the engine's response cap. Only a release tag, and
+    only this repository's own URLs, are kept."""
+    from routemap_engine import httpclient
 
-    async with httpx.AsyncClient() as client:
+    async with httpclient.client() as client:
         response = await client.get(f"https://api.github.com/repos/{REPO_SLUG}/releases",
                                     params={"per_page": 1}, timeout=10.0,
                                     headers={"User-Agent": user_agent(),
                                              "Accept": "application/vnd.github+json"})
-    response.raise_for_status()
-    releases = response.json() or []
-    if not releases:
+        response.raise_for_status()
+        releases = response.json() or []
+    if not isinstance(releases, list) or not releases or not isinstance(releases[0], dict):
         return None
     rel = releases[0]
-    return {"tag": rel.get("tag_name") or "", "page": rel.get("html_url") or f"{REPO_URL}/releases",
-            "assets": {a["name"]: a["browser_download_url"] for a in rel.get("assets", [])
-                       if a.get("name") and a.get("browser_download_url")}}
+    tag = rel.get("tag_name")
+    if not isinstance(tag, str) or not RELEASE_TAG.fullmatch(tag):
+        return None
+    assets, digests = {}, {}
+    for a in rel.get("assets") or []:
+        name = a.get("name") if isinstance(a, dict) else None
+        url = release_url(a.get("browser_download_url")) if isinstance(a, dict) else None
+        if not (isinstance(name, str) and ASSET_NAME.fullmatch(name) and url
+                and url.startswith(f"{REPO_URL}/releases/download/")):
+            continue
+        assets[name] = url
+        digest = SHA256.fullmatch(str(a.get("digest") or ""))
+        if digest:
+            digests[name] = digest.group(1)
+    return {"tag": tag, "page": release_url(rel.get("html_url")) or f"{REPO_URL}/releases",
+            "assets": assets, "digests": digests}
+
+
+def verify_command(name: str, system: str | None = None) -> str:
+    """The command that prints *name*'s SHA-256 on this platform."""
+    system = system or sys.platform
+    if system.startswith("win"):
+        return f"Get-FileHash -Algorithm SHA256 {name}"
+    if system == "darwin":
+        return f"shasum -a 256 {name}"
+    return f"sha256sum {name}"
 
 
 def release_order(tag: str) -> tuple:

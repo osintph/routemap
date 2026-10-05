@@ -888,6 +888,7 @@ class Controller(QObject):
     def _update_result(self, latest):
         current = f"v{VERSION}"
         box = QMessageBox(self.w)
+        box.setTextFormat(Qt.PlainText)
         box.setWindowTitle("Check for updates")
         box.setIcon(QMessageBox.Icon.Information)
         if not latest:
@@ -904,19 +905,26 @@ class Controller(QObject):
             box.exec()
             return
         offer = service.installer_for(latest["assets"])
+        if offer and not service.release_url(offer[1]):
+            offer = None
+        digest = (latest.get("digests") or {}).get(offer[0]) if offer else None
         box.setText(f"{DISPLAY_NAME} {tag} is out; you have {current}.")
         box.setInformativeText(
             (f"For this computer: {offer[0]}. Your browser downloads it; install it over this "
              "version, and your settings and history stay." if offer else
-             "The release has no download for this platform; the release page lists every file."))
+             "The release has no download for this platform; the release page lists every file.")
+            + (f"\n\nIts SHA-256 is\n{digest}\nCheck the downloaded file with\n"
+               f"{service.verify_command(offer[0])}\nand compare, or check it against the signed "
+               "SHA256SUMS on the release page." if digest else ""))
         get = box.addButton("Download" if offer else "Open the release page", QMessageBox.ButtonRole.AcceptRole)
         notes = box.addButton("Release notes", QMessageBox.ButtonRole.HelpRole) if offer else None
         box.addButton(QMessageBox.StandardButton.Close)
         box.exec()
+        page = service.release_url(latest.get("page")) or f"{REPO_URL}/releases"
         if box.clickedButton() is get:
-            QDesktopServices.openUrl(QUrl(offer[1] if offer else latest["page"]))
+            QDesktopServices.openUrl(QUrl(offer[1] if offer else page))
         elif notes is not None and box.clickedButton() is notes:
-            QDesktopServices.openUrl(QUrl(latest["page"]))
+            QDesktopServices.openUrl(QUrl(page))
 
     def about(self):
         QMessageBox.about(self.w, f"About {DISPLAY_NAME}", (
