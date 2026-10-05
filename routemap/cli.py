@@ -26,6 +26,7 @@ import asyncio
 import datetime as _dt
 import json
 import os
+import re
 import sys
 
 from routemap.__about__ import DISPLAY_NAME, NAME, VERSION
@@ -203,6 +204,28 @@ def cmd_parse(args) -> int:
     return _outputs(args, current)
 
 
+SITE_CODE = re.compile(r"[a-z0-9-]{2,12}")
+
+
+def _bad_site_rows(text: str) -> list[str]:
+    """Lines of a site-code table that are not carrier, code, city, country,
+    latitude, longitude, source; the code must match SITE_CODE."""
+    bad = []
+    for line in text.splitlines():
+        if not line.strip() or line.startswith("#"):
+            continue
+        f = line.split("\t")
+        ok = len(f) == 7 and SITE_CODE.fullmatch(f[1]) and re.fullmatch(r"[a-z0-9-]{1,32}", f[0]) \
+            and re.fullmatch(r"[A-Z]{2}", f[3]) and all(ch.isprintable() and ch not in "<>" for ch in f[2])
+        try:
+            ok = ok and -90 <= float(f[4]) <= 90 and -180 <= float(f[5]) <= 180
+        except ValueError:
+            ok = False
+        if not ok:
+            bad.append(line[:80])
+    return bad
+
+
 def cmd_sites(args) -> int:
     from routemap import config
     from routemap_engine import sitegen
@@ -211,9 +234,22 @@ def cmd_sites(args) -> int:
         return 2
     out = config.site_codes_path()
     config.private_dir(out.parent)
-    code = sitegen.main((["--dry-run"] if args.dry_run else []) + ["--out", str(out)])
-    if out.exists():
-        config.private_file(out)
+    if args.dry_run:
+        return sitegen.main(["--dry-run", "--out", str(out)])
+    # Built beside the table in use, checked, then moved over it: a looking-glass
+    # page that returns nonsense replaces nothing (hardening 17).
+    staging = config.private_file(out.with_name(out.name + ".new"))
+    try:
+        code = sitegen.main(["--out", str(staging)])
+        if code == 0:
+            bad = _bad_site_rows(staging.read_text(encoding="utf-8"))
+            if bad:
+                _err(f"{NAME}: the new table has {len(bad)} line(s) that are not site codes, "
+                     f"for example {bad[0]!r}; the table in use is unchanged.")
+                return 1
+            os.replace(staging, out)
+    finally:
+        staging.unlink(missing_ok=True)
     if code == 0 and not args.dry_run:
         _err(f"{NAME}: the updated table is used from now on instead of the bundled one. "
              f"Delete {out} to go back to the bundled table.")

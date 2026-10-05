@@ -274,6 +274,18 @@ class HopTable(QTableView):
             return
         super().keyPressEvent(event)
 
+    @staticmethod
+    def _cell(text: str) -> str:
+        """A cell a spreadsheet takes as text: one that would start a formula
+        (= + - @, or a tab or CR before one) gets a leading apostrophe. Numbers,
+        negative ones included, and the "-" for no value stay as they are."""
+        if text[:1] in ("=", "+", "-", "@", "\t", "\r") and text != "-":
+            try:
+                float(text)
+            except ValueError:
+                return "'" + text.replace("\t", " ").replace("\r", " ")
+        return text
+
     def copy_selection(self) -> str:
         """Selected rows (or all of them) as tab-separated text with a header."""
         rows = sorted({i.row() for i in self.selectionModel().selectedIndexes()}) \
@@ -282,7 +294,7 @@ class HopTable(QTableView):
         for row in rows:
             source_row = self.proxy.mapToSource(self.proxy.index(row, 0)).row()
             hop = self.model_.hops[source_row]
-            lines.append("\t".join(self.model_.text(hop, c) for c in range(len(COLUMNS))))
+            lines.append("\t".join(self._cell(self.model_.text(hop, c)) for c in range(len(COLUMNS))))
         text = "\n".join(lines) + "\n"
         QGuiApplication.clipboard().setText(text)
         return text
