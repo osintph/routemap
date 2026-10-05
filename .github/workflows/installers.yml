@@ -22,9 +22,7 @@ on:
         type: boolean
         default: false
 
-permissions:
-  contents: read
-  actions: read
+permissions: {}
 
 env:
   PYTHON_VERSION: "3.12"
@@ -33,6 +31,8 @@ jobs:
   source:
     name: Build run
     runs-on: ubuntu-24.04
+    permissions:
+      actions: read
     outputs:
       sha: ${{ steps.run.outputs.sha }}
       number: ${{ steps.run.outputs.number }}
@@ -56,12 +56,17 @@ jobs:
     name: Windows installer
     needs: source
     runs-on: windows-2025
+    permissions:
+      contents: read
+      actions: read   # the build run's artifacts
     timeout-minutes: 40
     env:
       SHA: ${{ needs.source.outputs.sha }}
       RUN: ${{ needs.source.outputs.number }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: ${{ env.PYTHON_VERSION }}
@@ -104,12 +109,17 @@ jobs:
     name: Linux packages
     needs: source
     runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      actions: read   # the build run's artifacts
     timeout-minutes: 20
     env:
       SHA: ${{ needs.source.outputs.sha }}
       RUN: ${{ needs.source.outputs.number }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: routemap-linux-x86_64
@@ -134,15 +144,20 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     container: ${{ matrix.image }}
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
         include:
-          - { image: "ubuntu:24.04", kind: deb }
-          - { image: "debian:12", kind: deb }
-          - { image: "fedora:42", kind: rpm }
+          # By digest (the multi-architecture index), so the test systems cannot change under us.
+          - { image: "ubuntu:24.04@sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55", kind: deb }
+          - { image: "debian:12@sha256:f37a335e82bca302e955fa39f9dfe28f1be618f016f8a2b56318e5a5111afc26", kind: deb }
+          - { image: "fedora:42@sha256:99e203b80b1c3d8f7e161ec10a68fd02b081ef83a3963553e513c82846b97814", kind: rpm }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: routemap-linux-x86_64-packages
@@ -160,10 +175,15 @@ jobs:
     if: inputs.sign_check
     needs: [source, windows]
     runs-on: windows-2025
+    permissions:
+      contents: read
+      actions: read   # the build run's artifacts
     timeout-minutes: 30
     steps:
       # This workflow's own scripts, against the build run's files (-AnyCheckout).
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: ${{ env.PYTHON_VERSION }}

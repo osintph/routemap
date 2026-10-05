@@ -8,20 +8,23 @@ on:
         description: "Trace target"
         default: "heise.de"
 
-permissions:
-  contents: read
+permissions: {}
 
 jobs:
   diagnose:
     name: ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-24.04, windows-2025, macos-15]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
@@ -29,7 +32,9 @@ jobs:
         shell: bash
         run: |
           [ "$RUNNER_OS" = "Linux" ] && sudo apt-get install -y -q traceroute >/dev/null
-          python -m pip install -q -e .
+          python -m pip install -q --require-hashes -r requirements/build-backends.txt
+          python -m pip install -q --require-hashes -r requirements/app.txt
+          python -m pip install -q --no-deps --no-build-isolation .
           [ "$RUNNER_OS" = "Linux" ] && { echo "--- man traceroute (probe methods)"; man traceroute | col -b | grep -E "^ +-(I|T|U|q|w|m) " -A3; sysctl net.ipv4.ping_group_range; id; } || true
       - name: Diagnose
         shell: bash

@@ -46,7 +46,8 @@ COMMON = [
     "--nofollow-import-to=nuitka",
     "--noinclude-qt-translations",
     "--python-flag=no_docstrings",
-    "--assume-yes-for-downloads",
+    # No --assume-yes-for-downloads: Nuitka fetches helper tools without a
+    # checksum, so a build that would need one fails instead (RM-06).
     f"--output-dir={OUT}",
     f"--product-name={DISPLAY_NAME}",
     "--company-name=OSINTPH",
