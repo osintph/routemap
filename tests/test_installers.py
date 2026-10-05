@@ -74,3 +74,24 @@ def test_release_file_names_survive_github():
     assert 'routemap-$version-linux-x86_64.deb' in script and 'routemap-$version-linux-x86_64.rpm' in script
     build = (ROOT / ".github/workflows/build.yml").read_text()
     assert "^[A-Za-z0-9._+-]+$" in build
+
+
+def test_a_per_machine_install_lives_only_where_ordinary_users_cannot_write():
+    """RM-14: per machine, no folder page, Program Files enforced before files
+    are copied, and an earlier uninstaller runs elevated only from there; the
+    PATH task adds a bin folder with only the CLI launcher. The Windows run of
+    install_check.ps1 checks the same on a real machine."""
+    iss = (ROOT / "packaging" / "windows" / "routemap.iss").read_text()
+    code = iss.split("[Code]", 1)[1]
+    flat = " ".join(code.split())
+    assert "Result := (PageID = wpSelectDir) and IsAdminInstallMode;" in flat
+    assert "if IsAdminInstallMode then WizardForm.DirEdit.Text := MachineDir;" in flat
+    assert "if IsAdminInstallMode and not UnderProgramFiles(ExpandConstant('{app}')) then Result :=" in flat
+    assert "if IsAdminInstallMode and not UnderProgramFiles(Cmd) then begin" in flat
+    adds = re.findall(r"AddToPath\(([^)]*)\)", code.replace("procedure AddToPath(Dir: String)", ""))
+    assert adds == ["Bin"], adds
+    assert "Bin := ExpandConstant('{app}\\bin');" in flat
+    assert "RemoveFromPath(ExpandConstant('{app}\\bin'));" in flat
+    check = (ROOT / "packaging" / "windows" / "install_check.ps1").read_text()
+    assert "the bin folder holds only" in check and "/DIR=$elsewhere" in check
+    assert "does not have the app folder" in check

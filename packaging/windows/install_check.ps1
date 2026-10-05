@@ -5,9 +5,11 @@
 # Per user (/CURRENTUSER, no admin rights used) and per machine (/ALLUSERS):
 # the files land in the right folder, both executables are there and report the
 # commit, the Start menu shortcut and the Settings > Apps entry exist, the PATH
-# task adds the folder once; installing again over it (an upgrade) leaves one
-# entry; the uninstaller removes the folder, the shortcut, the entry and the
-# PATH change. Exits non-zero on the first failure.
+# task adds the bin folder (only the CLI launcher in it, never the app folder)
+# once; per machine a /DIR= elsewhere is ignored and Program Files is used;
+# installing again over it (an upgrade) leaves one entry; the uninstaller
+# removes the folder, the shortcut, the entry and the PATH change. Exits
+# non-zero on the first failure.
 param(
     [Parameter(Mandatory = $true)] [string] $Setup,
     [Parameter(Mandatory = $true)] [string] $Commit,
@@ -20,9 +22,9 @@ $Guid = "{260F97E1-3DC2-4D4E-9070-C4D930805B2E}_is1"
 function Fail($why) { Write-Host "::error::$why"; exit 1 }
 function Check($ok, $why) { if (-not $ok) { Fail $why } else { Write-Host "ok: $why" } }
 
-function Run-Setup($mode, $log) {
-    $p = Start-Process -FilePath $Setup -PassThru -Wait -ArgumentList @(
-        "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/SP-", $mode, "/TASKS=addtopath", "/LOG=$log")
+function Run-Setup($mode, $log, $extra = @()) {
+    $p = Start-Process -FilePath $Setup -PassThru -Wait -ArgumentList (@(
+        "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/SP-", $mode, "/TASKS=addtopath", "/LOG=$log") + $extra)
     if ($p.ExitCode -ne 0) { Get-Content $log | Select-Object -Last 40; Fail "setup $mode exited $($p.ExitCode)" }
 }
 
@@ -31,9 +33,15 @@ function Path-Entries($scope) {
     @($raw -split ";" | Where-Object { $_ -ne "" })
 }
 
-function Check-Mode($mode, $root, $dir, $menu, $scope) {
-    Write-Host "---- $mode"
-    Run-Setup $mode "$env:RUNNER_TEMP\setup-$($mode.Trim('/')).log"
+function Check-Path($scope, $bin, $dir, $why) {
+    Check ((Path-Entries $scope | Where-Object { $_ -ieq $bin }).Count -eq 1) "PATH ($scope) has the bin folder once$why"
+    Check ((Path-Entries $scope | Where-Object { $_ -ieq $dir }).Count -eq 0) "PATH ($scope) does not have the app folder$why"
+}
+
+function Check-Mode($mode, $root, $dir, $menu, $scope, $extra = @()) {
+    Write-Host "---- $mode $extra"
+    Run-Setup $mode "$env:RUNNER_TEMP\setup-$($mode.Trim('/')).log" $extra
+    $bin = Join-Path $dir "bin"
     $gui = Join-Path $dir "$Name.exe"
     $cli = Join-Path $dir "$Name-cli.exe"
     Check (Test-Path $gui) "$gui installed"
@@ -47,11 +55,15 @@ function Check-Mode($mode, $root, $dir, $menu, $scope) {
     Check (Test-Path $key) "Settings > Apps entry under $root"
     $entry = Get-ItemProperty $key
     Check ($entry.DisplayName -eq $AppName) "listed as '$($entry.DisplayName)', version $($entry.DisplayVersion), publisher $($entry.Publisher)"
-    Check ((Path-Entries $scope | Where-Object { $_ -ieq $dir }).Count -eq 1) "PATH ($scope) has the folder once"
+    Check-Path $scope $bin $dir ""
+    $inBin = @(Get-ChildItem $bin -Force | ForEach-Object { $_.Name })
+    Check (($inBin.Count -eq 1) -and ($inBin[0] -eq "$Name-cli.cmd")) "the bin folder holds only $Name-cli.cmd ($($inBin -join ', '))"
+    $v = & (Join-Path $bin "$Name-cli.cmd") --version
+    Check ("$v" -match "commit $($Commit.Substring(0,12))") "the launcher runs the installed CLI ($v)"
 
     Run-Setup $mode "$env:RUNNER_TEMP\upgrade-$($mode.Trim('/')).log"
     Check ((Get-ChildItem "${root}:\Software\Microsoft\Windows\CurrentVersion\Uninstall" | Where-Object { $_.PSChildName -eq $Guid }).Count -eq 1) "installing over it keeps one entry"
-    Check ((Path-Entries $scope | Where-Object { $_ -ieq $dir }).Count -eq 1) "and PATH still has the folder once"
+    Check-Path $scope $bin $dir " after the upgrade"
     Check (Test-Path $cli) "and the files are there"
 
     $uninstall = (Get-ItemProperty $key).UninstallString.Trim('"')
@@ -75,11 +87,13 @@ function Check-Mode($mode, $root, $dir, $menu, $scope) {
     if (Test-Path $dir) { Write-Host "::warning::$dir is empty but still there" } else { Write-Host "ok: $dir removed" }
     Check (-not (Test-Path $key)) "Settings > Apps entry removed"
     Check (-not (Test-Path (Join-Path $menu "$AppName.lnk"))) "Start menu shortcut removed"
-    Check ((Path-Entries $scope | Where-Object { $_ -ieq $dir }).Count -eq 0) "PATH ($scope) no longer has the folder"
+    Check ((Path-Entries $scope | Where-Object { $_ -ieq $bin -or $_ -ieq $dir }).Count -eq 0) "PATH ($scope) no longer has the bin folder"
 }
 
 Check-Mode "/CURRENTUSER" "HKCU" (Join-Path $env:LOCALAPPDATA "Programs\$AppName") `
     (Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs") "User"
+$elsewhere = "C:\RouteMapElsewhere"
 Check-Mode "/ALLUSERS" "HKLM" (Join-Path $env:ProgramFiles $AppName) `
-    (Join-Path $env:ProgramData "Microsoft\Windows\Start Menu\Programs") "Machine"
+    (Join-Path $env:ProgramData "Microsoft\Windows\Start Menu\Programs") "Machine" @("/DIR=$elsewhere")
+Check (-not (Test-Path $elsewhere)) "a per-machine install ignored /DIR=$elsewhere"
 Write-Host "all installer checks passed"

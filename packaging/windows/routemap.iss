@@ -7,7 +7,11 @@
 ;
 ; One installer, two modes: per-machine (Program Files, needs admin) or per-user
 ; (%LOCALAPPDATA%\Programs, no admin). Setup asks; /ALLUSERS or /CURRENTUSER
-; choose on the command line. Installing over an earlier version uninstalls it
+; choose on the command line. Per machine, the folder is always Program Files:
+; no folder page, and a remembered or /DIR= folder is not used, because an
+; elevated install and its uninstaller must not live where ordinary users can
+; write (RM-14). The PATH task adds {app}\bin, which holds only a launcher for
+; the CLI, not the folder with every DLL. Installing over an earlier version uninstalls it
 ; first (settings live in %APPDATA% and are kept). AppGuid never changes: it is
 ; how Windows knows a new installer upgrades the old one.
 
@@ -67,8 +71,11 @@ Name: "{autoprograms}\{#AppName}"; Filename: "{app}\{#GuiExe}"
 Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#GuiExe}"; Tasks: desktopicon
 
 [UninstallDelete]
+; The CLI launcher the PATH task writes (see AddLauncher), then the folders.
 ; After an upgrade the folder was already there when the new version installed,
 ; so Setup did not record creating it; remove it if (and only if) it is empty.
+Type: files; Name: "{app}\bin\*.cmd"
+Type: dirifempty; Name: "{app}\bin"
 Type: dirifempty; Name: "{app}"
 
 [Run]
@@ -112,8 +119,37 @@ begin
   RegWriteExpandStringValue(EnvRoot, EnvKey, 'Path', Paths);
 end;
 
+{ Program Files, the only folder a per-machine install uses. }
+function MachineDir: String;
+begin
+  Result := ExpandConstant('{autopf}\{#AppName}');
+end;
+
+function UnderProgramFiles(Path: String): Boolean;
+begin
+  Result := Pos(Uppercase(AddBackslash(ExpandConstant('{autopf}'))), Uppercase(Path)) = 1;
+end;
+
+procedure InitializeWizard;
+begin
+  if IsAdminInstallMode then WizardForm.DirEdit.Text := MachineDir;
+end;
+
+function ShouldSkipPage(PageID: Integer): Boolean;
+begin
+  Result := (PageID = wpSelectDir) and IsAdminInstallMode;
+end;
+
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+begin
+  Result := '';
+  if IsAdminInstallMode and not UnderProgramFiles(ExpandConstant('{app}')) then
+    Result := 'A per-machine install goes in ' + MachineDir + ' only.';
+end;
+
 { An earlier version in the same mode is uninstalled first, so files that the
-  new build no longer has do not stay behind next to it. }
+  new build no longer has do not stay behind next to it. Per machine its
+  uninstaller runs elevated, so only one under Program Files is run. }
 procedure UninstallPrevious;
 var
   Key, Cmd: String;
@@ -122,18 +158,37 @@ begin
   Key := 'Software\Microsoft\Windows\CurrentVersion\Uninstall\' + '{' + '{#AppGuid}' + '}_is1';
   if not RegQueryStringValue(HKA, Key, 'UninstallString', Cmd) then exit;
   Cmd := RemoveQuotes(Cmd);
+  if IsAdminInstallMode and not UnderProgramFiles(Cmd) then begin
+    Log('Not running the earlier uninstaller outside Program Files: ' + Cmd);
+    exit;
+  end;
   if FileExists(Cmd) then
     Exec(Cmd, '/VERYSILENT /NORESTART /SUPPRESSMSGBOXES', '', SW_HIDE, ewWaitUntilTerminated, Code);
+end;
+
+// The app's bin folder holds one file, a launcher for the CLI; that folder goes on PATH.
+procedure AddLauncher;
+var
+  Bin: String;
+begin
+  Bin := ExpandConstant('{app}\bin');
+  ForceDirectories(Bin);
+  SaveStringToFile(Bin + '\' + ChangeFileExt('{#CliExe}', '.cmd'),
+    '@"%~dp0..\{#CliExe}" %*' + #13#10, False);
+  AddToPath(Bin);
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
 begin
   if CurStep = ssInstall then UninstallPrevious;
-  if (CurStep = ssPostInstall) and WizardIsTaskSelected('addtopath') then
-    AddToPath(ExpandConstant('{app}'));
+  if (CurStep = ssPostInstall) and WizardIsTaskSelected('addtopath') then AddLauncher;
 end;
 
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 begin
-  if CurUninstallStep = usPostUninstall then RemoveFromPath(ExpandConstant('{app}'));
+  if CurUninstallStep = usPostUninstall then begin
+    RemoveFromPath(ExpandConstant('{app}\bin'));
+    { Versions before 0.2.0-beta.3 put the folder itself on PATH. }
+    RemoveFromPath(ExpandConstant('{app}'));
+  end;
 end;

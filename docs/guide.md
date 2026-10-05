@@ -7,7 +7,7 @@ Download the latest release from
 
 - **Windows 10/11 (x86_64)**: run `routemap-<version>-windows-x86_64-setup.exe`.
   Choose **Install for me only** (no administrator rights, installed in your
-  user folder) or **Install for all users** (Program Files). Route Map is then in the Start
+  user folder) or **Install for all users** (always Program Files). Route Map is then in the Start
   menu and in Settings > Apps; tick **Add routemap-cli.exe to PATH** to use the
   command line in any terminal. `routemap.exe` never opens a console;
   `routemap-cli.exe` beside it is the command line. Until the build is

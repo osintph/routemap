@@ -67,9 +67,10 @@ The status bar says which tool is missing and how to install it.
 - **Linux**: `sudo apt install traceroute` (Debian, Ubuntu),
   `sudo dnf install traceroute` (Fedora), `sudo pacman -S traceroute` (Arch).
   `mtr` is optional and adds per-hop loss (`sudo apt install mtr-tiny`).
-- **macOS**: `traceroute` ships in `/usr/sbin`; check that it is on your PATH.
-- **Windows**: `tracert.exe` ships in `C:\Windows\System32`; check that folder is
-  on PATH.
+- **macOS**: `traceroute` ships in `/usr/sbin`, where Route Map looks first (then
+  `/usr/bin`, `/sbin`, `/bin`, then the absolute folders on your PATH).
+- **Windows**: Route Map runs `tracert.exe` from the Windows system folder
+  (`C:\Windows\System32`) only, never a copy on PATH or in the current folder.
 
 You can still map traces without a local tool: **File > Paste Trace**, or a RIPE
 Atlas probe (Settings > RIPE Atlas).
