@@ -429,12 +429,11 @@ def test_check_for_updates_offers_this_platforms_installer(app, monkeypatch):
     monkeypatch.setattr(QMessageBox, "clickedButton", lambda box: getattr(box, "_clicked", None))
     monkeypatch.setattr(app_mod.QDesktopServices, "openUrl", lambda url: opened.append(url.toString()))
     controller = app_mod.Controller(MainWindow(), config.Settings(online_lookups=False, city_db_declined=True))
-    exe = "routemap-9.0.0-windows-x86_64-setup.exe"
-    assets = {exe: "https://example.invalid/" + exe, "routemap-9.0.0-macos-arm64.dmg": "https://example.invalid/m",
-              "routemap_9.0.0-1_amd64.deb": "https://example.invalid/d", "routemap-9.0.0-1.x86_64.rpm": "x",
-              "routemap-9.0.0-linux-x86_64.AppImage": "https://example.invalid/a",
-              "routemap-9.0.0-macos-x86_64.dmg": "https://example.invalid/i"}
-    controller._update_result({"tag": "v9.0.0", "page": "https://example.invalid/page", "assets": assets})
+    from routemap.__about__ import REPO_URL
+    files = ["routemap-9.0.0-windows-x86_64-setup.exe", "routemap-9.0.0-macos-arm64.dmg", "routemap_9.0.0-1_amd64.deb",
+             "routemap-9.0.0-1.x86_64.rpm", "routemap-9.0.0-linux-x86_64.AppImage", "routemap-9.0.0-macos-x86_64.dmg"]
+    assets = {name: f"{REPO_URL}/releases/download/v9.0.0/{name}" for name in files}
+    controller._update_result({"tag": "v9.0.0", "page": f"{REPO_URL}/releases/tag/v9.0.0", "assets": assets})
     text, info, buttons = shown[-1]
     expected = service.installer_for(assets)
     assert "v9.0.0 is out" in text and expected[0] in info and "Download" in buttons
