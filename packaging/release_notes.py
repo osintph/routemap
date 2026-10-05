@@ -18,7 +18,7 @@ from routemap.__about__ import REPO_URL  # noqa: E402
 WINDOWS = (
     "- **Windows 10/11**: run `routemap-<version>-windows-x86_64-setup.exe` and choose "
     "**Install for me only** (no administrator rights, in your user folder) or **Install "
-    "for all users** (Program Files). Route Map is then in the Start menu and in Settings > "
+    "for all users** (always Program Files). Route Map is then in the Start menu and in Settings > "
     "Apps, with an uninstaller; `routemap-cli.exe` beside it is the command line (tick "
     "\"Add routemap-cli.exe to PATH\" to use it in any terminal). Without installing: "
     "extract `routemap-<version>-windows-x86_64.zip` and run `routemap.exe` in the "

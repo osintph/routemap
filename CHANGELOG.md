@@ -4,6 +4,57 @@ All notable changes to this project are documented here. The format is based
 on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 uses [Semantic Versioning](https://semver.org/).
 
+## [0.2.0-beta.3] - 2026-10-05
+
+Fixes from a security review of the app, the engine and the release path. The
+engine is routemap-engine 0.4.1, which has its own list.
+
+### Security
+
+- **Opened, compared and remembered routes are rebuilt before they are
+  shown.** A route export (File > Open, Compare with an Export, or
+  `routemap-cli --compare`) and every history entry are checked against the
+  route format: unknown fields are dropped, numbers and codes must be what
+  they claim, text is plain and capped, and files over 1 MB are refused
+  unread. The insight saved in an export is computed again instead of
+  trusted. Before, text from such a file could reach the window as markup:
+  an image tag that made Windows send the user's network login hash to
+  another machine, or a link styled as an AS number that opened a local
+  file.
+- **Text is text everywhere in the window.** Every value from a route, an
+  online answer or the origin lookup is escaped where it is shown, every
+  label without markup is plain text, and the insight panel opens no links.
+- **Programs are started by full path only.** The version line runs `git`
+  only in a source checkout and only from an absolute PATH folder, never
+  from the current folder; the trace tools come from the engine, which takes
+  `tracert.exe` from System32 only.
+- **Private files are private.** The config folder is 0700 and every file
+  Route Map keeps in it (settings, history, the three caches, the DB-IP
+  files, the site-code table) is 0600; a folder made by an earlier version
+  is tightened at start.
+- **Ceilings on what is read.** DB-IP downloads stop past 250 MB, a `.gz`
+  import past 500 MB unpacked, and a download is followed only to https on
+  db-ip.com. Trace files opened in the CLI share the 1 MB cap.
+- **Check for Updates opens only this repository's release pages and
+  files**, shows plain text, and shows the offered file's SHA-256 with the
+  command that checks it.
+- **Windows installer:** an install for all users always goes into Program
+  Files (no folder choice, and a `/DIR=` is not used), and an earlier
+  version's uninstaller runs elevated only from there. The PATH option now
+  adds a `bin` folder holding only a `routemap-cli` launcher, not the folder
+  with every DLL.
+- **Smaller ones:** the suggested export file name keeps only letters,
+  digits, dot, underscore and hyphen from the target; Copy Hop Table puts an
+  apostrophe before a text cell that would start a spreadsheet formula;
+  `routemap sites update` checks every row of a new site-code table before
+  it replaces the one in use.
+
+### Changed
+
+- **The PATH option on Windows** puts `...\Route Map\bin` on PATH; the
+  command in a terminal is still `routemap-cli`. Upgrading removes the old
+  entry.
+
 ## [0.2.0-beta.2] - 2026-10-05
 
 ### Added
