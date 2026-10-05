@@ -53,6 +53,31 @@ routemap`. Settings and history stay until you delete their folder:
 (macOS), `~/.config/routemap` (Linux)."""
 
 
+LIST_ITEM = re.compile(r"^\s*([-*+]|\d+\.)\s")
+BLOCK_START = re.compile(r"^(#{1,6}\s|---\s*$|\|)")
+
+
+def unwrap(markdown: str) -> str:
+    """Each paragraph and list item on one line. GitHub shows a single line
+    break inside a release note's paragraph as a real break, so the wrapped
+    CHANGELOG text would come out ragged. Code fences stay as they are."""
+    out: list[str] = []
+    fenced = False
+    for line in markdown.split("\n"):
+        if line.startswith("```"):
+            fenced = not fenced
+            out.append(line)
+            continue
+        joinable = (not fenced and out and out[-1].strip() and not out[-1].startswith("```")
+                    and line.strip() and not LIST_ITEM.match(line) and not BLOCK_START.match(line)
+                    and not BLOCK_START.match(out[-1]))
+        if joinable:
+            out[-1] = out[-1].rstrip() + " " + line.strip()
+        else:
+            out.append(line)
+    return "\n".join(out)
+
+
 def notes(tag: str, fingerprint: str = "", windows_signed: bool = False) -> str:
     version = tag.lstrip("v")
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
@@ -66,7 +91,7 @@ def notes(tag: str, fingerprint: str = "", windows_signed: bool = False) -> str:
               + ", then `sha256sum -c SHA256SUMS --ignore-missing` (Linux), "
                 "`shasum -a 256 -c SHA256SUMS --ignore-missing` (macOS), or "
                 "`Get-FileHash <file>` in PowerShell.")
-    return "\n\n".join([
+    return unwrap("\n\n".join([
         "## Install",
         ((WINDOWS_SIGNED if windows_signed else WINDOWS_UNSIGNED) + "\n" + REST)
         .replace("<version>", version),
@@ -74,7 +99,7 @@ def notes(tag: str, fingerprint: str = "", windows_signed: bool = False) -> str:
         f"Problems or ideas: [open an issue]({REPO_URL}/issues).",
         "---",
         body,
-    ]) + "\n"
+    ])) + "\n"
 
 
 def main(argv: list[str]) -> int:
