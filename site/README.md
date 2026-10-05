@@ -29,7 +29,7 @@ privacy page says so. The desktop app itself has no telemetry. No em dashes.
   Plex Mono 400 and 500. Never for headings, body text or UI labels.
 
 All three are under the SIL Open Font Licence 1.1 (texts beside the files in
-`assets/fonts/`), self-hosted as WOFF2 with `font-display: swap`. Nothing is
+`assets/fonts/`), self-hosted as WOFF2 with `font-display: optional` and metric-matched fallback faces (no layout shift when a font arrives late). Nothing is
 loaded from Google Fonts or any other font service, so no visitor's address
 goes to a third party. The files are subset to printable Latin (ASCII,
 Latin-1, general punctuation, arrows); `tests/test_site.py` fails if a page
@@ -47,3 +47,16 @@ Manrope, Outfit, Poppins, Satoshi, General Sans, and any other font that is
 the default of a site generator, UI kit or template. Also retired here:
 Archivo (the previous heading face). `tests/test_site.py` fails if a banned
 family or a font service URL appears in the stylesheet or a built page.
+
+## Images and previews
+
+Screenshots go into `assets/img/` as `NAME-light.EXT` and `NAME-dark.EXT` (or one
+`NAME.EXT`). The build writes AVIF and WebP copies at several widths into
+`assets/img/v/` with the source's content hash in each name, and the pages offer
+them in `<picture>` with the original as the fallback (needs Pillow, pinned in
+`requirements.txt`).
+
+The Open Graph previews in `assets/og/` (1200 x 630) are drawn from the site's
+own type and colours by `og/make_og.py`, which renders them with Chrome; rerun it
+after changing their wording or the fonts. The images are committed, so a site
+build needs neither Chrome nor the script.

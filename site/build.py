@@ -85,7 +85,8 @@ def _link(url: str) -> str:
     if name in LOCAL_DOCS:
         return LOCAL_DOCS[name] + (f"#{anchor}" if anchor else "")
     if base and not re.match(r"^[a-z]+:|^/|^#", base):
-        return f"{L['repository']}/blob/main/{base.lstrip('./')}" + (f"#{anchor}" if anchor else "")
+        # removeprefix, not lstrip: lstrip("./") also ate the dot of ".github/".
+        return f"{L['repository']}/blob/main/{base.removeprefix('./')}" + (f"#{anchor}" if anchor else "")
     return url
 
 
@@ -206,13 +207,79 @@ def img_url(path: str) -> str:
     return f"{path}?v={hashlib.sha256(file.read_bytes()).hexdigest()[:10]}"
 
 
+# Screenshots are served as AVIF and WebP with the original format as the
+# fallback, each at these widths up to the image's own, so a phone gets a file
+# sized for it. Google Images supports all three formats in <picture> with an
+# <img src> fallback (developers.google.com/search/docs/appearance/google-images).
+VARIANT_WIDTHS = (480, 800, 1200, 1600, 2400)
+VARIANT_FORMATS = (("avif", "image/avif", {"quality": 62, "speed": 6}),
+                   ("webp", "image/webp", {"quality": 82, "method": 5}))
+_VARIANTS: dict[str, dict] = {}
+
+
+def variants(path: str) -> dict:
+    """{"avif"|"webp"|"orig": "url 480w, url 800w, ..."} for /assets/img/NAME,
+    written into the build once. File names carry the source's content hash, so
+    a retaken screenshot is a new URL (see img_url)."""
+    if path in _VARIANTS:
+        return _VARIANTS[path]
+    import hashlib
+    from PIL import Image
+    src = SITE / path.lstrip("/")
+    digest = hashlib.sha256(src.read_bytes()).hexdigest()[:10]
+    out_dir = OUT / "assets" / "img" / "v"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    image = Image.open(src)
+    image.load()
+    widths = [w for w in VARIANT_WIDTHS if w < image.width] + [image.width]
+    sets: dict[str, list[str]] = {"avif": [], "webp": [], "orig": []}
+    orig_ext = src.suffix.lstrip(".").lower()
+    for w in widths:
+        size = (w, max(1, round(image.height * w / image.width)))
+        frame = image if w == image.width else image.resize(size, Image.LANCZOS)
+        for ext, _mime, opts in VARIANT_FORMATS + ((orig_ext, "", {}),):
+            name = f"{src.stem}-{digest}-{w}.{ext}"
+            target = out_dir / name
+            if not target.exists():
+                rgb = frame.convert("RGB") if ext in ("jpg", "jpeg") and frame.mode != "RGB" else frame
+                fmt = {"jpg": "JPEG", "jpeg": "JPEG", "png": "PNG", "avif": "AVIF", "webp": "WEBP"}[ext]
+                extra = {"quality": 86, "optimize": True, "progressive": True} if fmt == "JPEG" else (
+                    {"optimize": True} if fmt == "PNG" else opts)
+                rgb.save(target, fmt, **extra)
+            key = "orig" if ext == orig_ext else ext
+            sets[key].append(f"/assets/img/v/{name} {w}w")
+    _VARIANTS[path] = {k: ", ".join(v) for k, v in sets.items()}
+    return _VARIANTS[path]
+
+
 def picture(name: str, ext: str, width: str, height: str, cls: str, alt: str) -> str:
     """A screenshot in the site's light and dark mode: the dark image when the
-    system is dark, switched by site.js when the visitor overrides the theme."""
-    light, dark = img_url(f"/assets/img/{name}-light.{ext}"), img_url(f"/assets/img/{name}-dark.{ext}")
-    lazy = "" if "hero" in cls.split() else ' loading="lazy"'
-    img = (f'<picture><source data-scheme="dark" srcset="{dark}" media="(prefers-color-scheme: dark)">'
-           f'<img src="{light}" width="{width}" height="{height}"{lazy} alt="{html.escape(alt)}"></picture>')
+    system is dark, switched by site.js when the visitor overrides the theme
+    (it sets the media of every source marked data-scheme). Each scheme comes as
+    AVIF, then WebP, then the original format, in several widths. A screenshot
+    with no dark version is shown as it is in both schemes."""
+    classes = cls.split()
+    light_path, dark_path = f"/assets/img/{name}-light.{ext}", f"/assets/img/{name}-dark.{ext}"
+    if not (SITE / light_path.lstrip("/")).exists():
+        light_path, dark_path = f"/assets/img/{name}.{ext}", ""
+    has_dark = bool(dark_path) and (SITE / dark_path.lstrip("/")).exists()
+    # The crops are wider than a phone on purpose (they scroll); the rest fill the column.
+    sizes = ("(max-width: 700px) 760px, 1160px" if "crop" in classes
+             else "(max-width: 1208px) calc(100vw - 48px), 1160px")
+    lazy = "" if "hero" in classes else ' loading="lazy"'
+    fetch = ' fetchpriority="high"' if "hero" in classes else ""
+    parts = []
+    if has_dark:
+        dv = variants(dark_path)
+        for key, mime in (("avif", "image/avif"), ("webp", "image/webp"), ("orig", "")):
+            type_attr = f' type="{mime}"' if mime else ""
+            parts.append(f'<source data-scheme="dark" media="(prefers-color-scheme: dark)"{type_attr} '
+                         f'srcset="{dv[key]}" sizes="{sizes}">')
+    lv = variants(light_path)
+    for key, mime in (("avif", "image/avif"), ("webp", "image/webp")):
+        parts.append(f'<source type="{mime}" srcset="{lv[key]}" sizes="{sizes}">')
+    img = (f'<picture>{"".join(parts)}<img src="{img_url(light_path)}" srcset="{lv["orig"]}" sizes="{sizes}" '
+           f'width="{width}" height="{height}"{lazy}{fetch} decoding="async" alt="{html.escape(alt)}"></picture>')
     if "bare" in cls.split():
         return img
     return f'<figure class="shot {html.escape(cls.strip())}">{img}</figure>'
@@ -226,11 +293,55 @@ def content(name: str) -> str:
                   lambda m: picture(*m.groups()), text)
 
 
-def page(path: str, title: str, body: str, description: str, *, wide: bool = False) -> None:
+OG_DEFAULT = ("/assets/og/home.jpg",
+              "{product}: see where your packets actually went, beside the app showing a trace from Manila to Frankfurt")
+
+
+# Shared previews (Open Graph, 1200 x 630) for the pages people link to most;
+# made from the site's own type and colours by site/og/make_og.py.
+OG_DOWNLOAD = ("/assets/og/download.jpg", "Download {product}: free and open source for Windows, macOS and Linux")
+OG_DOCS = ("/assets/og/docs.jpg", "{product} documentation")
+
+
+def jsonld(*objects: dict) -> str:
+    """<script type="application/ld+json"> blocks. Only facts the page itself
+    shows go in (developers.google.com/search/docs/appearance/structured-data/sd-policies)."""
+    return "".join('<script type="application/ld+json">'
+                   + json.dumps(o, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
+                   + "</script>\n" for o in objects)
+
+
+def organization() -> dict:
+    """OSINTPH, named in every page's footer ("Built by OSINTPH")."""
+    return {"@type": "Organization", "@id": f"{S['url']}/#osintph", "name": L["builder_name"], "url": L["builder"]}
+
+
+def software(rel: "Release", operating_systems: str) -> dict:
+    """Route Map as a SoftwareApplication, with what the page states: free, the
+    platforms, the current version, the licence and where to download it.
+    Google shows a software rich result only with a rating or review, which the
+    project does not have, so this describes the app without asking for one
+    (developers.google.com/search/docs/appearance/structured-data/software-app)."""
+    return {"@context": "https://schema.org", "@type": "SoftwareApplication", "@id": f"{S['url']}/#app",
+            "name": S["product"], "url": f"{S['url']}/", "description": S["description"],
+            "applicationCategory": "UtilitiesApplication", "operatingSystem": operating_systems,
+            "softwareVersion": rel.tag.lstrip("v"), "downloadUrl": f"{S['url']}/download/",
+            "license": f"{L['repository']}/blob/main/LICENSE", "isAccessibleForFree": True,
+            "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"},
+            "publisher": organization()}
+
+
+def page(path: str, title: str, body: str, description: str, *, wide: bool = False,
+         og: tuple[str, str] | None = None, structured: str = "") -> None:
     nav = "".join(f'<a href="{href}"{CURRENT if path.startswith(href) else ""}>{label}</a>'
                   for href, label in NAV)
     full_title = f"{S['product']}: {S['tagline']}" if path == "/" else f"{title} | {S['product']}"
-    url = S["url"] + ("/404" if path == "/404" else path)
+    url = S["url"] + path
+    og_path, og_alt = og or OG_DEFAULT
+    og_alt = og_alt.format(product=S["product"])
+    # The 404 page has no URL of its own to name as canonical or to share.
+    identity = "" if path == "/404" else (f'<link rel="canonical" href="{url}">\n'
+                                         f'<meta property="og:url" content="{url}">\n')
     doc = f"""<!doctype html>
 <html lang="en">
 <head>
@@ -238,20 +349,19 @@ def page(path: str, title: str, body: str, description: str, *, wide: bool = Fal
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{html.escape(full_title)}</title>
 <meta name="description" content="{html.escape(description)}">
-<link rel="canonical" href="{url}">
-<meta name="color-scheme" content="dark light">
+{identity}<meta name="color-scheme" content="dark light">
 <meta name="theme-color" content="#0b1520" media="(prefers-color-scheme: dark)">
 <meta name="theme-color" content="#f6f7f9" media="(prefers-color-scheme: light)">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="{html.escape(S['product'])}">
 <meta property="og:title" content="{html.escape(full_title)}">
 <meta property="og:description" content="{html.escape(description)}">
-<meta property="og:url" content="{url}">
-<meta property="og:image" content="{S['url']}/assets/og-route-map.jpg">
+<meta property="og:image" content="{S['url']}{img_url(og_path)}">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="{html.escape(S['product'])} showing a traceroute from Manila to Germany on a world map with its hop table">
+<meta property="og:image:alt" content="{html.escape(og_alt)}">
 <meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image:alt" content="{html.escape(og_alt)}">
 <link rel="icon" href="/favicon.ico" sizes="48x48">
 <link rel="icon" href="/assets/favicon-32.png" type="image/png" sizes="32x32">
 <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
@@ -260,12 +370,12 @@ def page(path: str, title: str, body: str, description: str, *, wide: bool = Fal
 <link rel="preload" href="{img_url('/assets/fonts/newsreader-var.woff2')}" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/assets/style.css?v={ASSET_VERSION['style.css']}">
 <script src="/assets/site.js?v={ASSET_VERSION['site.js']}"></script>
-</head>
+{structured}</head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
 <header class="site-header">
   <div class="bar">
-    <a class="wordmark" href="/"><img src="/assets/favicon-32.png" alt="" width="24" height="24"><span>{html.escape(S['product'])}</span></a>
+    <a class="wordmark" href="/"><img src="/assets/favicon-32.png" srcset="/assets/favicon-32.png 32w, /assets/icon-192.png 192w" sizes="24px" alt="" width="24" height="24"><span>{html.escape(S['product'])}</span></a>
     <nav aria-label="Main">{nav}<a class="gh" href="{L['repository']}">GitHub</a></nav>
   </div>
 </header>
@@ -314,10 +424,22 @@ def doc_nav(current: str) -> str:
 
 def doc_page(path: str, source: pathlib.Path, title: str, description: str, lead: str = "",
              aside: str = "") -> None:
+    crumbs, structured = "", ""
+    if path.startswith("/docs/") and path != "/docs/":
+        # Shown on the page and described for search with the same two steps
+        # (developers.google.com/search/docs/appearance/structured-data/breadcrumb).
+        crumbs = (f'<nav class="crumbs" aria-label="Breadcrumb"><a href="/docs/">Docs</a> '
+                  f'<span aria-hidden="true">&rsaquo;</span> <span aria-current="page">{html.escape(title)}</span></nav>')
+        structured = jsonld({"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [
+            {"@type": "ListItem", "position": 1, "name": "Docs", "item": f"{S['url']}/docs/"},
+            {"@type": "ListItem", "position": 2, "name": title}]})
     body = prose(title, markdown(source.read_text(encoding="utf-8")), lead)
+    if crumbs:
+        body = body.replace('<article class="prose">', f'<article class="prose">{crumbs}', 1)
     if aside:
         body = f'<div class="doc-layout"><nav class="doc-nav" aria-label="Documentation">{aside}</nav>{body}</div>'
-    page(path, title, body, description)
+    og = OG_DOCS if path.startswith("/docs/") else None
+    page(path, title, body, description, og=og, structured=structured)
 
 
 # ------------------------------------------------------------------ releases ---
@@ -357,10 +479,12 @@ class Release:
         self.base = f"{L['releases']}/download/{tag}"
         self.sizes: dict[str, int] = {}
         self.date = ""
+        self.published = ""
         if release_json:
             data = json.loads(pathlib.Path(release_json).read_text(encoding="utf-8"))
             self.sizes = {a["name"]: int(a["size"]) for a in data.get("assets", [])}
             self.date = (data.get("publishedAt") or "")[:10]
+            self.published = data.get("publishedAt") or ""
         self.sums: dict[str, str] = {}
         if sums:
             for line in pathlib.Path(sums).read_text(encoding="utf-8").splitlines():
@@ -421,7 +545,9 @@ def download_buttons(rel: Release) -> str:
 def build_home(rel: Release) -> None:
     body = content("home.html").replace("{{downloads}}", download_buttons(rel)) \
                                .replace("{{tag}}", html.escape(rel.tag))
-    page("/", S["product"], body, S["description"], wide=True)
+    page("/", S["product"], body, S["description"], wide=True,
+         structured=jsonld(software(rel, "Windows, macOS, Linux"),
+                           {"@context": "https://schema.org", **organization()}))
 
 
 def build_download(rel: Release) -> None:
@@ -470,7 +596,9 @@ its line in <code>SHA256SUMS</code>.</p>
     page("/download/", "Download", body,
          f"Download {S['product']} {rel.tag} for Windows, macOS and Linux from GitHub Releases: "
          "Windows installer, macOS DMG, Linux .deb, .rpm and AppImage, with SHA-256 checksums "
-         "signed by the release key.")
+         "signed by the release key.",
+         og=OG_DOWNLOAD,
+         structured=jsonld(software(rel, "Windows 10, Windows 11, macOS 12 or later, Linux (x86_64)")))
 
 
 def qr_svg(text: str, label: str) -> str:
@@ -526,7 +654,7 @@ def build_docs() -> None:
                     for (p, _f, t), b in zip(DOC_PAGES, blurbs))
     page("/docs/", "Docs", prose("Documentation", f'<ul class="doc-index">{index}</ul>'),
          f"{S['product']} documentation: user guide, command line, questions, troubleshooting, limitations "
-         "and testing a beta.")
+         "and testing a beta.", og=OG_DOCS)
     descriptions = {
         "guide.md": f"How to install and use {S['product']}: first trace, source labels, exports, paste mode, settings and RIPE Atlas.",
         "cli.md": f"{S['product']} command-line reference: commands, options, exit codes and examples.",
@@ -561,7 +689,43 @@ def build_static_pages(rel: Release) -> None:
     page("/404", "Not found", prose("Not found", content("404.html")), "Page not found.")
 
 
-def build_files() -> None:
+# Each indexable page and the files its content comes from, for the sitemap's
+# lastmod: Google uses it only when it is "consistently and verifiably
+# accurate", the date of the last significant change to the page's content
+# (developers.google.com/search/docs/crawling-indexing/sitemaps/build-sitemap).
+# Template changes (this file, the stylesheet) are not content changes.
+PAGE_SOURCES = {
+    "/": ["site/content/home.html", "site/site.toml", "site/assets/img"],
+    "/download/": ["site/content/download-install.html", "site/content/download-unsigned.html",
+                   "site/content/download-firststart.html"],
+    "/screenshots/": ["site/content/screenshots.html", "site/assets/img"],
+    "/docs/": ["docs/guide.md", "docs/cli.md", "docs/faq.md", "docs/troubleshooting.md",
+               "docs/limitations.md", "docs/testing.md"],
+    "/docs/guide/": ["docs/guide.md"], "/docs/cli/": ["docs/cli.md"], "/docs/faq/": ["docs/faq.md"],
+    "/docs/troubleshooting/": ["docs/troubleshooting.md"], "/docs/limitations/": ["docs/limitations.md"],
+    "/docs/testing/": ["docs/testing.md"],
+    "/changelog/": ["CHANGELOG.md"], "/privacy/": ["PRIVACY.md", "site/content/privacy-site.html",
+                                                  "site/content/privacy-lead.html"],
+    "/code-signing/": ["CODE_SIGNING_POLICY.md"], "/about/": ["site/content/about.html"],
+    "/support/": ["site/content/support.html", "site/donate"], "/donate/": ["site/donate"],
+}
+
+
+def lastmod(page_path: str, release_date: str = "") -> str:
+    """The last commit date of the page's sources (with the release date for the
+    download page), or "" when the history is not there to say (a shallow clone)."""
+    import subprocess
+    shallow = subprocess.run(["git", "-C", str(ROOT), "rev-parse", "--is-shallow-repository"],
+                             capture_output=True, text=True)
+    if shallow.returncode != 0 or shallow.stdout.strip() != "false":
+        return ""
+    out = subprocess.run(["git", "-C", str(ROOT), "log", "-1", "--format=%cI", "--",
+                          *PAGE_SOURCES[page_path]], capture_output=True, text=True).stdout.strip()
+    dates = [d for d in (out, release_date) if d]
+    return max(dates, key=lambda d: d[:10]) if dates else ""
+
+
+def build_files(release: "Release") -> None:
     shutil.copy2(SITE / "assets" / "release-key.asc", OUT / "release-key.asc")
     shutil.copy2(SITE / "assets" / "favicon.ico", OUT / "favicon.ico")
     donate = OUT / "donate"
@@ -590,10 +754,15 @@ def build_files() -> None:
     for p in sorted(OUT.rglob("index.html")):
         rel = p.parent.relative_to(OUT).as_posix()
         pages.append("/" if rel == "." else f"/{rel}/")
+    missing = sorted(set(pages) - set(PAGE_SOURCES))
+    if missing:
+        raise SystemExit(f"pages without PAGE_SOURCES (the sitemap's lastmod): {missing}")
+    def entry(p: str) -> str:
+        when = lastmod(p, release.published if p == "/download/" else "")
+        return f"  <url><loc>{S['url']}{p}</loc>" + (f"<lastmod>{when}</lastmod>" if when else "") + "</url>\n"
     (OUT / "sitemap.xml").write_text(
         '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
-        + "".join(f"  <url><loc>{S['url']}{p}</loc></url>\n" for p in pages) + "</urlset>\n",
-        encoding="utf-8")
+        + "".join(entry(p) for p in pages) + "</urlset>\n", encoding="utf-8")
 
 
 def main(argv: list[str]) -> int:
@@ -627,7 +796,7 @@ def main(argv: list[str]) -> int:
     build_support()
     build_docs()
     build_static_pages(rel)
-    build_files()
+    build_files(rel)
     count = sum(1 for _ in OUT.rglob("*.html"))
     print(f"{count} pages in {OUT} for {rel.tag}")
     return 0

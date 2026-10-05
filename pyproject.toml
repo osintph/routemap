@@ -44,7 +44,7 @@ dev = [
     # QR codes for the project site's donation page (site/build.py).
     "segno==1.6.6",
     # The site's font coverage test reads its WOFF2 files.
-    "fonttools==4.60.2",
+    "fonttools==4.60.2", "Pillow==12.0.0",
     "brotli==1.2.0",
 ]
 
