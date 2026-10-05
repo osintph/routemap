@@ -296,3 +296,11 @@ def test_no_image_renders_outside_its_figure_or_under_text():
         pytest.skip("Chrome is not installed")
     problems = figures.check(_built(), widths=(390, 1366), schemes=("light", "dark"))
     assert not problems, "\n".join(problems)
+
+
+def test_the_readme_and_the_install_page_say_route_map_is_not_on_pypi():
+    """RM-15: `pip install routemap` installs someone else's project."""
+    root = pathlib.Path(__file__).resolve().parents[1]
+    for path in (root / "README.md", root / "site" / "content" / "download-install.html"):
+        text = " ".join(path.read_text(encoding="utf-8").split())
+        assert "not on PyPI" in text and "pip install routemap" in text, path.name
