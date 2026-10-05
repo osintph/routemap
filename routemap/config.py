@@ -184,7 +184,7 @@ def load_settings() -> Settings:
     """Settings from disk; defaults for anything missing or unreadable."""
     try:
         raw = json.loads(settings_path().read_text(encoding="utf-8"))
-    except (OSError, ValueError):
+    except (OSError, ValueError, RecursionError):
         return Settings()
     known = {f.name for f in fields(Settings)}
     values = {k: v for k, v in raw.items() if k in known} if isinstance(raw, dict) else {}
@@ -217,7 +217,8 @@ def history_path() -> Path:
 
 def load_history() -> list[dict]:
     try:
-        entries = json.loads(history_path().read_text(encoding="utf-8"))
+        from routemap import imported
+        entries = imported.parse_json(history_path().read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return []
     if not isinstance(entries, list):

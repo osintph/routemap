@@ -102,7 +102,7 @@ def _insight(args, current: dict, settings) -> None:
         from routemap_engine import diff as route_diff
         # The same door as the window's Compare: capped, rebuilt from the route format.
         try:
-            document = imported.export(json.loads(imported.read_file(args.compare)))
+            document = imported.export(imported.parse_json(imported.read_file(args.compare)))
             old = document["route"]
         except (ValueError, KeyError, TypeError) as exc:
             raise SystemExit(f"{NAME}: {args.compare} is not a route export ({exc})")
