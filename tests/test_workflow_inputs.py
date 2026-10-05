@@ -81,10 +81,19 @@ def test_diagnose_starts_trace_tools_by_absolute_path(monkeypatch, tmp_path, sys
         monkeypatch.setattr(d.sys, "platform", "win32")
         monkeypatch.setattr(runner, "_platform", lambda: "windows")
         monkeypatch.setattr(runner, "_system32", lambda: str(system32))
+    else:
+        # A system folder of our own, so the test does not depend on the
+        # machine having traceroute installed (CI runners do not).
+        sbin = tmp_path / "sbin"
+        sbin.mkdir()
+        (sbin / "traceroute").write_text("system")
+        (sbin / "traceroute").chmod(0o755)
+        monkeypatch.setattr(runner, "SYSTEM_TOOL_DIRS", (str(sbin),))
+        monkeypatch.setattr(runner, "EXTRA_TOOL_DIRS", ())
     d.main("heise.de")
     tools = [a for a in started if pathlib.PurePath(str(a[0])).name in TOOLS]
     assert tools, started
     for argv in tools:
         assert os.path.isabs(argv[0]) and not argv[0].startswith(str(work)), argv
-    if system == "windows":
-        assert all(argv[0] == str(system32 / "tracert.exe") for argv in tools), tools
+    expected = system32 / "tracert.exe" if system == "windows" else tmp_path / "sbin" / "traceroute"
+    assert all(argv[0] == str(expected) for argv in tools), tools
