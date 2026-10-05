@@ -171,12 +171,23 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: pwsh packaging/windows/build_installer.ps1 -Source "build/nuitka/windows/Route Map" -Commit $env:GITHUB_SHA -RunNumber $env:GITHUB_RUN_NUMBER -Out out
+      - name: The earlier release's installer, for the upgrade check (SHA-256 pinned)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $url = "https://github.com/osintph/routemap/releases/download/v0.2.0-beta.2/routemap-0.2.0-beta.2-windows-x86_64-setup.exe"
+          $file = Join-Path $env:RUNNER_TEMP "previous-setup.exe"
+          Invoke-WebRequest -Uri $url -OutFile $file
+          $hash = (Get-FileHash $file -Algorithm SHA256).Hash.ToLower()
+          # From the GPG-signed SHA256SUMS of v0.2.0-beta.2.
+          if ($hash -ne "d4160ffa6734bf241c1078597f44b39bfa5e85ea30b7c61fee6b9465a27dc99f") { throw "previous setup: $hash" }
+          "PREVIOUS_SETUP=$file" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
       - name: Install, check and uninstall, per user and per machine (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
           $setup = (Get-ChildItem out -Filter "*-setup.exe").FullName
-          pwsh packaging/windows/install_check.ps1 -Setup $setup -Commit $env:GITHUB_SHA
+          pwsh packaging/windows/install_check.ps1 -Setup $setup -Commit $env:GITHUB_SHA -PreviousSetup $env:PREVIOUS_SETUP
           if ($LASTEXITCODE -ne 0) { exit 1 }
       - name: Defender scan of every Windows artifact (fails on a detection)
         if: runner.os == 'Windows'

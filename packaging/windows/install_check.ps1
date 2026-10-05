@@ -14,7 +14,11 @@ param(
     [Parameter(Mandatory = $true)] [string] $Setup,
     [Parameter(Mandatory = $true)] [string] $Commit,
     [string] $AppName = "Route Map",
-    [string] $Name = "routemap"
+    [string] $Name = "routemap",
+    # An earlier release's installer: installed per machine into a chosen folder
+    # (0.2.0-beta.2 allowed that), then upgraded; the folder and its PATH entry
+    # must be gone afterwards.
+    [string] $PreviousSetup = ""
 )
 $ErrorActionPreference = "Stop"
 $Guid = "{260F97E1-3DC2-4D4E-9070-C4D930805B2E}_is1"
@@ -96,4 +100,29 @@ $elsewhere = "C:\RouteMapElsewhere"
 Check-Mode "/ALLUSERS" "HKLM" (Join-Path $env:ProgramFiles $AppName) `
     (Join-Path $env:ProgramData "Microsoft\Windows\Start Menu\Programs") "Machine" @("/DIR=$elsewhere")
 Check (-not (Test-Path $elsewhere)) "a per-machine install ignored /DIR=$elsewhere"
+
+if ($PreviousSetup) {
+    Write-Host "---- upgrade from a per-machine install in a chosen folder"
+    $old = "C:\RouteMapOld"
+    $p = Start-Process -FilePath $PreviousSetup -PassThru -Wait -ArgumentList @(
+        "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/SP-", "/ALLUSERS", "/TASKS=addtopath", "/DIR=$old",
+        "/LOG=$env:RUNNER_TEMP\previous.log")
+    Check ($p.ExitCode -eq 0) "the earlier release installed (exit $($p.ExitCode))"
+    Check (Test-Path (Join-Path $old "$Name.exe")) "the earlier release is in $old"
+    Check ((Path-Entries "Machine" | Where-Object { $_ -ieq $old }).Count -eq 1) "and $old is on the machine PATH"
+    Run-Setup "/ALLUSERS" "$env:RUNNER_TEMP\upgrade-from-previous.log"
+    $dir = Join-Path $env:ProgramFiles $AppName
+    $bin = Join-Path $dir "bin"
+    Check (Test-Path (Join-Path $dir "$Name.exe")) "the new release is in $dir"
+    $left = @(if (Test-Path $old) { Get-ChildItem $old -Recurse -Force | ForEach-Object { $_.FullName } })
+    if ($left.Count -gt 0) { Write-Host "left in ${old}:"; $left | Select-Object -First 20 | ForEach-Object { Write-Host "  $_" } }
+    Check (-not (Test-Path $old)) "the earlier folder $old is gone"
+    Check ((Path-Entries "Machine" | Where-Object { $_ -ieq $old -or $_ -ieq "$old\bin" }).Count -eq 0) "the machine PATH no longer has $old"
+    Check ((Path-Entries "Machine" | Where-Object { $_ -ieq $bin }).Count -eq 1) "and has $bin once"
+    $key = "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\$Guid"
+    Check ((Get-ItemProperty $key).UninstallString.Trim('"') -like "$dir\*") "Settings > Apps now uninstalls from $dir"
+    $p = Start-Process -FilePath (Get-ItemProperty $key).UninstallString.Trim('"') -PassThru -Wait `
+        -ArgumentList @("/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART")
+    Check ($p.ExitCode -eq 0) "and that uninstaller exited 0"
+}
 Write-Host "all installer checks passed"
