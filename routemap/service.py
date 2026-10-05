@@ -207,6 +207,14 @@ def export_json(route: Route | dict, *, target: str | None, trace_text: str,
     return json.dumps(document, indent=2, ensure_ascii=False) + "\n"
 
 
+def export_stem(target: str | None, when: _dt.datetime) -> str:
+    """The suggested export file name without extension: letters, digits, dot,
+    underscore and hyphen only, so a target from a file (a pasted or opened
+    trace) cannot make the save dialog start in another folder (RM-13)."""
+    safe = re.sub(r"[^A-Za-z0-9._-]", "-", target or "")[:80].strip(".-") or "trace"
+    return f"route-{safe}-{when.strftime('%Y%m%d-%H%M')}"
+
+
 def tool_label(argv: list[str] | None) -> str:
     """'traceroute -m 30 -q 3 -w 1' from an argv, without the path or the target."""
     if not argv:

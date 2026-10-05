@@ -4,6 +4,7 @@ redirected anywhere but https on db-ip.com, and a .gz that unpacks past the
 database ceiling are all refused, and nothing is left behind."""
 import gzip
 import os
+import pathlib
 
 import httpx
 import pytest
@@ -80,3 +81,39 @@ def test_a_gzip_that_unpacks_past_the_ceiling_is_refused(monkeypatch, tmp_path):
     with pytest.raises(dbip.DatabaseError, match="larger"):
         dbip.import_file(plain, "city")
     assert not [n for n in _leftovers() if n.startswith(".import")]
+
+
+def test_the_cli_compare_goes_through_the_same_door(tmp_path, capsys):
+    """Capped like the window's Compare, and rebuilt: an unknown field is gone."""
+    import json
+    from routemap import service
+    fixtures = pathlib.Path(__file__).parent / "fixtures"
+    trace = fixtures / "routemap" / "heise_traceroute.txt"
+    big = tmp_path / "big.json"
+    big.write_bytes(b"{" + b" " * (imported.MAX_FILE_BYTES + 1) + b"}")
+    with pytest.raises(SystemExit, match="KB"):
+        cli.main(["parse", str(trace), "--offline", "--origin", "Manila, PH", "--compare", str(big)])
+    route = json.loads((fixtures / "gui" / "heise_route.json").read_text())["route"]
+    route["hops"][0]["planted"] = "<img src=x>"
+    doc = tmp_path / "old.json"
+    doc.write_text(service.export_json(route, target="heise.de", trace_text="", argv=None,
+                                       source="file", origin_how=None))
+    capsys.readouterr()
+    assert cli.main(["parse", str(trace), "--offline", "--origin", "Manila, PH", "--compare", str(doc),
+                     "--json", "--envelope"]) == 0
+    old = json.loads(capsys.readouterr().out)["comparison"]["old_route"]
+    assert "planted" not in json.dumps(old)
+
+
+@pytest.mark.parametrize("target", [
+    "..\\..\\Somewhere\\name", "../../etc/x", "C:\\Windows\\x", "\\\\host\\share\\x", "a:b*c?d\"e<f>g|h",
+    "pasted trace", "x" * 500, "heise.de\x00.pdf", "con", "",
+])
+def test_the_suggested_export_name_is_one_plain_file_name(target):
+    """RM-13: the target in the suggested name can steer the save dialog nowhere."""
+    import datetime as dt
+    from routemap import service
+    stem = service.export_stem(target, dt.datetime(2026, 10, 5, 12, 30))
+    assert stem and len(stem) <= 120
+    assert all(ch.isascii() and (ch.isalnum() or ch in "._-") for ch in stem), stem
+    assert os.path.basename(stem) == stem and not stem.startswith(".")

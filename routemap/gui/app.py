@@ -366,7 +366,7 @@ class Controller(QObject):
             return
         fmt = dialog.selected()
         c = self.current
-        stem = f"route-{c['target']}-{c['when'].strftime('%Y%m%d-%H%M')}".replace("/", "-")
+        stem = service.export_stem(c["target"], c["when"])
         filters = {"png": "PNG image (*.png)", "pdf": "PDF report (*.pdf)", "json": "JSON (*.json)"}
         path, _ = QFileDialog.getSaveFileName(self.w, "Export", os.path.join(
             os.path.expanduser("~"), f"{stem}.{fmt}"), filters[fmt])

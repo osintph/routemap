@@ -97,15 +97,16 @@ def _insight(args, current: dict, settings) -> None:
                                    sourceapp=service.SOURCEAPP))
     current["insight"] = ins
     if getattr(args, "compare", None):
+        from routemap import imported
         from routemap_engine import diff as route_diff
+        # The same door as the window's Compare: capped, rebuilt from the route format.
         try:
-            with open(args.compare, encoding="utf-8") as handle:
-                document = json.load(handle)
+            document = imported.export(json.loads(imported.read_file(args.compare)))
             old = document["route"]
-        except (OSError, ValueError, KeyError, TypeError) as exc:
-            raise SystemExit(f"{NAME}: {args.compare} is not a route export ({exc.__class__.__name__})")
+        except (ValueError, KeyError, TypeError) as exc:
+            raise SystemExit(f"{NAME}: {args.compare} is not a route export ({exc})")
         result = route_diff.diff_routes(old, route)
-        current["comparison"] = {"label": (document.get("exported_at") or args.compare)[:16].replace("T", " "),
+        current["comparison"] = {"label": (document["exported_at"] or args.compare)[:16].replace("T", " "),
                                  "summary": result["summary"], "changes": result["changes"],
                                  "old_route": old, "new_marks": result["new_marks"],
                                  "old_marks": result["old_marks"]}
