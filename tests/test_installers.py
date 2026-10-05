@@ -95,3 +95,25 @@ def test_a_per_machine_install_lives_only_where_ordinary_users_cannot_write():
     check = (ROOT / "packaging" / "windows" / "install_check.ps1").read_text()
     assert "the bin folder holds only" in check and "/DIR=$elsewhere" in check
     assert "does not have the app folder" in check
+
+
+def test_upgrading_a_per_machine_install_from_a_chosen_folder_retires_that_folder():
+    """Validation 4c: 0.2.0-beta.2 let an all-users install go anywhere. The new
+    installer never runs that folder's uninstaller (it would run elevated from
+    a folder ordinary users can write), but takes the folder off the machine
+    PATH and deletes the app's own files there, following no link; the Windows
+    run of install_check.ps1 installs beta.2 in C:\\RouteMapOld and upgrades."""
+    iss = (ROOT / "packaging" / "windows" / "routemap.iss").read_text()
+    flat = " ".join(iss.split("[Code]", 1)[1].split())
+    assert "RegQueryStringValue(HKA, Key, 'Inno Setup: App Path', OldDir)" in flat
+    assert "if CurStep = ssPostInstall then RetireOldFolder;" in flat
+    assert "RemoveFromPath(OldDir); RemoveFromPath(OldDir + '\\bin');" in flat
+    assert "if DirExists(OldDir) and not IsLink(OldDir) then begin RemoveCopies(" in flat
+    assert "if not IsLink(OldPath) and DirExists(NewBase + Rel + '\\' + Name) then begin" in flat
+    assert "Exec(Cmd" in flat and flat.index("OldDir := ''; exit;") < flat.index("Exec(Cmd")
+    check = (ROOT / "packaging" / "windows" / "install_check.ps1").read_text()
+    assert "$PreviousSetup" in check and "is gone" in check and "the machine PATH no longer has $old" in check
+    for workflow in ("build.yml", "installers.yml"):
+        text = (ROOT / ".github" / "workflows" / workflow).read_text()
+        assert "-PreviousSetup $env:PREVIOUS_SETUP" in text, workflow
+        assert "d4160ffa6734bf241c1078597f44b39bfa5e85ea30b7c61fee6b9465a27dc99f" in text, workflow

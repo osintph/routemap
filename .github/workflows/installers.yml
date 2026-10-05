@@ -94,11 +94,21 @@ jobs:
         with:
           name: routemap-windows-x86_64-setup
           path: out/*
+      - name: The earlier release's installer, for the upgrade check (SHA-256 pinned)
+        shell: pwsh
+        run: |
+          $url = "https://github.com/osintph/routemap/releases/download/v0.2.0-beta.2/routemap-0.2.0-beta.2-windows-x86_64-setup.exe"
+          $file = Join-Path $env:RUNNER_TEMP "previous-setup.exe"
+          Invoke-WebRequest -Uri $url -OutFile $file
+          $hash = (Get-FileHash $file -Algorithm SHA256).Hash.ToLower()
+          # From the GPG-signed SHA256SUMS of v0.2.0-beta.2.
+          if ($hash -ne "d4160ffa6734bf241c1078597f44b39bfa5e85ea30b7c61fee6b9465a27dc99f") { throw "previous setup: $hash" }
+          "PREVIOUS_SETUP=$file" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
       - name: Install, check and uninstall, per user and per machine
         shell: pwsh
         run: |
           $setup = (Get-ChildItem out -Filter "*-setup.exe" | Select-Object -First 1).FullName
-          pwsh packaging/windows/install_check.ps1 -Setup $setup -Commit $env:SHA
+          pwsh packaging/windows/install_check.ps1 -Setup $setup -Commit $env:SHA -PreviousSetup $env:PREVIOUS_SETUP
           if ($LASTEXITCODE -ne 0) { exit 1 }
       - name: Defender scan of the installer (fails on a detection)
         shell: pwsh
