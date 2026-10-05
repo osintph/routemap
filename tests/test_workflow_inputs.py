@@ -82,8 +82,11 @@ def test_diagnose_starts_trace_tools_by_absolute_path(monkeypatch, tmp_path, sys
         monkeypatch.setattr(runner, "_platform", lambda: "windows")
         monkeypatch.setattr(runner, "_system32", lambda: str(system32))
     else:
-        # A system folder of our own, so the test does not depend on the
+        # The posix branch on any machine, Windows runners included, and a
+        # system folder of our own, so the test does not depend on the
         # machine having traceroute installed (CI runners do not).
+        monkeypatch.setattr(d.sys, "platform", "linux")
+        monkeypatch.setattr(runner, "_platform", lambda: "linux")
         sbin = tmp_path / "sbin"
         sbin.mkdir()
         (sbin / "traceroute").write_text("system")
