@@ -3,19 +3,10 @@
 reasons: <strong>download analytics</strong> (which platforms and versions people use, and where
 they find the project) and <strong>abuse prevention</strong> (telling people from scanners and bots).</p>
 
-<h3 id="cloudflare-web-analytics">Cloudflare Web Analytics</h3>
-<p>Cloudflare, which serves the site, adds a small script from <code>static.cloudflareinsights.com</code>
-to each page, and the browser reports the visit back to this site's own address.</p>
-<ul>
-<li>It records page views, the referring page, the visitor's country, browser, operating system and
-device type, and page load timings, as totals for the site.</li>
-<li>It sets no cookies and uses no local storage. Cloudflare states that it does not
-"fingerprint" individuals by IP address, User Agent or any other data, so it does not follow a
-visitor across sites.</li>
-<li>Cloudflare's own description: <a href="https://www.cloudflare.com/web-analytics/">Cloudflare Web
-Analytics</a>, and its <a href="https://www.cloudflare.com/privacypolicy/">privacy policy</a>.
-Cloudflare publishes no privacy statement specific to Web Analytics beyond these.</li>
-</ul>
+<h3 id="cloudflare-web-analytics">Cloudflare</h3>
+<p>The site is served through Cloudflare and counts visits with Cloudflare Web Analytics, which
+sets no cookies. Cloudflare's <a href="https://www.cloudflare.com/privacypolicy/">privacy policy</a>
+applies to what it handles.</p>
 
 <h3 id="downloads">Downloads</h3>
 <p>The download links on this site go through <code>/dl/</code>, which sends your browser on to the
@@ -69,7 +60,7 @@ sites that use its services</a> apply to what Google receives.</li>
 
 <h3 id="server-logs">Server logs and your browser</h3>
 <p>For every page other than the download links, the web server keeps a standard access log
-(address, time, page, browser) for operating the site. The light or dark choice<!--ga--> and your
+(address, time, page, browser) and an error log for operating the site; both are kept for 30 days. The light or dark choice<!--ga--> and your
 Analytics choice are<!--/ga--><!--no-ga--> is<!--/no-ga--> kept in your browser's local storage;
 nothing is sent anywhere because of <!--ga-->them<!--/ga--><!--no-ga-->it<!--/no-ga-->. Every page
 reads fully with scripts turned off<!--ga-->, and then nothing from Google loads<!--/ga-->.</p>

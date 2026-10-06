@@ -17,10 +17,14 @@ def test_site_builds_without_scripts_or_external_assets_and_links_resolve(tmp_pa
     assert len(pages) >= 10
     for page in pages:
         text = page.read_text(encoding="utf-8")
-        # One script, from this site, never inline: the platform mark and the theme switch.
-        # (JSON-LD blocks are data for search engines, not scripts that run.)
+        # Scripts only from this site, never inline: site.js (the platform mark and the
+        # theme switch) and, with Google Analytics configured, consent.js, which loads
+        # Google's script only after consent. (JSON-LD blocks are data, not scripts.)
         scripts = [t for t in re.findall(r"<script[^>]*>", text, flags=re.I) if "application/ld+json" not in t]
-        assert len(scripts) == 1 and re.fullmatch(r'<script src="/assets/site\.js\?v=[0-9a-f]{10}">', scripts[0]), (page, scripts)
+        assert re.fullmatch(r'<script src="/assets/site\.js\?v=[0-9a-f]{10}">', scripts[0]), (page, scripts)
+        assert all(re.fullmatch(r'<script src="/assets/consent\.js\?v=[0-9a-f]{10}" defer>', s) for s in scripts[1:]), \
+            (page, scripts)
+        assert len(scripts) <= 2 and "<script>" not in text, (page, scripts)
         # Stylesheet and script are cache-busted by content hash.
         assert re.search(r'href="/assets/style\.css\?v=[0-9a-f]{10}"', text), page
         assert chr(0x2014) not in text, f"em dash in {page}"
