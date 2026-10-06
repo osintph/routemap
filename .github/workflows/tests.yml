@@ -41,4 +41,44 @@ jobs:
           python -m pip install --require-hashes -r requirements/app.txt
           python -m pip install --require-hashes -r requirements/tests.txt
           python -m pip install --no-deps --no-build-isolation .
-      - run: python -m pytest
+      # The consent banner's browser tests run in the job below, where a skip fails.
+      - run: python -m pytest --ignore=tests/test_site_consent.py
+
+  consent:
+    # The site's consent banner in a real browser: no Google request before
+    # consent or after a refusal, events after consent. Playwright from a
+    # hash lock, its own Chromium; a skipped test fails the job.
+    name: consent banner (headless Chromium)
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Install (hash-checked)
+        run: |
+          python -m pip install --require-hashes -r requirements/build-backends.txt
+          python -m pip install --require-hashes -r requirements/app.txt
+          python -m pip install --require-hashes -r requirements/tests.txt
+          python -m pip install --require-hashes -r requirements/consent-tests.txt
+          python -m pip install --no-deps --no-build-isolation .
+      - name: Playwright's Chromium
+        run: python -m playwright install --with-deps chromium
+      - name: Consent tests (a skip fails the job)
+        env:
+          ROUTEMAP_REQUIRE_CONSENT_TESTS: "1"
+          ROUTEMAP_CONSENT_BROWSER: chromium
+        run: |
+          python -m pytest tests/test_site_consent.py -rs --junitxml=consent.xml
+          python - <<'EOF'
+          import xml.etree.ElementTree as ET
+          root = ET.parse("consent.xml").getroot()
+          suite = root if root.tag == "testsuite" else root.find("testsuite")
+          tests, skipped = int(suite.get("tests")), int(suite.get("skipped"))
+          print(f"consent tests: {tests}, skipped: {skipped}")
+          assert tests >= 9 and skipped == 0, "every consent test must run"
+          EOF

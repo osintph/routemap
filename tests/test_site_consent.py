@@ -2,12 +2,16 @@
 Playwright): nothing from Google before consent or after a refusal, Analytics
 and the download event after consent, and withdrawal removes its cookies.
 
-Needs Playwright and Google Chrome; skipped without them. Google is never
+Needs Playwright and a browser: Google Chrome by default, Playwright's own
+Chromium with ROUTEMAP_CONSENT_BROWSER=chromium (as in CI). Skipped without
+them, except with ROUTEMAP_REQUIRE_CONSENT_TESTS=1 (the CI job "consent"),
+where a missing Playwright or browser is an error. Google is never
 contacted: gtag.js is answered by a local stub that only records it was asked
 for, and every other outside request is refused and recorded.
 """
 import functools
 import http.server
+import os
 import pathlib
 import subprocess
 import sys
@@ -15,7 +19,14 @@ import threading
 
 import pytest
 
-playwright_api = pytest.importorskip("playwright.sync_api")
+REQUIRED = os.environ.get("ROUTEMAP_REQUIRE_CONSENT_TESTS") == "1"
+BROWSER = os.environ.get("ROUTEMAP_CONSENT_BROWSER", "chrome")
+try:
+    from playwright import sync_api as playwright_api
+except ImportError:
+    if REQUIRED:
+        raise
+    pytest.skip("Playwright is not installed", allow_module_level=True)
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 GA_ID = "G-TEST1234"
@@ -77,9 +88,11 @@ def sites(tmp_path_factory):
 def browser():
     with playwright_api.sync_playwright() as p:
         try:
-            b = p.chromium.launch(channel="chrome", headless=True)
+            b = p.chromium.launch(headless=True, **({} if BROWSER == "chromium" else {"channel": BROWSER}))
         except Exception as exc:  # noqa: BLE001
-            pytest.skip(f"Google Chrome not available: {exc}")
+            if REQUIRED:
+                raise
+            pytest.skip(f"browser {BROWSER!r} not available: {exc}")
         yield b
         b.close()
 

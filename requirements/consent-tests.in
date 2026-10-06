@@ -1,0 +1,4 @@
+# The browser tests of the site's consent banner (tests/test_site_consent.py),
+# on top of requirements/app.txt and requirements/tests.txt, for the CI job
+# "consent". Compile with requirements/compile.sh; never edit the .txt by hand.
+playwright

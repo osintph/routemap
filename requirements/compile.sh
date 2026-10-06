@@ -20,4 +20,5 @@ constraint=()
 "$UV" pip compile "${common[@]}" ${constraint[@]+"${constraint[@]}"} requirements/build-tools.in -o requirements/build-tools.txt
 "$UV" pip compile "${common[@]}" ${constraint[@]+"${constraint[@]}"} requirements/tests.in -o requirements/tests.txt
 "$UV" pip compile "${common[@]}" ${constraint[@]+"${constraint[@]}"} requirements/audit.in -o requirements/audit.txt
+"$UV" pip compile "${common[@]}" ${constraint[@]+"${constraint[@]}"} -c requirements/tests.txt requirements/consent-tests.in -o requirements/consent-tests.txt
 "$UV" pip compile "${common[@]}" site/requirements.in -o site/requirements.txt
