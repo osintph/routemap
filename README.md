@@ -103,7 +103,7 @@ on a tag, then publishes the release.
 
 ## Support this project
 
-Route Map is free, with no ads and no tracking. Donations pay for code
+Route Map is free, with no ads and no tracking in the app. Donations pay for code
 signing, hosting, the RIPE Atlas probe, and maintenance time.
 
 - Ko-fi: https://ko-fi.com/osintph

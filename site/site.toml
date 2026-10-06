@@ -35,3 +35,9 @@ gpg_fingerprint = "D57C7E26C19F9436E2D66F37408097D191DDF981"
 # true once the Windows builds are code-signed (the maintainer's Certum
 # certificate): the download page then drops the unsigned warning.
 windows_signed = false
+
+[analytics]
+# Google Analytics 4 measurement ID ("G-" and letters/digits). Empty: no
+# Analytics, no consent banner, no cookie settings link. When set, Analytics
+# loads only after the visitor accepts it in the banner (assets/consent.js).
+ga_measurement_id = ""

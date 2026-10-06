@@ -1,7 +1,11 @@
 <h2 id="this-website">This website</h2>
-<p>getroutemap.app, not the app, counts visits with <strong>Cloudflare Web Analytics</strong>. Cloudflare,
-which serves the site, adds a small script from <code>static.cloudflareinsights.com</code> to each
-page, and the browser reports the visit back to this site's own address.</p>
+<p>This part is about getroutemap.app, not the app. The site records visits and downloads for two
+reasons: <strong>download analytics</strong> (which platforms and versions people use, and where
+they find the project) and <strong>abuse prevention</strong> (telling people from scanners and bots).</p>
+
+<h3 id="cloudflare-web-analytics">Cloudflare Web Analytics</h3>
+<p>Cloudflare, which serves the site, adds a small script from <code>static.cloudflareinsights.com</code>
+to each page, and the browser reports the visit back to this site's own address.</p>
 <ul>
 <li>It records page views, the referring page, the visitor's country, browser, operating system and
 device type, and page load timings, as totals for the site.</li>
@@ -12,18 +16,61 @@ visitor across sites.</li>
 Analytics</a>, and its <a href="https://www.cloudflare.com/privacypolicy/">privacy policy</a>.
 Cloudflare publishes no privacy statement specific to Web Analytics beyond these.</li>
 </ul>
-<p>The download links on this site go through <code>/dl/</code>, which sends your browser on
-to the same file on GitHub. For each download the server writes one line with the time, the
-release and file, the two-letter country Cloudflare passes on, the referring site cut to its
-address (a page on this site is written as <code>site</code>), and whether the browser looks like
-an automated client. It keeps no address and no browser string for these requests. The maintainer
-is told about downloads by email, with a daily summary; the lines are deleted after 30 days, and
-from then on only the number of downloads per day is kept. GitHub serves the file itself and sees
-the download as it sees any other; its
-<a href="https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement">privacy
+
+<h3 id="downloads">Downloads</h3>
+<p>The download links on this site go through <code>/dl/</code>, which sends your browser on to the
+same file on GitHub. For each download the server writes one line to its download log with:</p>
+<ul>
+<li>the time, and the release and file;</li>
+<li>the two-letter country Cloudflare passes on with the request;</li>
+<li>the network the request came from and its operator, as an AS number and name (for example
+"AS9299 Philippine Long Distance Telephone Co."), and whether that network looks like a home or
+mobile provider, an organisation, or a hosting provider; this is looked up on the server in
+<a href="https://db-ip.com">IP Geolocation by DB-IP</a> (DB-IP's IP to ASN Lite database, CC BY 4.0)
+and a list of hosting networks;</li>
+<li>the kind of client: the browser and operating system family (such as "Firefox on Windows"), or
+the name of a tool (such as curl or a download manager), and whether a byte range was asked for;</li>
+<li>the referring site cut to its address (a page on this site is written as <code>site</code>);</li>
+<li>a daily visitor hash: a code made from your address and a random value that the server
+creates each day, keeps only in memory and throws away at midnight Manila time. The same address
+gives the same code for the rest of that day, so downloads within a day can be grouped (an
+installer and its checksums, for example). The code cannot be turned back into the address, and
+with the daily value gone, it cannot link downloads on different days.</li>
+</ul>
+<p>The download log stores no address and no browser string, in any form, and neither do the
+server's error logs or the notifier that reads the log. The maintainer is told about downloads by
+email, with a daily summary. The lines are deleted after 30 days; from then on only the number of
+downloads per day is kept. GitHub serves the file itself and sees the download as it sees any
+other; its <a href="https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement">privacy
 statement</a> applies there.</p>
-<p>For every other page, the web server keeps a standard access log (address, time, page,
-browser) for operating the site. The site itself sets no cookies; the light or dark choice is kept in your browser's
-local storage, and nothing is sent anywhere because of it. Every page reads fully with scripts
-turned off.</p>
+<!--ga-->
+
+<h3 id="google-analytics">Google Analytics</h3>
+<p>The site also uses <strong>Google Analytics</strong>, but only if you accept it in the banner
+that appears on your first visit. Until you accept, and if you reject it, no Google script is loaded,
+no Google cookie is set and nothing is sent to Google.</p>
+<ul>
+<li>If you accept, Google Analytics sets two cookies on this site: <code>_ga</code>, to tell
+visitors apart, and <code>_ga_&lt;ID&gt;</code>, to keep track of a visit; each lasts up to two
+years (browsers may cut that short).</li>
+<li>Google then receives the pages you view, how you arrived, your browser, device and screen,
+scrolling and clicks on links that leave the site, and which download you click (file, platform and
+version), so the numbers can be compared with the download log. Google derives a coarse location
+(country, region, city) from your address; it states that Analytics does not log or store
+individual IP addresses of users in the EU, Switzerland or the UK.</li>
+<li>Your choice is kept in your browser's local storage, not in a cookie. To change it, use
+<a href="#google-analytics" data-cookie-settings>Cookie settings</a> at the foot of any page;
+withdrawing consent deletes the Google Analytics cookies and stops Analytics from loading.</li>
+<li>Google's <a href="https://policies.google.com/privacy">privacy policy</a> and
+<a href="https://policies.google.com/technologies/partner-sites">how Google uses information from
+sites that use its services</a> apply to what Google receives.</li>
+</ul>
+<!--/ga-->
+
+<h3 id="server-logs">Server logs and your browser</h3>
+<p>For every page other than the download links, the web server keeps a standard access log
+(address, time, page, browser) for operating the site. The light or dark choice<!--ga--> and your
+Analytics choice are<!--/ga--><!--no-ga--> is<!--/no-ga--> kept in your browser's local storage;
+nothing is sent anywhere because of <!--ga-->them<!--/ga--><!--no-ga-->it<!--/no-ga-->. Every page
+reads fully with scripts turned off<!--ga-->, and then nothing from Google loads<!--/ga-->.</p>
 <p>Questions: <a href="mailto:{{contact}}">{{contact}}</a>.</p>
