@@ -28,8 +28,8 @@ def test_site_builds_without_scripts_or_external_assets_and_links_resolve(tmp_pa
         for url in re.findall(r'src="([^"]+)"', text) + re.findall(r'<link[^>]+href="([^"]+)"', text):
             assert url.startswith("/") or url.startswith("https://getroutemap.app"), (page, url)
         for href in re.findall(r'<a href="(/[^"#]*)', text):
-            if href == "/":
-                continue
+            if href == "/" or href.startswith("/dl/"):
+                continue  # /dl/ is a redirect the server answers, not a file
             href = href.split("?", 1)[0]
             name = href.rstrip("/").rsplit("/", 1)[-1]
             target = out / href.lstrip("/") if "." in name else out / href.strip("/") / "index.html"
@@ -38,7 +38,8 @@ def test_site_builds_without_scripts_or_external_assets_and_links_resolve(tmp_pa
     for call in ("fetch(", "XMLHttpRequest", "sendBeacon", "WebSocket", "document.cookie", "import("):
         assert call not in js, f"site.js must not use {call}"
     download = (out / "download" / "index.html").read_text(encoding="utf-8")
-    assert "releases/download/v0.1.0-beta.4/routemap-0.1.0b4-windows-x86_64.zip" in download
+    assert 'href="/dl/v0.1.0-beta.4/routemap-0.1.0b4-windows-x86_64.zip"' in download
+    assert "releases/download/" not in download, "file links go through /dl/"
     assert "D57C 7E26" in download and "Run anyway" in download
     home = (out / "index.html").read_text(encoding="utf-8")
     for page_text in (home, (out / "screenshots" / "index.html").read_text(encoding="utf-8")):
@@ -151,7 +152,7 @@ def test_the_download_page_puts_the_installer_first_for_each_platform(tmp_path):
     order = [page.index(n) for n in names[:8]]
     assert order[0] < order[1] and order[4] < order[6], "installer before zip, packages before AppImage"
     assert 'id="windows"' in page and 'id="macos"' in page and 'id="linux"' in page
-    assert f'data-os="windows" href="https://github.com/osintph/routemap/releases/download/{tag}/{names[0]}"' in page
+    assert f'data-os="windows" href="/dl/{tag}/{names[0]}"' in page
     assert "Install for me only" in page and "Settings &gt; Apps" in page
     old = subprocess.run([sys.executable, str(ROOT / "site" / "build.py"), "--out", str(tmp_path / "old"),
                           "--tag", "v0.2.0-beta.1"], capture_output=True, text=True)

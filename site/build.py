@@ -538,7 +538,9 @@ class Release:
     def __init__(self, tag: str, release_json: str | None, sums: str | None):
         self.tag = tag
         self.version = version_for(tag)
-        self.base = f"{L['releases']}/download/{tag}"
+        # Release files go through this site's /dl/, which answers with a redirect
+        # to the same file on GitHub and counts the download (no address kept).
+        self.base = f"/dl/{tag}"
         self.sizes: dict[str, int] = {}
         self.date = ""
         self.published = ""
