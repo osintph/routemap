@@ -23,7 +23,8 @@
 # installed with --require-hashes and built without an isolated environment;
 # appimagetool and the AppImage runtime from tagged releases, checked by
 # SHA-256; Nuitka may download nothing on its own (no
-# --assume-yes-for-downloads), so an unexpected download fails the build.
+# --assume-yes-for-downloads), so an unexpected download fails the build, and
+# the Dependency Walker it needs on Windows is fetched here, checked by SHA-256.
 # Each release file gets build provenance (actions/attest-build-provenance)
 # and the release carries a CycloneDX SBOM of the locks (hardening 7).
 name: build
@@ -46,6 +47,10 @@ env:
   APPIMAGETOOL_SHA256: ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0
   APPIMAGE_RUNTIME_URL: https://github.com/AppImage/type2-runtime/releases/download/20251108/runtime-x86_64
   APPIMAGE_RUNTIME_SHA256: 2fca8b443c92510f1483a883f60061ad09b46b978b2631c807cd873a47ec260d
+  # Dependency Walker 2.2 (x64), which Nuitka needs for a standalone Windows build and
+  # may not download itself (RM-06). The SHA-256 equals Chocolatey's pinned Checksum64.
+  DEPENDS_URL: https://dependencywalker.com/depends22_x64.zip
+  DEPENDS_SHA256: 35db68a613874a2e8c1422eb0ea7861f825fc71717d46dabf1f249ce9634b4f1
 
 jobs:
   build:
@@ -134,6 +139,17 @@ jobs:
       # self-extractor, which Defender's heuristics flagged in beta.3), merged
       # into one "Route Map" folder with the windowed app and the console CLI,
       # both with version resources and the application manifest. No packer.
+      - name: Dependency Walker for Nuitka, checked by SHA-256 (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          # Placed where Nuitka 4.2 looks for its download (<cache>/depends/x86_64/),
+          # so the build finds it and asks for nothing.
+          D="$RUNNER_TEMP/nuitka-downloads/depends/x86_64"
+          mkdir -p "$D"
+          curl -fsSL -o "$D/depends22_x64.zip" "$DEPENDS_URL"
+          printf '%s  %s\n' "$DEPENDS_SHA256" "$D/depends22_x64.zip" | sha256sum -c
+          echo "NUITKA_CACHE_DIR_DOWNLOADS=$RUNNER_TEMP/nuitka-downloads" >> "$GITHUB_ENV"
       - name: Compile (Windows, windowed app and console CLI)
         if: runner.os == 'Windows'
         run: |

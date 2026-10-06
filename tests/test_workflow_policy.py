@@ -145,3 +145,22 @@ def test_the_cla_script():
         ["node", "--test", *sorted(str(p.relative_to(ROOT)) for p in (ROOT / "tests" / "node").glob("*.test.js"))],
         cwd=ROOT, capture_output=True, text=True)
     assert result.returncode == 0, result.stdout[-3000:] + result.stderr[-2000:]
+
+
+def test_every_helper_nuitka_needs_on_windows_is_provided_checked():
+    """Without --assume-yes-for-downloads, Nuitka stops when a helper it needs is
+    missing. On Windows a standalone build needs Dependency Walker: the build
+    must place it, checked by SHA-256, where Nuitka looks, before compiling."""
+    build = _load(ROOT / ".github" / "workflows" / "build.yml")
+    env = build.get("env", {})
+    assert re.fullmatch(r"https://[^\s]+/depends22_x64\.zip", env.get("DEPENDS_URL", ""))
+    assert re.fullmatch(r"[0-9a-f]{64}", env.get("DEPENDS_SHA256", ""))
+    steps = [step for _, _, step in _steps(build)]
+    names = [s.get("name", "") for s in steps]
+    compile_at = next(i for i, n in enumerate(names) if n.startswith("Compile (Windows"))
+    seed = [i for i, s in enumerate(steps) if "NUITKA_CACHE_DIR_DOWNLOADS" in _text(s)]
+    assert seed and seed[0] < compile_at, "Dependency Walker is not provided before the Windows compile"
+    run = _text(steps[seed[0]])
+    assert "$DEPENDS_SHA256" in run and "sha256sum -c" in run
+    # Nuitka's own layout: <downloads cache>/depends/<architecture>/<zip name>.
+    assert "/depends/x86_64" in run and "depends22_x64.zip" in run
