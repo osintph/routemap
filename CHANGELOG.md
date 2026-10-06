@@ -4,10 +4,15 @@ All notable changes to this project are documented here. The format is based
 on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 uses [Semantic Versioning](https://semver.org/).
 
-## [0.2.0-beta.4] - 2026-10-05
+## [0.2.0-beta.5] - 2026-10-06
 
 Fixes from a validation round on beta.3. The engine is routemap-engine
 0.4.2, which has its own list.
+
+0.2.0-beta.4 was not released: its Windows build failed, so the tag
+`v0.2.0-beta.4` has no release and no files. Everything below was meant
+for beta.4; in addition, the release build now fetches the Dependency
+Walker that Nuitka needs on Windows itself, checked by SHA-256.
 
 ### Security
 
