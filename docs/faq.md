@@ -16,8 +16,8 @@ the maintainer, once it is issued. Until then the Windows build is unsigned.
 
 ## Is it free?
 
-Yes: free and open source under the GNU AGPL-3.0, with no ads, no tracking and
-no account. Donations pay for code signing, hosting, the RIPE Atlas probe and
+Yes: free and open source under the GNU AGPL-3.0, with no ads, no account, and
+no tracking in the app. Donations pay for code signing, hosting, the RIPE Atlas probe and
 maintenance time.
 
 ## Where does a placement come from?
@@ -52,9 +52,10 @@ Yes, on every platform: see the [command-line reference](cli.md).
 ## Does the app or the project site track me?
 
 The desktop app has no telemetry. The website, getroutemap.app, counts visits
-with Cloudflare Web Analytics, which sets no cookies and does not track
-individuals across sites; it records page views, referrers, countries,
-browsers and devices as totals. The site's privacy page has the details.
+with Cloudflare Web Analytics, which sets no cookies, and keeps a download log
+that stores no addresses. Analytics cookies are set only if you accept them in
+the site's cookie banner, and you can change that choice at any time. The
+site's privacy page has the details.
 
 ## Why are there no submarine cables on the map?
 

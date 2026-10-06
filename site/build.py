@@ -37,6 +37,9 @@ CONFIG = tomllib.loads((SITE / "site.toml").read_text(encoding="utf-8"))
 S, L, D = CONFIG["site"], CONFIG["links"], CONFIG["donate"]
 SIGNED = CONFIG["signing"]["windows_signed"]
 FPR = CONFIG["release"]["gpg_fingerprint"]
+GA_ID = CONFIG.get("analytics", {}).get("ga_measurement_id", "")
+if GA_ID and not re.fullmatch(r"G-[A-Z0-9]{4,20}", GA_ID):
+    raise SystemExit(f"site.toml: ga_measurement_id {GA_ID!r} is not a G- measurement ID")
 FPR_SPACED = " ".join(FPR[i:i + 4] for i in range(0, len(FPR), 4))
 CURRENT = ' aria-current="page"'
 LATEST = ""   # the release tag the site describes; set in main()
@@ -288,6 +291,10 @@ def picture(name: str, ext: str, width: str, height: str, cls: str, alt: str) ->
 
 def content(name: str) -> str:
     text = expand((SITE / "content" / name).read_text(encoding="utf-8"))
+    # <!--ga-->...<!--/ga--> only with Google Analytics configured, <!--no-ga-->...<!--/no-ga--> only without.
+    keep, drop = ("ga", "no-ga") if GA_ID else ("no-ga", "ga")
+    text = re.sub(rf"<!--{drop}-->.*?<!--/{drop}-->\n?", "", text, flags=re.S)
+    text = re.sub(rf"<!--/?{keep}-->\n?", "", text)
     text = re.sub(r'src="(/assets/img/[^"?]+)"', lambda m: f'src="{img_url(m.group(1))}"', text)
     # [[pic NAME EXT WIDTH HEIGHT CLASSES|ALT]]
     return re.sub(r"\[\[pic (\S+) (\S+) (\d+) (\d+) ?([^|\]]*)\|([^\]]+)\]\]",
@@ -386,6 +393,46 @@ SEARCH = {
 }
 
 
+def consent_head() -> str:
+    """The measurement ID and the consent script, only when Analytics is configured.
+    No Google URL is in any page: consent.js adds gtag.js after consent."""
+    if not GA_ID:
+        return ""
+    return (f'<meta name="ga-measurement-id" content="{GA_ID}">\n'
+            f'<script src="/assets/consent.js?v={ASSET_VERSION["consent.js"]}" defer></script>\n')
+
+
+def consent_banner() -> str:
+    """Accept and Reject as the same kind of button, side by side. Hidden until
+    consent.js finds no stored choice; without JavaScript nothing loads and
+    nothing is asked."""
+    if not GA_ID:
+        return ""
+    return """<div id="consent" class="consent" role="region" aria-label="Cookie choice" hidden>
+  <div class="bar">
+    <p>May this site use <strong>Google Analytics</strong> cookies to count visits and downloads?
+    Nothing is sent to Google unless you accept, and you can change your mind at any time under
+    Cookie settings at the foot of every page. <a href="/privacy/#google-analytics">Details</a></p>
+    <p class="consent-buttons"><button type="button" class="consent-button" data-consent="granted">Accept analytics cookies</button>
+    <button type="button" class="consent-button" data-consent="denied">Reject analytics cookies</button></p>
+  </div>
+</div>
+"""
+
+
+def cookie_settings_link() -> str:
+    return '\n    <a href="/privacy/#google-analytics" id="cookie-settings" data-cookie-settings>Cookie settings</a>' if GA_ID else ""
+
+
+def analytics_note() -> str:
+    if not GA_ID:
+        return ('<p class="quiet">This website counts visits with Cloudflare Web Analytics, which sets no cookies;\n'
+                '    the desktop app has no telemetry. <a href="/privacy/#this-website">Details</a>.</p>')
+    return ('<p class="quiet">This website counts visits with Cloudflare Web Analytics, which sets no cookies, and,\n'
+            '    only if you accept them, with Google Analytics cookies; the desktop app has no telemetry.\n'
+            '    <a href="/privacy/#this-website">Details</a>.</p>')
+
+
 def page(path: str, title: str, body: str, description: str, *, wide: bool = False,
          og: tuple[str, str] | None = None, structured: str = "") -> None:
     nav = "".join(f'<a href="{href}"{CURRENT if path.startswith(href) else ""}>{label}</a>'
@@ -430,7 +477,7 @@ def page(path: str, title: str, body: str, description: str, *, wide: bool = Fal
 <link rel="preload" href="{img_url('/assets/fonts/newsreader-var.woff2')}" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/assets/style.css?v={ASSET_VERSION['style.css']}">
 <script src="/assets/site.js?v={ASSET_VERSION['site.js']}"></script>
-{structured}</head>
+{consent_head()}{structured}</head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
 <header class="site-header">
@@ -450,14 +497,13 @@ def page(path: str, title: str, body: str, description: str, *, wide: bool = Fal
     <p class="links"><a href="{L['repository']}">Source on GitHub</a>
     <a href="/compare/">Compared with paid tools</a>
     <a href="/privacy/">Privacy</a> <a href="/code-signing/">Code signing policy</a>
-    <a href="/release-key.asc">Release key</a> <a href="/.well-known/security.txt">security.txt</a>
+    <a href="/release-key.asc">Release key</a> <a href="/.well-known/security.txt">security.txt</a>{cookie_settings_link()}
     <a href="mailto:{S['contact']}">{S['contact']}</a></p>
     <p class="release">Latest release: <a href="{L['releases']}/tag/{LATEST}">{LATEST}</a></p>
-    <p class="quiet">This website counts visits with Cloudflare Web Analytics, which sets no cookies;
-    the desktop app has no telemetry. <a href="/privacy/#this-website">Details</a>.</p>
+    {analytics_note()}
   </div>
 </footer>
-</body>
+{consent_banner()}</body>
 </html>
 """
     target = OUT / "404.html" if path == "/404" else OUT / path.strip("/") / "index.html"
@@ -744,8 +790,8 @@ def build_static_pages(rel: Release) -> None:
     page("/privacy/", "Privacy",
          prose("Privacy", markdown((ROOT / "PRIVACY.md").read_text(encoding="utf-8")) + content("privacy-site.html"),
                content("privacy-lead.html")),
-         f"What the {S['product']} app sends, to whom and when (no telemetry), and how this website "
-         "counts visits with Cloudflare Web Analytics.")
+         f"What the {S['product']} app sends, to whom and when (no telemetry), and what this website "
+         "records: visits and downloads" + (", and Google Analytics only with your consent." if GA_ID else "."))
     doc_page("/code-signing/", ROOT / "CODE_SIGNING_POLICY.md", "Code signing policy",
              f"How {S['product']} Windows releases are code-signed, and by whom.")
     changelog = markdown((ROOT / "CHANGELOG.md").read_text(encoding="utf-8"))
@@ -841,15 +887,21 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--release-json")
     parser.add_argument("--sums")
     parser.add_argument("--out", default=str(OUT))
+    parser.add_argument("--ga-id", help="a Google Analytics measurement ID in place of site.toml's (tests)")
     args = parser.parse_args(argv)
+    global GA_ID
+    if args.ga_id is not None:
+        if args.ga_id and not re.fullmatch(r"G-[A-Z0-9]{4,20}", args.ga_id):
+            raise SystemExit(f"--ga-id {args.ga_id!r} is not a G- measurement ID")
+        GA_ID = args.ga_id
     OUT = pathlib.Path(args.out)
     if OUT.exists():
         shutil.rmtree(OUT)
     OUT.mkdir(parents=True)
     shutil.copytree(SITE / "assets", OUT / "assets")
-    global LATEST
+    global LATEST  # noqa: PLW0603
     import hashlib
-    for name in ("style.css", "site.js"):
+    for name in ("style.css", "site.js", "consent.js"):
         ASSET_VERSION[name] = hashlib.sha256((SITE / "assets" / name).read_bytes()).hexdigest()[:10]
     # Font URLs in the built stylesheet carry their content hash, as images do:
     # a re-subset font keeps its name, and Cloudflare kept serving the old one.

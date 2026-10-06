@@ -122,6 +122,15 @@ nav[aria-label="Main"] a.gh { color: var(--accent); }
 .theme-toggle { font: 600 0.85rem var(--text); color: var(--ink-2); background: transparent; border: 1px solid var(--rule); border-radius: 4px; padding: var(--s1) var(--s3); cursor: pointer; }
 .theme-toggle:hover { border-color: var(--accent); color: var(--ink); }
 
+/* Consent banner: Accept and Reject share one style, neither is the default. */
+.consent { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; background: var(--surface); border-top: 1px solid var(--rule); box-shadow: 0 -6px 24px rgb(0 0 0 / 0.12); padding-bottom: env(safe-area-inset-bottom, 0px); }
+.consent .bar { max-width: var(--page); margin: 0 auto; padding: var(--s4) var(--s5); display: flex; flex-wrap: wrap; align-items: center; gap: var(--s3) var(--s6); }
+.consent p { margin: 0; max-width: var(--measure); color: var(--ink-2); font-size: 0.95rem; }
+.consent .consent-buttons { display: flex; flex-wrap: wrap; gap: var(--s3); }
+.consent-button { font: 600 0.95rem var(--text); color: var(--ink); background: var(--sunk); border: 1px solid var(--rule); border-radius: 6px; padding: var(--s2) var(--s5); cursor: pointer; }
+.consent-button:hover { border-color: var(--accent); }
+body:has(#consent:not([hidden])) .site-footer { padding-bottom: 9rem; }
+
 main { max-width: var(--page); margin: 0 auto; padding: var(--s7) var(--s5) var(--s9); }
 
 /* Footer */

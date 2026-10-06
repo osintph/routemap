@@ -305,3 +305,49 @@ def test_the_readme_and_the_install_page_say_route_map_is_not_on_pypi():
     for path in (root / "README.md", root / "site" / "content" / "download-install.html"):
         text = " ".join(path.read_text(encoding="utf-8").split())
         assert "not on PyPI" in text and "pip install routemap" in text, path.name
+
+
+def _build_site(tmp_path, ga_id):
+    out = tmp_path / ("ga" if ga_id else "plain")
+    subprocess.run([sys.executable, str(ROOT / "site" / "build.py"), "--out", str(out), "--tag", "v0.2.0-beta.5",
+                    "--ga-id", ga_id], check=True, capture_output=True)
+    return out
+
+
+def test_consent_script_only_adds_gtag_and_deletes_its_cookies():
+    """consent.js is the only place Google appears; it never sends anything itself."""
+    js = (ROOT / "site" / "assets" / "consent.js").read_text(encoding="utf-8")
+    for call in ("fetch(", "XMLHttpRequest", "sendBeacon", "WebSocket", "import(", "eval(", "innerHTML"):
+        assert call not in js, call
+    assert re.findall(r"https://[^\"' ]+", js) == ["https://www.googletagmanager.com/gtag/js?id="]
+    assert js.count('document.cookie = ') == 1 and "Max-Age=0" in js, "cookies are only deleted, never set"
+
+
+def test_no_google_in_any_page_and_analytics_only_when_configured(tmp_path):
+    plain, ga = _build_site(tmp_path, ""), _build_site(tmp_path, "G-TEST1234")
+    for page in plain.rglob("*.html"):
+        text = page.read_text(encoding="utf-8")
+        assert "consent.js" not in text and 'id="consent"' not in text and "ga-measurement-id" not in text, page
+        assert "google-analytics" not in text and "Google Analytics" not in text, page
+    for page in ga.rglob("*.html"):
+        text = page.read_text(encoding="utf-8")
+        assert "googletagmanager" not in text and "gtag(" not in text, page
+        assert '<meta name="ga-measurement-id" content="G-TEST1234">' in text, page
+        assert text.count('class="consent-button"') == 2 and "data-cookie-settings" in text, page
+    privacy_ga = (ga / "privacy" / "index.html").read_text(encoding="utf-8")
+    privacy_plain = (plain / "privacy" / "index.html").read_text(encoding="utf-8")
+    assert 'id="google-analytics"' in privacy_ga and 'id="google-analytics"' not in privacy_plain
+    for text in (privacy_ga, privacy_plain):
+        assert "<!--" not in text.split("<main", 1)[1].replace("<!-- ", ""), "no condition markers left"
+        assert "sets no cookies; the light" not in text
+        assert 'href="https://db-ip.com">IP Geolocation by DB-IP</a>' in text, "CC BY attribution"
+        assert "daily visitor hash" in text and "30 days" in text
+    assert "policies.google.com/privacy" in privacy_ga
+    assert "light or dark choice and your\nAnalytics choice are kept" in privacy_ga
+    assert "light or dark choice is kept" in privacy_plain.replace("\n", " ").replace("choice\n is", "choice is")
+
+
+def test_ga_id_is_checked(tmp_path):
+    bad = subprocess.run([sys.executable, str(ROOT / "site" / "build.py"), "--out", str(tmp_path / "x"),
+                          "--ga-id", "UA-1234-1"], capture_output=True, text=True)
+    assert bad.returncode != 0 and "not a G- measurement ID" in bad.stderr
