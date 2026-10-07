@@ -165,6 +165,7 @@ def test_nothing_from_google_before_a_choice(sites, visit):
             v.page.locator('a[href^="/dl/"]:visible').first.click()
     assert v.google() == [] and v.cookies() == []
     assert v.page.evaluate("typeof window.gtag") == "undefined"
+    assert v.page.evaluate("typeof window.dataLayer") == "undefined", "no consent command before a choice"
 
 
 def test_accept_and_reject_are_equally_prominent(sites, visit):
@@ -192,6 +193,7 @@ def test_reject_loads_nothing_now_or_later(sites, visit):
     v.page.wait_for_timeout(300)
     assert v.google() == [] and v.cookies() == []
     assert v.page.evaluate("localStorage.getItem('analytics-consent')") == "denied"
+    assert v.page.evaluate("typeof window.dataLayer") == "undefined", "no consent or other command after Reject"
 
 
 def test_accept_loads_analytics_and_download_clicks_are_events(sites, visit):
@@ -201,7 +203,12 @@ def test_accept_loads_analytics_and_download_clicks_are_events(sites, visit):
     v.wait_for_stub()
     assert v.google() == [f"https://www.googletagmanager.com/gtag/js?id={GA_ID}"]
     layer = v.page.evaluate("window.dataLayer.map(a => Array.from(a))")
-    assert layer[0][0] == "js" and layer[1] == ["config", GA_ID]
+    # Consent first, as Google's consent guide requires: analytics granted,
+    # everything for advertising denied; then js and config.
+    assert layer[0] == ["consent", "default", {"analytics_storage": "granted", "ad_storage": "denied",
+                                               "ad_user_data": "denied", "ad_personalization": "denied"}]
+    assert layer[1][0] == "js" and layer[2] == ["config", GA_ID]
+    assert [entry[0] for entry in layer].count("consent") == 1
     v.page.locator('a[href$="-windows-x86_64-setup.exe"]:visible').first.click()
     v.page.wait_for_timeout(200)
     events = v.page.evaluate("""(window.dataLayer || []).filter(a => a[0] === 'event').map(a => [a[1], a[2]])""")
