@@ -8,7 +8,8 @@
 // withdrawing it deletes Google Analytics' cookies and reloads the page, so
 // no Google script keeps running.
 //
-// After consent: the standard gtag.js setup (developers.google.com/tag-platform/
+// After consent: the consent state (analytics granted, advertising denied),
+// then the standard gtag.js setup (developers.google.com/tag-platform/
 // gtagjs/install), run from this file instead of an inline script, and one
 // event per download link click, so Analytics and the server's download log
 // can be compared.
@@ -36,6 +37,16 @@
     loaded = true;
     window.dataLayer = window.dataLayer || [];
     window.gtag = function () { window.dataLayer.push(arguments); };
+    // The visitor accepted analytics, and only analytics: consent for
+    // measurement is granted, everything for advertising denied. It must come
+    // before any command that sends data, such as config
+    // (developers.google.com/tag-platform/security/guides/consent).
+    window.gtag("consent", "default", {
+      analytics_storage: "granted",
+      ad_storage: "denied",
+      ad_user_data: "denied",
+      ad_personalization: "denied"
+    });
     window.gtag("js", new Date());
     window.gtag("config", id);
     var s = document.createElement("script");
