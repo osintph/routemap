@@ -234,8 +234,9 @@ instead of from this computer, which helps when your machine cannot run a trace
    that the measurement will be public.
 
 Route Map finds a connected probe on your network's AS (or, failing that, in
-your country), schedules one traceroute (30 credits), and draws the result from
-the probe's location. **Atlas measurements are public**: RIPE NCC publishes
+your country), schedules one traceroute (60 credits: RIPE charges a one-off
+measurement twice what a periodic one costs), and draws the result from the
+probe's location. **Atlas measurements are public**: RIPE NCC publishes
 every measurement, including the target. Your origin coordinates are never
 sent; they only rank probes on your machine.
 
