@@ -1,0 +1,45 @@
+# Signs a test SHA256SUMS with the real update key and checks it with the key
+# the app embeds: proof that UPDATE_ED25519_KEY in the downloads environment
+# and routemap/updatekey.py are a pair, without a release. Manual only; runs
+# from main (the environment allows main and v* tags) after the maintainer
+# approves the downloads deployment. It publishes nothing and uploads
+# nothing: no release, no artifact, no cache. The key file is removed by the
+# signing script's trap and again in an always() step.
+name: sign-dry-run
+run-name: update signature dry run on ${{ github.ref_name }}
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  dry-run:
+    name: Sign a test SHA256SUMS with the real key
+    runs-on: ubuntu-24.04
+    environment: downloads
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Update key present
+        env:
+          UPDATE_ED25519_KEY: ${{ secrets.UPDATE_ED25519_KEY }}
+        run: |
+          [ -n "$UPDATE_ED25519_KEY" ] || { echo "::error::UPDATE_ED25519_KEY is not set"; exit 1; }
+      - name: Sign a test release and check it with the embedded key
+        env:
+          UPDATE_ED25519_KEY: ${{ secrets.UPDATE_ED25519_KEY }}
+        run: |
+          openssl version
+          mkdir -p "$RUNNER_TEMP/dry-release"
+          printf 'dry run, not a release\n' > "$RUNNER_TEMP/dry-release/routemap-0.0.0-dry-run.txt"
+          (cd "$RUNNER_TEMP/dry-release" && sha256sum -- * > SHA256SUMS)
+          bash packaging/sign_update.sh v0.0.0-dry-run "$RUNNER_TEMP/dry-release"
+          bash packaging/verify_update_signature.sh v0.0.0-dry-run "$RUNNER_TEMP/dry-release"
+          echo "The real key signs, and the app's embedded key accepts it."
+      - name: Remove any trace of the update key and the test files
+        if: always()
+        run: rm -rf "$RUNNER_TEMP"/routemap-update-sign.* "$RUNNER_TEMP"/routemap-update-verify.* "$RUNNER_TEMP/dry-release"

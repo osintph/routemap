@@ -25,7 +25,9 @@ own list.
 - **Atlas credits before every Atlas trace**: your balance, what this trace
   costs and what is left after it, from RIPE's own figures. A key RIPE does not
   accept stops the trace with a button to Settings; a key without "credits
-  read" hides the balance and still traces.
+  read" hides the balance and still traces. The message for a key without "credits
+  read" (RIPE's 403) is not yet tested against RIPE itself, only against a
+  constructed answer; the unknown-key message (401) is.
 - **Help > Create Bug Report**: a zip of version, commit, OS and settings, with
   every key and token and your set origin removed, and the last trace only if
   you tick it. Every file is shown exactly as it will be saved. Nothing is
