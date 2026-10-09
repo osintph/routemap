@@ -253,7 +253,8 @@ def replace_appimage(new: pathlib.Path, running: str) -> None:
     try:
         shutil.copyfile(new, staged)
         os.chmod(staged, stat.S_IRWXU | stat.S_IRGRP | stat.S_IXGRP | stat.S_IROTH | stat.S_IXOTH)
-        with open(staged, "rb") as f:
+        # Opened for writing: Windows refuses fsync on a read-only handle (EBADF).
+        with open(staged, "r+b") as f:
             os.fsync(f.fileno())
         os.replace(staged, target)
     except OSError as exc:
