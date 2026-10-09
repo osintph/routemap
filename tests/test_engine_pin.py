@@ -6,9 +6,11 @@ import pathlib
 import re
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-# routemap-engine 0.4.2 on PyPI, the same bytes as the GitHub release files.
-ENGINE_042 = {"5bcd0ebb2482169ba49e80ef1c609d6f35ce6b89e3233aa954edb44fa400d97a",   # wheel
-              "f5f094c58e2892c104eea6f54b074587edb522f1ff11b5325e8aa7c3f823cf86"}   # sdist
+# routemap-engine 0.5.0 on PyPI, the same bytes as the GitHub release files
+# (compared 2026-10-09).
+ENGINE_RELEASE = "0.5.0"
+ENGINE_HASHES = {"2af49b482000cd0d093377de876b0a135da8342b7de22b8c8dafb0272ee6a7a2",   # wheel
+                 "d214b7cbfc98e65cedfeeab068ce6a7381bbd5b6ea3b4952a8fa9d1a62aace38"}   # sdist
 
 
 def _lock() -> str:
@@ -19,12 +21,12 @@ def test_pyproject_and_the_lock_pin_the_same_engine_release():
     pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
     pin = re.search(r'"routemap-engine\[offline\]==([0-9][^"]*)"', pyproject)
     locked = re.search(r"^routemap-engine==(\S+)", _lock(), flags=re.M)
-    assert pin and locked and pin.group(1) == locked.group(1) == "0.4.2", (pin, locked)
+    assert pin and locked and pin.group(1) == locked.group(1) == ENGINE_RELEASE, (pin, locked)
 
 
 def test_the_lock_carries_the_release_files_hashes():
     block = re.search(r"^routemap-engine==\S+((?:\s*\\\n\s+--hash=sha256:[0-9a-f]{64})+)", _lock(), flags=re.M)
-    assert block and set(re.findall(r"[0-9a-f]{64}", block.group(1))) == ENGINE_042
+    assert block and set(re.findall(r"[0-9a-f]{64}", block.group(1))) == ENGINE_HASHES
     pins = re.findall(r"^([A-Za-z0-9_.-]+)==", _lock(), flags=re.M)
     assert len(pins) >= 10 and all(re.search(rf"^{re.escape(p)}==[^\n]* \\\n\s+--hash=sha256:", _lock(), flags=re.M)
                                    for p in pins)
