@@ -8,6 +8,7 @@ step and delete everything downloaded.
 """
 import hashlib
 import pathlib
+import sys
 
 import httpx
 import pytest
@@ -203,7 +204,9 @@ def test_an_appimage_is_replaced_in_one_rename(tmp_path):
     new = tmp_path / "new.AppImage"
     new.write_bytes(b"new")
     updater.replace_appimage(new, str(running))
-    assert running.read_bytes() == b"new" and running.stat().st_mode & 0o111
+    assert running.read_bytes() == b"new"
+    if sys.platform != "win32":   # Windows has no execute bits; AppImages are Linux only
+        assert running.stat().st_mode & 0o111
     assert not any(p.name.endswith(".update") for p in tmp_path.iterdir())
 
 
