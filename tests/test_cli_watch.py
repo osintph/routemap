@@ -66,3 +66,15 @@ def test_no_prober_says_why(monkeypatch, capsys):
 @pytest.mark.parametrize("text,seconds", [("90", 90), ("90s", 90), ("10m", 600), ("2h", 7200), ("1.5h", 5400)])
 def test_durations(text, seconds):
     assert cli.parse_duration(text) == seconds
+
+
+
+def test_compare_with_a_newer_export_says_why(tmp_path):
+    import pathlib
+    newer = tmp_path / "newer.json"
+    newer.write_text(json.dumps({"format": "routemap/route-export", "format_version": 4, "route": {}}))
+    trace = pathlib.Path(__file__).parent / "fixtures" / "routemap" / "heise_traceroute.txt"
+    with pytest.raises(SystemExit) as exc:
+        cli.main(["parse", str(trace), "--offline", "--origin", "Manila, PH", "--compare", str(newer), "--json"])
+    assert "made by a newer Route Map. This Route Map opens format 3 and older." in str(exc.value)
+    assert "is not a route export" not in str(exc.value)

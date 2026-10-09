@@ -107,6 +107,8 @@ def _insight(args, current: dict, settings) -> None:
         try:
             document = imported.export(imported.parse_json(imported.read_file(args.compare)))
             old = document["route"]
+        except imported.NewerFormat as exc:
+            raise SystemExit(f"{NAME}: {args.compare}: {exc.message}")
         except (ValueError, KeyError, TypeError) as exc:
             raise SystemExit(f"{NAME}: {args.compare} is not a route export ({exc})")
         result = route_diff.diff_routes(old, route)
