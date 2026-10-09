@@ -67,6 +67,25 @@ shasum -a 256 -c SHA256SUMS --ignore-missing      # macOS
 
 On Windows: `Get-FileHash <file>` in PowerShell, compared with `SHA256SUMS`.
 
+From 0.2.0-beta.6 each release also has `SHA256SUMS.ed25519`, an Ed25519
+signature with the update key over the line `routemap <tag>` followed by
+`SHA256SUMS`. Help > Check for Updates checks it with the key built into the
+app (`routemap/updatekey.py`) before it installs anything. The update key:
+
+```
+-----BEGIN PUBLIC KEY-----
+MCowBQYDK2VwAyEALvKv5pMRnHidP2qzX+j24fSKbNUiCJuqWfx9aYbkha4=
+-----END PUBLIC KEY-----
+```
+
+To check it by hand with OpenSSL 3, save that as `update-key.pem`, then:
+
+```bash
+{ printf 'routemap %s\n' v0.2.0-beta.6; cat SHA256SUMS; } > message
+openssl pkeyutl -verify -rawin -pubin -inkey update-key.pem \
+  -sigfile SHA256SUMS.ed25519 -in message
+```
+
 ## Privacy
 
 No account, no telemetry, no automatic update check. What the app sends, to
