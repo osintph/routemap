@@ -50,6 +50,11 @@ own list.
   "unknown" when the destination never answers.
 - The Settings text asks for the "credits read" permission alongside "schedule
   a new measurement", for the balance.
+- **Every RTT colour meets 3:1 against land and sea** (WCAG 2.1, 1.4.11) in
+  both palettes and both themes. On the light map the grey is a shade darker
+  (#7b8896, 2.98:1 before) and the amber is darker (#b67b06, 2.06:1 before);
+  the dark map already passed. A test checks every colour and blend the map
+  can draw.
 
 ### Fixed
 - With Atlas on but no key, Trace from a RIPE Atlas Probe opened Settings on
