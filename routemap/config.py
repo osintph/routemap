@@ -166,6 +166,10 @@ class Settings:
     # 0.2.0-beta.6
     tour_seen: bool = False                  # the first-run tour was finished or skipped
     rtt_palette: str = "standard"            # "standard" or "colour-blind" (gui/theme.py)
+    # 0.3.0-beta.1: continuous mode (limits enforced by routemap_engine.watch)
+    live_interval: float = 1.0               # seconds per cycle, 1 to 60
+    live_duration_min: int = 60              # minutes before a session stops itself, 5 to 480
+    live_keep_history: bool = True           # keep stopped sessions in History
 
     def origin(self) -> tuple[float, float, str] | None:
         """The chosen origin, or None when it is to come from the public IP."""
@@ -235,12 +239,35 @@ def load_history() -> list[dict]:
     return [e for e in rebuilt if e is not None]
 
 
+# Stored continuous sessions, all together: past this the oldest are dropped
+# first (Settings > Live says so). Traces are capped by HISTORY_LIMIT only.
+SESSIONS_MAX_BYTES = 50_000_000
+
+
+def _size(entry: dict) -> int:
+    return len(json.dumps(entry.get("session"), ensure_ascii=False).encode("utf-8")) if entry.get("session") else 0
+
+
+def cap_sessions(entries: list[dict], limit: int = SESSIONS_MAX_BYTES) -> list[dict]:
+    """*entries* (newest first) with the oldest sessions dropped until the
+    sessions together fit in *limit* bytes. Traces are kept."""
+    total = sum(_size(e) for e in entries)
+    out = list(entries)
+    for e in reversed(entries):
+        if total <= limit:
+            break
+        if e.get("session"):
+            out.remove(e)
+            total -= _size(e)
+    return out
+
+
 def add_history(entry: dict, settings: Settings) -> list[dict]:
     """Prepend *entry* (newest first, capped). A no-op while history is off."""
     if not settings.history_enabled:
         return []
     entries = [entry] + load_history()
-    entries = entries[:HISTORY_LIMIT]
+    entries = cap_sessions(entries[:HISTORY_LIMIT])
     _atomic_write(history_path(), json.dumps(entries, ensure_ascii=False))
     return entries
 
@@ -255,9 +282,9 @@ def clear_history() -> int:
 
 
 def history_entry(route: dict, *, target: str, trace_text: str, argv: list[str] | None,
-                  source: str) -> dict:
+                  source: str, session: dict | None = None) -> dict:
     hops = route.get("hops") or []
-    return {
+    entry = {
         "target": target,
         "when": time.time(),
         "source": source,               # "local" | "paste" | "file" | "atlas"
@@ -267,6 +294,9 @@ def history_entry(route: dict, *, target: str, trace_text: str, argv: list[str] 
         "trace_text": trace_text,
         "route": route,
     }
+    if session is not None:
+        entry["session"] = session
+    return entry
 
 
 # ------------------------------------------------------------- cache / sites ---
@@ -296,6 +326,17 @@ def normalise(settings: Settings) -> Settings:
         settings.theme = "system"
     if settings.rtt_palette not in ("standard", "colour-blind"):
         settings.rtt_palette = "standard"
+    try:
+        settings.live_interval = min(60.0, max(1.0, float(settings.live_interval)))
+    except (TypeError, ValueError):
+        settings.live_interval = 1.0
+    if settings.live_interval != settings.live_interval:      # NaN
+        settings.live_interval = 1.0
+    try:
+        settings.live_duration_min = int(min(480, max(5, int(settings.live_duration_min))))
+    except (TypeError, ValueError, OverflowError):
+        settings.live_duration_min = 60
+    settings.live_keep_history = bool(settings.live_keep_history)
     try:
         quiet = max(0.0, float(settings.rtt_quiet_ms))
         hot = max(quiet + 1.0, float(settings.rtt_hot_ms))
