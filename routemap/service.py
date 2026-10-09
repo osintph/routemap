@@ -28,7 +28,7 @@ ORIGIN_HOW_IP = "ip"
 EXPORT_FORMAT = "routemap/route-export"
 # 2 (0.2.0): optional "insight" (AS path, countries, RIPE data) and "comparison".
 # Readers of version 1 files keep working: both are additions.
-EXPORT_FORMAT_VERSION = 2
+EXPORT_FORMAT_VERSION = 3          # 3 adds the optional "session" of continuous mode
 
 
 def startup() -> None:
@@ -183,7 +183,8 @@ def analyse_sync(text_or_hops, origin, settings: config.Settings, progress=None)
 
 def export_json(route: Route | dict, *, target: str | None, trace_text: str,
                 argv: list[str] | None, source: str, origin_how: str | None,
-                insight: dict | None = None, comparison: dict | None = None) -> str:
+                insight: dict | None = None, comparison: dict | None = None,
+                session: dict | None = None) -> str:
     """The JSON export: the route model plus how the trace was made."""
     body = route.to_dict() if isinstance(route, Route) else dict(route)
     document = {
@@ -207,6 +208,8 @@ def export_json(route: Route | dict, *, target: str | None, trace_text: str,
         document["attributions"] = _insight.attributions(insight)
     if comparison:
         document["comparison"] = comparison
+    if session:
+        document["session"] = session
     return json.dumps(document, indent=2, ensure_ascii=False) + "\n"
 
 

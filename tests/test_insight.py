@@ -252,7 +252,7 @@ def test_the_json_export_carries_the_summary_and_comparison_and_stays_schema_val
     doc = json.loads(service.export_json(route, target="heise.de", trace_text=SAMPLE, argv=None,
                                          source="file", origin_how="coords", insight=ins,
                                          comparison={"label": "x", "summary": d["summary"]}))
-    assert doc["format_version"] == 2 and doc["insight"]["as_path"]
+    assert doc["format_version"] == 3 and doc["insight"]["as_path"]
     assert any("DB-IP" in a for a in doc["attributions"])
     assert "routemap-engine" in doc["schema"]
     jsonschema.validate(doc["route"], schema())
