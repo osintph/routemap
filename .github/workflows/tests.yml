@@ -82,3 +82,37 @@ jobs:
           print(f"consent tests: {tests}, skipped: {skipped}")
           assert tests >= 9 and skipped == 0, "every consent test must run"
           EOF
+
+  update-signing:
+    # The release's update signing, end to end, with a key made for this job
+    # and thrown away: no secret, no environment, nothing uploaded. The real
+    # key is exercised only by sign-dry-run.yml, from main, on approval.
+    name: update signing (throwaway key)
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Sign and verify a test release with a throwaway key
+        run: |
+          openssl version
+          work="$(mktemp -d "$RUNNER_TEMP/dry.XXXXXX")"
+          mkdir "$work/release"
+          printf 'test build\n' > "$work/release/routemap-0.0.0-linux-x86_64.AppImage"
+          (cd "$work/release" && sha256sum -- * > SHA256SUMS)
+          (umask 077; openssl genpkey -algorithm ed25519 -out "$work/key.pem")
+          pub="$(openssl pkey -in "$work/key.pem" -pubout -outform DER | tail -c 32 | base64)"
+          UPDATE_ED25519_KEY="$(cat "$work/key.pem")" bash packaging/sign_update.sh v0.0.0-dry.1 "$work/release"
+          UPDATE_PUBLIC_KEYS_B64="$pub" bash packaging/verify_update_signature.sh v0.0.0-dry.1 "$work/release"
+          # Expected refusals, silenced so their ::error:: lines do not annotate a
+          # passing run. The same signature must fail against the embedded key.
+          if bash packaging/verify_update_signature.sh v0.0.0-dry.1 "$work/release" > /dev/null 2>&1; then
+            echo "::error::a throwaway signature passed against the embedded key"; exit 1
+          fi
+          # And against another tag.
+          if UPDATE_PUBLIC_KEYS_B64="$pub" bash packaging/verify_update_signature.sh v0.0.0-dry.2 "$work/release" > /dev/null 2>&1; then
+            echo "::error::the signature passed for another tag"; exit 1
+          fi
+          rm -rf "$work"
