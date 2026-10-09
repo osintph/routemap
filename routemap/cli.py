@@ -28,6 +28,7 @@ import json
 import os
 import re
 import sys
+import time
 
 from routemap.__about__ import DISPLAY_NAME, NAME, VERSION
 
@@ -140,6 +141,110 @@ def _outputs(args, current: dict) -> int:
 
 
 # ------------------------------------------------------------------ commands ---
+
+def parse_duration(text: str) -> float:
+    """'90s', '10m', '2h' or plain seconds, as seconds."""
+    import re
+    m = re.fullmatch(r"\s*(\d+(?:\.\d+)?)\s*([smh]?)\s*", str(text or ""))
+    if not m:
+        raise ValueError(f"not a duration: {text!r} (use e.g. 90s, 10m or 2h)")
+    return float(m.group(1)) * {"": 1, "s": 1, "m": 60, "h": 3600}[m.group(2)]
+
+
+def cmd_watch(args) -> int:
+    """routemap --watch TARGET: the same session as the window's, in a terminal."""
+    import threading
+    from routemap import config, live, service
+    from routemap_engine import InvalidTarget, probe, validate_target, watch
+
+    service.startup()
+    settings = config.load_settings()
+    try:
+        target = validate_target(args.target)
+    except InvalidTarget as exc:
+        _err(f"{NAME}: {exc}")
+        return 2
+    interval = settings.live_interval if args.interval is None else args.interval
+    if not (watch.INTERVAL_MIN <= interval <= watch.INTERVAL_MAX):
+        _err(f"{NAME}: --interval {interval:g} is out of range: {watch.INTERVAL_MIN:g} to "
+             f"{watch.INTERVAL_MAX:g} seconds. 1 second is mtr's default and the shortest it allows "
+             "without administrator rights.")
+        return 2
+    try:
+        duration = settings.live_duration_min * 60 if args.duration is None else parse_duration(args.duration)
+    except ValueError as exc:
+        _err(f"{NAME}: {exc}")
+        return 2
+    if not (watch.DURATION_MIN <= duration <= watch.DURATION_MAX):
+        _err(f"{NAME}: --duration must be between 5 minutes and 8 hours.")
+        return 2
+    if args.count is not None and args.count < 1:
+        _err(f"{NAME}: --count must be at least 1.")
+        return 2
+    ok, why = probe.available()
+    if not ok:
+        _err(f"{NAME}: continuous mode needs the built-in ICMP prober: {why}")
+        return 3
+    tty = sys.stdout.isatty() and not args.json
+    out = sys.stderr if args.json else sys.stdout
+    options = watch.WatchOptions(interval=interval, duration=duration, max_cycles=args.count)
+    until = time.strftime("%H:%M:%S", time.localtime(time.time() + duration))
+    print(f"{DISPLAY_NAME} watch to {target}, every {interval:g} s, until {until}"
+          + (f" or {args.count} cycles" if args.count else "") + " (Ctrl+C stops)", file=out, flush=True)
+
+    def on_cycle(session):
+        if tty:
+            snap = live.snapshot(session)
+            out.write("\x1b[H\x1b[J" + f"{DISPLAY_NAME} watch to {target} · cycle {snap['cycles']}\n"
+                      + live.table_text(snap) + "\n")
+            out.flush()
+
+    w = watch.Watch(target, options, on_cycle=on_cycle)
+    result = {}
+
+    def run():
+        try:
+            result["session"] = w.run()
+        except Exception as exc:  # noqa: BLE001
+            result["error"] = exc
+
+    thread = threading.Thread(target=run, name="watch", daemon=True)
+    thread.start()
+    try:
+        while thread.is_alive():
+            thread.join(0.2)
+    except KeyboardInterrupt:
+        w.stop()
+        thread.join(watch.GRACE + options.interval + 2)
+    if "error" in result:
+        _err(f"{NAME}: {result['error']}")
+        return 2
+    session = result.get("session") or w.session
+    if session is None:
+        return 2
+    snap = live.snapshot(session)
+    origin, how = _origin(args, settings)
+    sources_settings = settings
+    if args.offline:
+        settings.online_lookups = False          # this run only; nothing is saved
+    route = None
+    try:
+        hops = live.as_hops(snap["hops"])
+        if hops:
+            route = service.analyse_sync(hops, origin[:2] if origin else None, sources_settings).to_dict()
+    except Exception as exc:  # noqa: BLE001 - no places is not a failed session
+        _err(f"{NAME}: could not place the hops: {exc}")
+    places = {h["hop"]: h.get("place") or "" for h in (route or {}).get("hops") or []}
+    print(live.table_text(snap, {k: v for k, v in places.items() if v}), file=out, flush=True)
+    if args.json:
+        body = live.route_for_export(route or {"hops": [], "origin": {}, "warnings": [], "parser": "traceroute",
+                                               "parser_label": "built-in ICMP prober", "target": target,
+                                               "hoiho_ruleset_date": None}, snap)
+        sys.stdout.write(service.export_json(body, target=target, trace_text="",
+                                             argv=["icmp", "watch", f"every {interval:g} s", target],
+                                             source="watch", origin_how=how, session=session.to_dict()))
+    return 0
+
 
 def cmd_trace(args) -> int:
     from routemap import config, service
@@ -519,8 +624,22 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--check-update", action="store_true",
                         help="ask GitHub for the latest release tag, and nothing else")
     parser.add_argument("--smoke-test", metavar="DIR", help=argparse.SUPPRESS)
+    parser.add_argument("--watch", action="store_true",
+                        help="trace TARGET continuously, mtr style, and print a live table; "
+                             "with --json, the export at the end")
+    parser.add_argument("--interval", type=float, default=None,
+                        help="with --watch: seconds per cycle, 1 to 60 (default from Settings, 1)")
+    parser.add_argument("--count", type=int, default=None, help="with --watch: stop after this many cycles")
+    parser.add_argument("--duration", default=None,
+                        help="with --watch: stop after this long, e.g. 90s, 10m, 2h (5 min to 8 h; default 1 h)")
     _common(parser)
     args = parser.parse_args(argv)
+    if args.watch:
+        if not args.target:
+            parser.error("--watch needs a target")
+        return cmd_watch(args)
+    if args.interval is not None or args.count is not None or args.duration is not None:
+        parser.error("--interval, --count and --duration go with --watch")
     if args.smoke_test:
         return smoke_test(args.smoke_test)
     if args.check_update:
