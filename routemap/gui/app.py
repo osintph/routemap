@@ -74,8 +74,15 @@ class Controller(QObject):
         w.live_bar.resetClicked.connect(self.reset_watch)
         w.live_bar.exportClicked.connect(self.export)
         w.table.hopsSelected.connect(lambda hops: w.live_plot.set_data(w.live_plot.snap, hops[0]) if hops else None)
-        from PySide6.QtWidgets import QApplication as _QApp
-        _QApp.instance().installEventFilter(self)
+        # P pauses a running session. A shortcut, not an event filter: text
+        # fields claim the keys they type (ShortcutOverride), so P typed into
+        # the target box stays a letter. Enabled only while a session runs.
+        from PySide6.QtGui import QKeySequence, QShortcut
+        self.pause_shortcut = QShortcut(QKeySequence(Qt.Key_P), w)
+        self.pause_shortcut.setContext(Qt.WindowShortcut)
+        self.pause_shortcut.setAutoRepeat(False)
+        self.pause_shortcut.setEnabled(False)
+        self.pause_shortcut.activated.connect(self.toggle_pause)
         w.act_open.triggered.connect(self.open_file)
         w.act_paste.triggered.connect(self.paste)
         w.act_export.triggered.connect(self.export)
@@ -186,21 +193,6 @@ class Controller(QObject):
         return self.watch_task is not None and self.watch_task.isRunning()
 
     # ---------------------------------------------------------- continuous ---
-    def eventFilter(self, obj, event):
-        """P pauses or resumes a running session, unless focus is in a text field."""
-        from PySide6.QtCore import QEvent
-        if event.type() == QEvent.KeyPress and event.key() == Qt.Key_P and not event.modifiers() \
-                and self.watching() and not event.isAutoRepeat():
-            from PySide6.QtWidgets import (QAbstractSpinBox, QApplication as _QApp, QComboBox, QLineEdit,
-                                           QPlainTextEdit, QTextEdit)
-            focus = _QApp.focusWidget()
-            typing = isinstance(focus, (QLineEdit, QPlainTextEdit, QTextEdit, QAbstractSpinBox)) or (
-                isinstance(focus, QComboBox) and focus.isEditable())
-            if not typing and focus is not None and focus.window() is self.w:
-                self.toggle_pause()
-                return True
-        return False
-
     def watch(self):
         """Start a continuous session for the target in the box."""
         if self.watching() or self.busy():
@@ -238,7 +230,9 @@ class Controller(QObject):
         task.hop.connect(self._watch_cycle)
         task.succeeded.connect(self._watch_done)
         task.failed.connect(self._watch_failed)
+        task.finished.connect(lambda: self.pause_shortcut.setEnabled(False))
         self.watch_task = task
+        self.pause_shortcut.setEnabled(True)
         self.w.show_watching(target)
         if self.origin:
             self.w.map.set_origin(*self.origin)

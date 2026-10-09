@@ -203,3 +203,96 @@ def test_an_eight_hour_session_fits_the_file_cap():
     doc = {"session": {"samples": {"hops": {str(n): hop for n in range(1, 31)}}}}
     size = len((json.dumps(doc, indent=2) + "\n").encode())
     assert size < imported.MAX_FILE_BYTES, size
+
+
+def test_a_three_megabyte_session_round_trips_through_a_file(tmp_path, monkeypatch):
+    """A real session export of about 3 MB, written to disk and opened the way
+    File > Open Trace opens it: the route and the plot data come back equal."""
+    from concurrent.futures import Future
+
+    from routemap_engine import probe, watch
+
+    from routemap import service
+
+    class SyncPool:
+        def __init__(self, *a, **k):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def submit(self, fn, *args):
+            f = Future()
+            f.set_result(fn(*args))
+            return f
+
+    monkeypatch.setattr(watch, "ThreadPoolExecutor", SyncPool)
+    clock = {"t": 1_791_500_000.0, "m": 1000.0}
+
+    def sleep(s):
+        clock["t"] += s
+        clock["m"] += s
+
+    def fake(dst, ttl, seq, wait):
+        if ttl == 30:
+            return probe.Reply("192.0.2.30", 200.0 + (seq % 7), True)
+        return probe.Reply(f"192.0.2.{ttl}", 5.0 * ttl + (seq % 5) * 0.1, False)
+    w = watch.Watch("example.net", watch.WatchOptions(max_cycles=1500), probe_fn=fake,
+                    resolve=lambda _t: "192.0.2.30", wall=lambda: clock["t"], mono=lambda: clock["m"], sleep=sleep)
+    session = w.run()
+    # Placed the way the window places a session: its own hops, offline sources.
+    from routemap_engine import geo as _geo
+    from routemap_engine.model import analyse_sync
+    route = analyse_sync(watch.as_hops(session), (14.6, 121.0), sources=_geo.OFFLINE).to_dict()
+    snap = live.snapshot(session)
+    body = live.route_for_export(imported.route(route), snap)
+    text = service.export_json(body, target="example.net", trace_text="", argv=["icmp", "watch"],
+                               source="watch", origin_how="city", session=session.to_dict())
+    path = tmp_path / "session.json"
+    path.write_text(text, encoding="utf-8")
+    size = path.stat().st_size
+    assert 2_500_000 <= size <= 4_000_000, size                  # about 3 MB, under the 8 MB cap
+    back = imported.export(imported.parse_json(imported.read_file(str(path))))
+    assert back["route"] == imported.route(body)
+    saved = session.to_dict()["samples"]["hops"]
+    got = back["session"]["samples"]["hops"]
+    assert set(got) == set(saved) and len(got) == 30
+    for key in saved:
+        assert got[key]["raw"] == saved[key]["raw"]
+        assert got[key]["buckets"] == saved[key]["buckets"]
+    assert back["session"]["cycles"] == 1500 and len(back["session"]["hops"]) == 30
+
+
+
+def test_a_reopened_session_exports_and_reopens_again(tmp_path):
+    """Export, reopen, export again, reopen again: the second trip used to fail,
+    because a route placed from hops lost its parser label on the first import."""
+    from routemap import service
+    from routemap_engine import geo as _geo
+    from routemap_engine.model import analyse_sync
+    from routemap_engine.parse import Hop
+    hops = [Hop(hop=n, addresses=[f"192.0.2.{n}"], rtts_ms=[4.0 * n], sent=10, lost=0) for n in range(1, 6)]
+    route = analyse_sync(hops, (14.6, 121.0), sources=_geo.OFFLINE).to_dict()
+    snap = {"hops": _snap_hops()}
+    body = live.route_for_export(route, snap)
+    for trip in range(3):
+        text = service.export_json(body, target="x", trace_text="", argv=None, source="watch", origin_how=None,
+                                   session=_session())
+        back = imported.export(imported.parse_json(text))
+        assert back["route"]["parser"] == "hops" and back["route"]["parser_label"] == "hops", trip
+        body = back["route"]
+
+
+def test_a_session_export_route_matches_the_schema_exactly():
+    import jsonschema
+    from routemap_engine import geo as _geo
+    from routemap_engine.model import analyse_sync
+    from routemap_engine.parse import Hop
+    hops = [Hop(hop=n, addresses=[f"192.0.2.{n}"], rtts_ms=[4.0 * n], sent=10, lost=0) for n in range(1, 6)]
+    route = analyse_sync(hops, (14.6, 121.0), sources=_geo.OFFLINE).to_dict()
+    body = live.route_for_export(route, {"hops": _snap_hops()})
+    jsonschema.validate(body, imported._schema())
+    assert body["hops"][2]["loss_pct"] == 40.0 and "best_ms" not in body["hops"][2]
