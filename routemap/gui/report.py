@@ -175,13 +175,13 @@ def write_pdf(path: str, route: dict, *, target: str, trace_text: str, tool_labe
               origin_how: str | None, source: str, when: _dt.datetime | None = None,
               include_trace: bool = True, insight: dict | None = None,
               comparison: dict | None = None, quiet_ms: float = 15.0, hot_ms: float = 60.0,
-              origin_cc: str | None = None) -> None:
+              origin_cc: str | None = None, session: dict | None = None) -> None:
     when = when or _dt.datetime.now().astimezone()
     writer = QPdfWriter(path)
     writer.setResolution(300)
     writer.setPageLayout(QPageLayout(QPageSize(QPageSize.A4), QPageLayout.Portrait,
                                      QMarginsF(16, 14, 16, 12), QPageLayout.Millimeter))
-    writer.setTitle(f"Route to {target}")
+    writer.setTitle(f"Continuous session to {target}" if session else f"Route to {target}")
     writer.setCreator(f"{DISPLAY_NAME} {VERSION}")
     painter = QPainter(writer)
     painter.setRenderHint(QPainter.Antialiasing)
@@ -198,12 +198,17 @@ def write_pdf(path: str, route: dict, *, target: str, trace_text: str, tool_labe
            "first-hop": "no origin set; anchored on the first located hop"}.get(
         origin_how or origin.get("source") or "", "")
 
-    flow.text(f"Route to {target}", 20, bold=True, gap=1)
-    flow.text(f"Traced {stamp(when)}", 10, color=MUTED, gap=4)
+    if session:
+        flow.text(f"Continuous session to {target}", 20, bold=True, gap=1)
+        flow.text(f"Started {stamp(when)}", 10, color=MUTED, gap=4)
+    else:
+        flow.text(f"Route to {target}", 20, bold=True, gap=1)
+        flow.text(f"Traced {stamp(when)}", 10, color=MUTED, gap=4)
     trace_desc = {"local": f"run on this machine: {tool_label}",
                   "atlas": f"RIPE Atlas: {tool_label}",
                   "paste": f"pasted ({route.get('parser_label', '')})",
-                  "file": f"opened from a file ({route.get('parser_label', '')})"}.get(source, tool_label)
+                  "file": f"opened from a file ({route.get('parser_label', '')})",
+                  "watch": "continuous, built-in ICMP prober"}.get(source, tool_label)
     facts = [
         ["Target", target],
         ["Origin", f"{origin.get('label') or 'unknown'}, {how}" if how else (origin.get("label") or "unknown")],
@@ -226,6 +231,9 @@ def write_pdf(path: str, route: dict, *, target: str, trace_text: str, tool_labe
         _summary_section(flow, route, insight, origin_cc)
     else:
         flow.text("Loss: " + loss_verdict(route.get("hops") or [])["text"], 8.5)
+
+    if session:
+        _session_section(flow, route, session)
 
     flow.heading("Hops")
     rows = []
@@ -329,6 +337,59 @@ def _summary_section(flow: "_Flow", route: dict, ins: dict, origin_cc: str | Non
     elif status and status.startswith(_insight.UNAVAILABLE):
         rows.append(["Online details", "unavailable: RIPEstat did not answer in time"])
     flow.table(None, rows, [30, 148], size=8.5)
+
+
+def _session_section(flow: "_Flow", route: dict, session: dict) -> None:
+    """A continuous session: what ran, the mtr table, the changes and gaps,
+    and one plot per hop over the whole session."""
+    from routemap import live as _live
+    snap = _live.saved_snapshot(session)
+    flow.heading("Continuous session")
+    why = {"duration": "reached its time limit", "count": "reached its cycle count", "user": "stopped by hand",
+           "error": "stopped by an error"}.get(session.get("stopped_by"), "")
+    span = ""
+    if snap["now"] and snap["started"]:
+        minutes = (snap["now"] - snap["started"]) / 60
+        span = f", {minutes:.0f} minutes" if minutes >= 1 else f", {snap['now'] - snap['started']:.0f} seconds"
+    flow.table(None, [
+        ["Session", f"{session.get('cycles', 0)} cycles of {session.get('interval_s', 1):g} s{span}"
+                    + (f"; {why}" if why else "")],
+        ["Loss", snap["loss"].get("text", "")],
+        ["Path changes", str(len(snap["changes"])) if snap["changes"] else "none"],
+        ["Gaps", (f"{len(snap['gaps'])} (sleep or suspend; not counted as loss)" if snap["gaps"] else "none")],
+    ], [28, 150], size=8.5)
+    merged = _live.merge_hops(route.get("hops") or [], snap["hops"])
+    rows, muted = [], set()
+    for n, h in enumerate(merged):
+        loss = "" if h.get("loss_pct") is None else f"{h['loss_pct']:.1f}%"
+        if rate_limited(h):
+            loss += " (rate limiting)"
+            muted.add((n, 2))
+        rows.append([str(h["hop"]), h.get("place") or h.get("address") or "no answer", loss,
+                     str(h.get("sent") or 0), _fmt(h.get("avg_ms")), _fmt(h.get("best_ms")),
+                     _fmt(h.get("worst_ms")), _fmt(h.get("stdev_ms"))])
+    flow.table(["#", "Location", "Loss", "Sent", "Avg", "Best", "Worst", "StDev"], rows,
+               [7, 48, 30, 12, 15, 15, 15, 15], align_right={0, 3, 4, 5, 6, 7}, muted=muted, size=7.5)
+    if snap["changes"]:
+        for c in snap["changes"]:
+            when = _dt.datetime.fromtimestamp(c["at"]).astimezone().strftime("%H:%M:%S") if c.get("at") else ""
+            flow.text(f"{when} {_live.describe_change(c)}".strip(), 8)
+    for g in snap["gaps"]:
+        a = _dt.datetime.fromtimestamp(g["from"]).astimezone().strftime("%H:%M:%S")
+        b = _dt.datetime.fromtimestamp(g["to"]).astimezone().strftime("%H:%M:%S")
+        flow.text(f"Gap {a} to {b}: the computer slept or the app was suspended; not counted as loss.", 8)
+    from routemap.gui.livepanel import PingPlot
+    flow.heading("RTT over the session, per hop")
+    for h in merged:
+        if not snap["live"].get(h["hop"]):
+            continue
+        plot = PingPlot()
+        plot.range_index = 3
+        plot.resize(1600, 260)
+        plot.set_data(snap, h["hop"])
+        image = plot.grab().toImage()
+        flow.text(f"Hop {h['hop']}: {h.get('place') or h.get('address') or ''}", 8, bold=True, gap=0.5)
+        flow.image(image, (flow.width / flow.dpi * 25.4) * 260 / 1600)
 
 
 def _comparison_section(flow: "_Flow", route: dict, cmp: dict, target: str,

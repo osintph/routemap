@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (QDockWidget, QHBoxLayout, QLabel, QLineEdit, QMai
 from routemap.__about__ import DISPLAY_NAME
 from routemap.gui.hoptable import HopTable
 from routemap.gui.insightpanel import HopDetails, InsightPanel
+from routemap.gui.livepanel import ChangeList, LiveBar, PingPlot
 from routemap.gui.mappane import MapPane
 from routemap.gui.panels import HistoryPanel, LiveOutput, SourceStatus, UnplacedPanel
 from routemap.gui.text import esc
@@ -69,10 +70,15 @@ class MainWindow(QMainWindow):
         self.trace_button.setDefault(True)
         self.trace_button.setMinimumWidth(96)
         self.trace_button.setMinimumHeight(30)
+        self.watch_button = QPushButton("Watch", central)
+        self.watch_button.setToolTip("Trace continuously: every hop probed once a cycle, mtr style "
+                                     "(Ctrl+Shift+W)")
+        self.watch_button.setMinimumHeight(30)
         self.target.returnPressed.connect(self.trace_button.click)
         bar.addWidget(self.target, 1)
         bar.addWidget(self.busy, 0, Qt.AlignVCenter)
         bar.addWidget(self.trace_button)
+        bar.addWidget(self.watch_button)
         outer.addLayout(bar)
 
         self.splitter = QSplitter(Qt.Horizontal, central)
@@ -96,12 +102,20 @@ class MainWindow(QMainWindow):
         table_layout = QVBoxLayout(table_box)
         table_layout.setContentsMargins(0, 0, 0, 0)
         table_layout.setSpacing(6)
+        self.live_bar = LiveBar(table_box)
+        self.live_plot = PingPlot(table_box)
+        self.live_changes = ChangeList(table_box)
         self.table = HopTable(table_box)
         self.table.setAccessibleName("Hop table")
         self.table.setAccessibleDescription("One row per hop. Arrow keys move between hops; the map follows.")
         self.details = HopDetails(table_box)
+        table_layout.addWidget(self.live_bar)
         table_layout.addWidget(self.table, 1)
+        table_layout.addWidget(self.live_plot)
+        table_layout.addWidget(self.live_changes)
         table_layout.addWidget(self.details)
+        for w in (self.live_bar, self.live_plot, self.live_changes):
+            w.setVisible(False)
         self.right_split.addWidget(self.insight)
         self.right_split.addWidget(table_box)
         self.right_split.setStretchFactor(0, 2)
@@ -201,6 +215,9 @@ class MainWindow(QMainWindow):
         self.act_trace = QAction("Trace", self)
         self.act_trace.triggered.connect(self.trace_button.click)
         self.act_stop = QAction("Stop", self, shortcut=QKeySequence("Ctrl+."))
+        self.act_watch = QAction("Watch Continuously", self, shortcut=QKeySequence("Ctrl+Shift+W"))
+        self.act_reset_live = QAction("Reset Counters", self)
+        self.act_reset_live.setEnabled(False)
         self.act_atlas = QAction("Trace from a RIPE Atlas Probe…", self)
         self.act_again = QAction("Trace Again and Compare", self, shortcut=QKeySequence("Ctrl+Shift+R"))
         self.act_compare_file = QAction("Compare with an Export…", self)
@@ -208,7 +225,9 @@ class MainWindow(QMainWindow):
         self.act_end_compare = QAction("End Comparison", self)
         self.act_end_compare.setEnabled(False)
         trace_menu.addAction(self.act_trace)
+        trace_menu.addAction(self.act_watch)
         trace_menu.addAction(self.act_stop)
+        trace_menu.addAction(self.act_reset_live)
         trace_menu.addSeparator()
         trace_menu.addAction(self.act_again)
         trace_menu.addAction(self.act_compare_file)
@@ -360,6 +379,48 @@ class MainWindow(QMainWindow):
         self.summary.setText(f"<b>Tracing {esc(target)}</b> <span style='color:gray'>· "
                              f"{len(hops)} hops so far, {placed} placed</span>")
         self.set_state(f"Tracing <b>{esc(target)}</b>: {esc(hop_note or f'hop {len(hops)}')}")
+
+    # -------------------------------------------------------- continuous ---
+    def set_live_mode(self, on: bool) -> None:
+        """Show or hide the continuous-mode widgets and switch the table's columns."""
+        self.table.set_live(on)
+        for w in (self.live_bar, self.live_plot, self.live_changes):
+            w.setVisible(on)
+        self.live.setVisible(not on and self.live.isVisible())
+
+    def show_watching(self, target: str) -> None:
+        self.setWindowTitle(f"{target} (live) - {DISPLAY_NAME}")
+        self.target.setText(target)
+        self.set_live_mode(True)
+        self.trace_button.setEnabled(False)
+        self.watch_button.setEnabled(False)
+        self.act_reset_live.setEnabled(True)
+        self.map.hide_card()
+        self.table.set_hops([])
+        self.unplaced.set_hops([])
+        self.insight.clear()
+        self.details.hide()
+        self.summary.setText(f"<b>Watching {esc(target)}</b> <span style='color:gray'>· the first cycle "
+                             "finds the path</span>")
+        self.set_state(f"Watching <b>{esc(target)}</b>")
+
+    def update_watch(self, hops: list[dict], snap: dict, running: bool) -> None:
+        """One cycle's figures: the table, the plot, the changes and the bar."""
+        self.table.set_hops(hops)
+        selected = self.table.selected_hops()
+        self.live_plot.set_data(snap, selected[0] if selected else None)
+        self.live_changes.set_data(snap)
+        self.live_bar.show_state(snap, running)
+        loss = (snap.get("loss") or {}).get("text") or ""
+        placed = sum(1 for h in hops if h.get("lat") is not None)
+        self.summary.setText(f"<b>{len(hops)} hops</b>, {placed} placed <span style='color:gray'>· "
+                             f"{esc(loss)}</span>")
+
+    def end_watch(self) -> None:
+        self.trace_button.setEnabled(True)
+        self.watch_button.setEnabled(True)
+        self.act_reset_live.setEnabled(False)
+        self.set_state("")
 
     def show_result(self, route: dict, target: str, argv: list[str] | None,
                     expand_unplaced: bool = False, trace_text: str | None = None,

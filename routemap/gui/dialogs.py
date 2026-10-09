@@ -45,6 +45,7 @@ class SettingsDialog(QDialog):
     """Every setting, read from and written back to a config.Settings."""
 
     ATLAS_TAB = 4   # index of the RIPE Atlas tab, as added in __init__
+    LIVE_TAB = 5
 
     pickRequested = Signal()
     clearCacheRequested = Signal()
@@ -65,6 +66,7 @@ class SettingsDialog(QDialog):
         self.tabs.addTab(self._sources_page(cache_count), "Sources")
         self.tabs.addTab(self._map_page(), "Map")
         self.tabs.addTab(self._atlas_page(), "RIPE Atlas")
+        self.tabs.addTab(self._live_page(), "Live")
         self.tabs.addTab(self._privacy_page(history_count), "Privacy")
         layout.addWidget(self.tabs)
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
@@ -455,6 +457,50 @@ class SettingsDialog(QDialog):
         return page
 
     # ---- privacy
+    def _live_page(self) -> QWidget:
+        from routemap import config as _config, live as _live
+        s = self.settings
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        form = QFormLayout()
+        self.live_interval = QDoubleSpinBox()
+        self.live_interval.setRange(_live.INTERVAL_MIN, _live.INTERVAL_MAX)
+        self.live_interval.setDecimals(0)
+        self.live_interval.setSuffix(" s")
+        self.live_interval.setValue(s.live_interval)
+        self.live_interval.setAccessibleName("Probe every hop every, seconds")
+        form.addRow("Probe every hop every", self.live_interval)
+        self.live_duration = QSpinBox()
+        self.live_duration.setRange(int(_live.DURATION_MIN // 60), int(_live.DURATION_MAX // 60))
+        self.live_duration.setSuffix(" min")
+        self.live_duration.setValue(s.live_duration_min)
+        self.live_duration.setAccessibleName("Stop a session after, minutes")
+        form.addRow("Stop after", self.live_duration)
+        self.live_keep = QCheckBox("Keep stopped sessions in History")
+        self.live_keep.setChecked(s.live_keep_history)
+        form.addRow("", self.live_keep)
+        layout.addLayout(form)
+        mb = _config.SESSIONS_MAX_BYTES // 1_000_000
+        layout.addWidget(_note(
+            "One probe per hop per cycle, spaced evenly across the interval, as mtr does. "
+            f"<b>{_live.INTERVAL_MIN:g} second is the shortest interval</b>: it is mtr's default and the "
+            "shortest mtr allows without administrator rights. At most "
+            f"<b>{_live.MAX_RATE:g} probes a second</b> all hops together, never exceeded (what mtr sends "
+            f"by default on a 30-hop path). Each reply is waited for {_live.WAIT:g} second; a later "
+            "reply counts as lost. A session stops by itself after the time above, "
+            f"{int(_live.DURATION_MAX // 3600)} hours at most."))
+        layout.addWidget(_note(
+            "If the computer sleeps or the app is suspended, the missed time is a gap in the plot "
+            "and the statistics, never loss, and the session notes it."))
+        layout.addWidget(_note(
+            f"Stored sessions take at most <b>{mb} MB</b> together; past that the oldest sessions are "
+            "dropped first. Single traces are not affected."))
+        layout.addWidget(_note(
+            "Continuous mode uses the built-in ICMP prober only, IPv4 for now, with no administrator "
+            "rights. It never uses RIPE Atlas."))
+        layout.addStretch(1)
+        return page
+
     def _privacy_page(self, history_count: int) -> QWidget:
         s = self.settings
         page = QWidget()
@@ -483,6 +529,9 @@ class SettingsDialog(QDialog):
     def values_into(self, settings: Settings) -> list[str]:
         """Copy the dialog into *settings*. Returns problems that stopped a field."""
         problems = []
+        settings.live_interval = float(self.live_interval.value())
+        settings.live_duration_min = int(self.live_duration.value())
+        settings.live_keep_history = self.live_keep.isChecked()
         mode = next((m for m, b in self.modes.items() if b.isChecked()), ORIGIN_AUTO)
         if mode == ORIGIN_CITY:
             row = self.city_results.currentRow()

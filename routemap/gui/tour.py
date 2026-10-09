@@ -36,7 +36,8 @@ def steps(system: str | None = None) -> list[dict]:
                  f"you set a city or coordinates in {where} › Origin. It stays on this computer."},
         {"key": "trace", "title": "Run a trace", "target": "target",
          "text": "Type a host name or address and press Trace, or open a saved traceroute with "
-                 "File › Open Trace. A trace takes a few seconds."},
+                 "File › Open Trace. A trace takes a few seconds. Watch keeps tracing, mtr "
+                 "style, with a ping plot."},
         {"key": "map", "title": "Read the map", "target": "map",
          "text": "Each dot is a hop. A line changes colour as the time between two hops grows; grey "
                  f"means a short step. The colours are in {where} › Map."},
