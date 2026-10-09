@@ -22,6 +22,7 @@ from routemap.__about__ import NAME, REPO_SLUG, REPO_URL, USER_AGENT_PRODUCT, VE
 from routemap_engine import (Route, SqliteCache, TraceOptions, analyse, cities, default_sources,
                              run_trace, sitecodes, whereami)
 from routemap_engine.geo import Sources
+from routemap_engine.geo import loss_verdict as geo_loss_verdict
 
 ORIGIN_HOW_IP = "ip"
 EXPORT_FORMAT = "routemap/route-export"
@@ -196,6 +197,8 @@ def export_json(route: Route | dict, *, target: str | None, trace_text: str,
                   "argv": [os.path.basename(argv[0])] + list(argv[1:]) if argv else None,
                   "text": trace_text},
         "route": body,
+        # Only loss that reaches the destination; rate-limited hops by number.
+        "loss": geo_loss_verdict(body.get("hops") or []),
         "schema": "https://github.com/osintph/routemap-engine/blob/main/routemap_engine/route.schema.json",
     }
     if insight:

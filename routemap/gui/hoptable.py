@@ -16,6 +16,7 @@ from PySide6.QtWidgets import QAbstractItemView, QHeaderView, QTableView
 
 from routemap.gui import theme
 from routemap.insight import RPKI_SHORT
+from routemap_engine.geo import ANNOT_ICMP_LIMIT
 
 # Ordered by what a reader needs first: where each hop is and how we know, then
 # the evidence. At a 1440-pixel window the first seven are always visible.
@@ -34,6 +35,11 @@ NOTE_SHORT = {
     "ICMP rate limiting, not real loss": "ICMP rate limiting",
     "destination or path does not answer ICMP": "no ICMP reply",
 }
+
+
+def rate_limited(hop: dict) -> bool:
+    """Loss at this hop is the router rate-limiting its replies, not real loss."""
+    return ANNOT_ICMP_LIMIT in (hop.get("annotations") or [])
 
 
 def _dot(color: QColor, hollow: bool = False) -> QIcon:
@@ -179,6 +185,8 @@ class HopModel(QAbstractTableModel):
             state = (self.details.get(str(hop["hop"])) or {}).get("rpki") or ""
             if state.startswith("invalid"):
                 return QColor("#c0392b")
+        if role == Qt.ForegroundRole and KEYS[column] == "loss" and rate_limited(hop):
+            return QColor(theme.current().overlay_muted)
         if role == Qt.ForegroundRole and hop.get("lat") is None:
             return QColor(theme.current().overlay_muted)
         if role == Qt.BackgroundRole and hop.get("hop") in self.marks:

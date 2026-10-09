@@ -30,6 +30,7 @@
  "headings": {
   "baseline": "TYPICAL LATENCY (RIPE ATLAS)",
   "countries": "COUNTRIES TRANSITED",
+  "loss": "LOSS",
   "path": "AS PATH",
   "ris": "BGP VIEW OF 62.115.0.0/16 (RIPE RIS)",
   "rtt": "RTT PER HOP AND THE PHYSICS FLOOR",
@@ -66,6 +67,7 @@
   "baseline": true,
   "countries": true,
   "diff": false,
+  "loss": true,
   "path": true,
   "ris": true,
   "rtt": true,

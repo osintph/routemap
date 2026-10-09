@@ -25,6 +25,7 @@ import logging
 
 from routemap import config, dbip, policy
 from routemap_engine import SqliteCache, baseline, cities, osint, ripe
+from routemap_engine import geo as _geo
 
 log = logging.getLogger(__name__)
 
@@ -275,7 +276,9 @@ def summary(route: dict, ins: dict | None, origin_cc: str | None = None) -> dict
     errors = online.get("errors") or {}
     out = {"as_path": path, "countries": ins.get("jurisdictions") or [], "origin_cc": origin_cc,
            "anycast": ins.get("anycast"), "status": status or "loading", "baseline": None,
-           "ris": None, "updates": None, "reasons": {}}
+           "ris": None, "updates": None, "reasons": {},
+           # Only loss that reaches the destination is the route's; the engine decides.
+           "loss": _geo.loss_verdict(route.get("hops") or [])}
     base = online.get("baseline")
     if isinstance(base, dict) and "unavailable" in base:
         out["baseline"] = UNAVAILABLE
