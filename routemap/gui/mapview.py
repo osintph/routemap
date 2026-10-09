@@ -140,6 +140,36 @@ def source_label(hop: dict) -> str:
     return f"{short}, country only" if is_country_only(hop) else short
 
 
+
+def step_index(groups: list[list[int]], selected: set[int], delta: int, absolute: bool = False) -> int | None:
+    """Keyboard navigation over hop groups in route order: the index of the
+    previous (delta -1) or next (+1) group from the selected one, or the first
+    (0) or last (-1) when *absolute*. None when there is nothing to select."""
+    if not groups:
+        return None
+    if absolute:
+        return delta % len(groups)
+    current = next((n for n, g in enumerate(groups) if selected & set(g)), None)
+    if current is None:
+        return 0 if delta > 0 else len(groups) - 1
+    return max(0, min(len(groups) - 1, current + delta))
+
+
+def describe_hops(route: dict | None, hops: list[int], index: int, count: int) -> str:
+    """What a screen reader says for a selected marker."""
+    hops = sorted(hops)
+    span = f"Hop {hops[0]}" if len(hops) == 1 else f"Hops {hops[0]} to {hops[-1]}"
+    by_hop = {h["hop"]: h for h in (route or {}).get("hops") or []}
+    first = by_hop.get(hops[0]) or {}
+    parts = [f"{span}, marker {index + 1} of {count}"]
+    if first.get("place"):
+        parts.append(str(first["place"]))
+    if first.get("min_rtt_ms") is not None:
+        parts.append(f"{first['min_rtt_ms']:.1f} milliseconds")
+    if first.get("source"):
+        parts.append(f"placed by {source_label(first)}")
+    return ", ".join(parts)
+
 def group_tooltip(group: dict, origin_label: str | None = None) -> str:
     """The same fields as the hop table row, for every hop in the marker."""
     from routemap.gui.hoptable import NOTE_SHORT
@@ -536,8 +566,10 @@ def draw_route(scene: QGraphicsScene, route: dict, palette: theme.Palette,
             if ghost:
                 color = QColor(palette.route_gap)
                 color.setAlpha(150)
-            seg_pen = QPen(color, 1.6 if ghost else (2.4 if step["class"] in ("warm", "hot") else 2.0),
-                           Qt.DashLine if (dashed or ghost) else Qt.SolidLine)
+            style = Qt.DashLine if (dashed or ghost) else Qt.SolidLine
+            if palette.hot_dashed and step["class"] == "hot" and not (dashed or ghost):
+                style = Qt.DashDotLine    # hot is not told by colour alone; plain dashes mean a gap
+            seg_pen = QPen(color, 1.6 if ghost else (2.4 if step["class"] in ("warm", "hot") else 2.0), style)
             seg_pen.setCosmetic(True)
             seg_pen.setCapStyle(Qt.RoundCap)
             item = QGraphicsPathItem(path)
@@ -693,6 +725,7 @@ class MapView(QGraphicsView):
 
     originPicked = Signal(float, float)
     markerClicked = Signal(list)       # hop numbers in the clicked marker
+    markerStepped = Signal(list)       # the same, chosen with the keyboard: focus stays here
     backgroundClicked = Signal()
 
     def __init__(self, parent: QWidget | None = None):
@@ -844,7 +877,8 @@ class MapView(QGraphicsView):
             for color, text in ((self.palette_.route_quiet, f"under {q:.0f} ms"),
                                 (theme.mix(self.palette_.route_warm, self.palette_.route_hot, 0.3),
                                  f"{q:.0f} to {hot:.0f} ms"),
-                                (self.palette_.route_hot, f"{hot:.0f} ms or more")):
+                                (self.palette_.route_hot, f"{hot:.0f} ms or more"
+                                 + (", dash-dot line" if self.palette_.hot_dashed else ""))):
                 row = QWidget()
                 line = QHBoxLayout(row)
                 line.setContentsMargins(0, 0, 0, 0)
@@ -1165,18 +1199,50 @@ class MapView(QGraphicsView):
             self.zoom(1 / navigation.BUTTON_ZOOM)
         elif key == Qt.Key_0:
             self.fit_route()
-        elif key == Qt.Key_Left:
-            self.pan(step, 0)
-        elif key == Qt.Key_Right:
-            self.pan(-step, 0)
-        elif key == Qt.Key_Up:
-            self.pan(0, step)
-        elif key == Qt.Key_Down:
-            self.pan(0, -step)
+        elif event.modifiers() & Qt.ShiftModifier and key in (Qt.Key_Left, Qt.Key_Right, Qt.Key_Up, Qt.Key_Down):
+            self.pan(*{Qt.Key_Left: (step, 0), Qt.Key_Right: (-step, 0),
+                       Qt.Key_Up: (0, step), Qt.Key_Down: (0, -step)}[key])
+        elif key in (Qt.Key_Left, Qt.Key_Up):
+            self.step_marker(-1)
+        elif key in (Qt.Key_Right, Qt.Key_Down):
+            self.step_marker(1)
+        elif key == Qt.Key_Home:
+            self.step_marker(0, absolute=True)
+        elif key == Qt.Key_End:
+            self.step_marker(-1, absolute=True)
+        elif key in (Qt.Key_Return, Qt.Key_Enter):
+            current = self.current_marker()
+            if current is not None:
+                self.markerClicked.emit(list(current.hops))
+        elif key == Qt.Key_Escape:
+            self.highlight([])
+            self.backgroundClicked.emit()
+            self.setAccessibleDescription("No hop selected")
         else:
             super().keyPressEvent(event)
             return
         event.accept()
+
+    def ordered_markers(self) -> list:
+        """The hop markers in route order (by their first hop)."""
+        return sorted((m for m in self.markers if getattr(m, "hops", None)), key=lambda m: min(m.hops))
+
+    def current_marker(self):
+        for marker in self.ordered_markers():
+            if self.selected_hops & set(marker.hops):
+                return marker
+        return None
+
+    def step_marker(self, delta: int, absolute: bool = False) -> None:
+        """Select the previous, next, first or last marker, with the keyboard."""
+        markers = self.ordered_markers()
+        index = step_index([list(m.hops) for m in markers], self.selected_hops, delta, absolute)
+        if index is None:
+            return
+        marker = markers[index]
+        self.highlight(list(marker.hops), center=True)
+        self.setAccessibleDescription(describe_hops(self.route, list(marker.hops), index, len(markers)))
+        self.markerStepped.emit(list(marker.hops))
 
     def fit_route(self, user: bool = True):
         if user:
@@ -1245,7 +1311,7 @@ def render_png(route: dict, *, width: int = 1600, height: int = 900, dark: bool 
                marks: dict | None = None) -> QImage:
     """The full route extent rendered off-screen, with legend and provenance.
     *ghost* and *marks* draw a comparison, as on screen."""
-    palette = theme.DARK if dark else theme.LIGHT
+    palette = theme.with_rtt(theme.DARK if dark else theme.LIGHT)
     scene = build_scene(palette)
     markers = []
     rect = QRectF()

@@ -54,6 +54,7 @@ class Palette:
     overlay_fg: QColor
     overlay_muted: QColor
     sources: dict
+    hot_dashed: bool = False  # the colour-blind-safe option also dashes hot steps
 
 
 LIGHT = Palette(
@@ -113,6 +114,26 @@ DARK = Palette(
 
 THEMES = ("system", "light", "dark")
 _choice = "system"
+
+# RTT colours. "standard" is the palette above. "colour-blind" swaps warm and
+# hot for colours chosen with a colour-vision simulation (Machado, Oliveira and
+# Fernandes 2009, full severity, protan, deutan and tritan; distances in
+# CAM02-UCS, via colorspacious) so that every warm-to-hot blend stays apart
+# from the quiet grey and warm from hot for all three, with at least 3:1
+# contrast on land and sea (WCAG 2.1, 1.4.11), and dashes hot steps so colour
+# is never the only cue. The numbers are on the 0.2.0-beta.6 review page.
+RTT_PALETTES = ("standard", "colour-blind")
+COLOUR_BLIND = {False: ("#a33a00", "#003f7d"), True: ("#f0e442", "#d55e00")}   # dark? -> (warm, hot)
+_rtt = "standard"
+
+
+def set_rtt_palette(name: str) -> None:
+    global _rtt
+    _rtt = name if name in RTT_PALETTES else "standard"
+
+
+def rtt_palette() -> str:
+    return _rtt
 FONT_PX = 13
 ACCENT = {"light": "#b4530a", "dark": "#f0a440"}
 
@@ -228,7 +249,16 @@ def apply(app, theme: str = "system") -> None:
 
 
 def current() -> Palette:
-    return DARK if is_dark() else LIGHT
+    return with_rtt(DARK if is_dark() else LIGHT)
+
+
+def with_rtt(base: Palette, name: str | None = None) -> Palette:
+    """*base* with the RTT colours of palette *name* (default: the chosen one)."""
+    if (name or _rtt) != "colour-blind":
+        return base
+    from dataclasses import replace
+    warm, hot = COLOUR_BLIND[base.dark]
+    return replace(base, route_warm=QColor(warm), route_hot=QColor(hot), hot_dashed=True)
 
 
 def mix(a: QColor, b: QColor, t: float) -> QColor:

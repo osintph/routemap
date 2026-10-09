@@ -123,6 +123,24 @@ class HopModel(QAbstractTableModel):
             return RPKI_SHORT.get(state, "") if state else ""
         return ""
 
+    def spoken(self, hop: dict) -> str:
+        """The row as a screen reader says it: number, place, network, RTT, loss, notes."""
+        parts = [f"Hop {hop['hop']}"]
+        for key in ("place", "asn", "address"):
+            value = self.text(hop, KEYS.index(key))
+            if value:
+                parts.append(value)
+        rtt = hop.get("min_rtt_ms")
+        if rtt is not None:
+            parts.append(f"{rtt:.1f} milliseconds")
+        loss = hop.get("loss_pct")
+        if loss:
+            parts.append(f"{loss:.0f} percent loss" + (", ICMP rate limiting, not real loss"
+                                                        if rate_limited(hop) else ""))
+        notes = [a for a in hop.get("annotations") or [] if a != ANNOT_ICMP_LIMIT]
+        parts.extend(notes)
+        return ", ".join(parts)
+
     def sort_key(self, hop: dict, column: int):
         key = KEYS[column]
         if key == "hop":
@@ -179,6 +197,8 @@ class HopModel(QAbstractTableModel):
             return self.icons.get(hop.get("source"))
         if role == Qt.ToolTipRole:
             return self.tooltip(hop)
+        if role == Qt.AccessibleTextRole:
+            return self.spoken(hop) if column == 0 else f"{COLUMNS[column]}: {self.text(hop, column) or 'none'}"
         if role == Qt.TextAlignmentRole and KEYS[column] in NUMERIC:
             return int(Qt.AlignRight | Qt.AlignVCenter)
         if role == Qt.ForegroundRole and KEYS[column] == "rpki":

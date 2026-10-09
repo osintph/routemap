@@ -165,6 +165,7 @@ class Settings:
     city_db_declined: bool = False           # "Not now" on the first-run download offer
     # 0.2.0-beta.6
     tour_seen: bool = False                  # the first-run tour was finished or skipped
+    rtt_palette: str = "standard"            # "standard" or "colour-blind" (gui/theme.py)
 
     def origin(self) -> tuple[float, float, str] | None:
         """The chosen origin, or None when it is to come from the public IP."""
@@ -293,6 +294,8 @@ def normalise(settings: Settings) -> Settings:
         settings.projection = "flat"
     if settings.theme not in ("system", "light", "dark"):
         settings.theme = "system"
+    if settings.rtt_palette not in ("standard", "colour-blind"):
+        settings.rtt_palette = "standard"
     try:
         quiet = max(0.0, float(settings.rtt_quiet_ms))
         hot = max(quiet + 1.0, float(settings.rtt_hot_ms))

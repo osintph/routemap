@@ -55,6 +55,8 @@ class MainWindow(QMainWindow):
         self.target = QLineEdit(central)
         self.target.setPlaceholderText("Hostname or IP address to trace, e.g. heise.de")
         self.target.setClearButtonEnabled(True)
+        self.target.setAccessibleName("Target to trace")
+        self.target.setAccessibleDescription("A host name or IP address. Press Enter or Trace to start.")
         self.target.setMinimumHeight(30)
         self.busy = QProgressBar(central)
         self.busy.setRange(0, 0)
@@ -75,6 +77,11 @@ class MainWindow(QMainWindow):
 
         self.splitter = QSplitter(Qt.Horizontal, central)
         self.map = MapPane(self.splitter)
+        for view, kind in ((self.map.flat, "Route map"), (self.map.globe, "Route globe")):
+            view.setAccessibleName(kind)
+            view.setAccessibleDescription("Arrow keys move between hops, Home and End go to the first hop "
+                                          "and the destination, Enter selects, Esc clears; Shift with the "
+                                          "arrows moves the view, plus and minus zoom, 0 fits the route.")
         right = QWidget(self.splitter)
         right_layout = QVBoxLayout(right)
         right_layout.setContentsMargins(0, 0, 0, 0)
@@ -84,11 +91,14 @@ class MainWindow(QMainWindow):
         self.summary.setWordWrap(True)
         self.right_split = QSplitter(Qt.Vertical, right)
         self.insight = InsightPanel(self.right_split)
+        self.insight.setAccessibleName("Route summary")
         table_box = QWidget(self.right_split)
         table_layout = QVBoxLayout(table_box)
         table_layout.setContentsMargins(0, 0, 0, 0)
         table_layout.setSpacing(6)
         self.table = HopTable(table_box)
+        self.table.setAccessibleName("Hop table")
+        self.table.setAccessibleDescription("One row per hop. Arrow keys move between hops; the map follows.")
         self.details = HopDetails(table_box)
         table_layout.addWidget(self.table, 1)
         table_layout.addWidget(self.details)
@@ -224,6 +234,7 @@ class MainWindow(QMainWindow):
     def _wire_selection(self):
         self.table.hopsSelected.connect(lambda hops: self.map.highlight(hops, center=bool(hops)))
         self.map.markerClicked.connect(self._marker_clicked)
+        self.map.markerStepped.connect(lambda hops: self.table.select_hops(hops))
         self.map.backgroundClicked.connect(self.clear_selection)
         escape = QShortcut(QKeySequence(Qt.Key_Escape), self)
         escape.setContext(Qt.WindowShortcut)
