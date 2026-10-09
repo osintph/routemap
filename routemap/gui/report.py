@@ -229,7 +229,7 @@ def write_pdf(path: str, route: dict, *, target: str, trace_text: str, tool_labe
 
     if insight:
         _summary_section(flow, route, insight, origin_cc)
-    else:
+    elif not session:            # a session states its loss in its own section
         flow.text("Loss: " + loss_verdict(route.get("hops") or [])["text"], 8.5)
 
     if session:
@@ -385,11 +385,13 @@ def _session_section(flow: "_Flow", route: dict, session: dict) -> None:
             continue
         plot = PingPlot()
         plot.range_index = 3
-        plot.resize(1600, 260)
+        plot.with_destination = False
+        plot.printed = True
+        plot.resize(900, 150)            # small enough that its labels stay legible in print
         plot.set_data(snap, h["hop"])
         image = plot.grab().toImage()
         flow.text(f"Hop {h['hop']}: {h.get('place') or h.get('address') or ''}", 8, bold=True, gap=0.5)
-        flow.image(image, (flow.width / flow.dpi * 25.4) * 260 / 1600)
+        flow.image(image, (flow.width / flow.dpi * 25.4) * 150 / 900)
 
 
 def _comparison_section(flow: "_Flow", route: dict, cmp: dict, target: str,

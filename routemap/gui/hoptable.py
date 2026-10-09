@@ -116,6 +116,9 @@ class HopModel(QAbstractTableModel):
         if key in _LIVE_FIELDS:
             value = hop.get(_LIVE_FIELDS[key])
             return "" if value is None else f"{value:.1f}"
+        if key == "avg" and self.keys is LIVE_KEYS:
+            value = hop.get("avg_ms")
+            return "" if value is None else f"{value:.1f}"
         if key == "loss" and self.keys is LIVE_KEYS:
             loss = hop.get("loss_pct")
             return "" if loss is None else f"{loss:.1f}%"
