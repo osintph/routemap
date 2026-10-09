@@ -48,6 +48,20 @@ class ImportRejected(ValueError):
     """The file is not something the app will show."""
 
 
+class NewerFormat(ImportRejected):
+    """A real export, from a newer Route Map. Shown with its own title, not as
+    "not a routemap export"."""
+
+    TITLE = "Made by a newer Route Map"
+
+    def __init__(self, version: int):
+        self.version = version
+        self.title = self.TITLE
+        self.message = (f"This export is format version {version}, made by a newer Route Map. "
+                        f"This Route Map opens format {FORMAT_VERSION} and older. Update Route Map to open it.")
+        super().__init__(self.message)
+
+
 def parse_json(text: str):
     """json.loads that refuses NaN and Infinity, and a file nested deeper than
     the parser can follow (RecursionError), as ImportRejected."""
@@ -356,8 +370,7 @@ def export(document) -> dict:
         raise ImportRejected("that JSON file is not a route export")
     version = document.get("format_version")
     if isinstance(version, int) and not isinstance(version, bool) and version > FORMAT_VERSION:
-        raise ImportRejected(f"that export is format version {version}, made by a newer Route Map; "
-                             f"this version reads up to {FORMAT_VERSION}")
+        raise NewerFormat(version)
     rebuilt = route(document["route"])
     trace = document.get("trace") if isinstance(document.get("trace"), dict) else {}
     when = document.get("exported_at")

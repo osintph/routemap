@@ -219,3 +219,16 @@ def test_the_plot_uses_the_chosen_palette_and_describes_itself(app):
     assert plot.accessibleDescription().startswith("Last 5 min. Hop 3:")
     QTest.keyClick(plot, Qt.Key_4)
     assert plot.accessibleDescription().startswith("Whole session.")
+
+
+def test_a_newer_export_is_refused_with_its_own_title(app, tmp_path, monkeypatch):
+    w, c = _controller()
+    shown = []
+    monkeypatch.setattr(c, "error", lambda title, text: shown.append((title, text)))
+    path = tmp_path / "newer.json"
+    path.write_text(json.dumps({"format": "routemap/route-export", "format_version": 4, "route": {}}))
+    c.open_path(str(path))
+    assert shown == [("Made by a newer Route Map",
+                      "This export is format version 4, made by a newer Route Map. "
+                      "This Route Map opens format 3 and older. Update Route Map to open it.")]
+    w.close()
