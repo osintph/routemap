@@ -211,12 +211,13 @@ class MainWindow(QMainWindow):
         self.act_privacy = QAction("Privacy", self)
         self.act_update = QAction("Check for Updates…", self)
         self.act_bug = QAction("Create Bug Report…", self)
+        self.act_tour = QAction("Show the Tour", self)
         self.act_notices = QAction("Third-Party Notices", self)
         self.act_support = QAction(f"Support {DISPLAY_NAME}", self)
         self.act_about = QAction(f"About {DISPLAY_NAME}", self)
         self.act_about.setMenuRole(QAction.AboutRole)
-        for action in (self.act_privacy, self.act_notices, self.act_update, self.act_bug, self.act_support,
-                       self.act_about):
+        for action in (self.act_tour, self.act_privacy, self.act_notices, self.act_update, self.act_bug,
+                       self.act_support, self.act_about):
             help_menu.addAction(action)
 
     # ------------------------------------------------------------ selection ---

@@ -56,6 +56,11 @@ run `gpg --verify SHA256SUMS.asc SHA256SUMS`, then
 
 ## First trace
 
+On the first start a short tour points at the origin, the target field, the
+map, the hop table and the menus; **Skip tour** or Esc ends it, the arrow keys
+move through it, and **Help > Show the Tour** brings it back. Settings is
+**Route Map > Settings** on macOS and **Edit > Settings** on Windows and Linux.
+
 1. Type a hostname or IP address in the box at the top and press **Trace**.
 2. Hops appear on the map and in the table as the trace runs. The tool's own
    output is under **Tool output** below the table (View > Tool Output).

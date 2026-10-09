@@ -67,6 +67,7 @@ class Controller(QObject):
         w.act_privacy.triggered.connect(lambda: dialogs.PrivacyDialog(w).exec())
         w.act_update.triggered.connect(self.check_update)
         w.act_bug.triggered.connect(self.bug_report)
+        w.act_tour.triggered.connect(self.show_tour)
         w.act_notices.triggered.connect(lambda: dialogs.NoticesDialog(w).exec())
         w.act_about.triggered.connect(self.about)
         # Only when chosen from the menu; the app never asks on its own.
@@ -107,7 +108,27 @@ class Controller(QObject):
         self.show_idle()
         if self.origin is None:
             self.lookup_origin()
-        QTimer.singleShot(700, self.offer_city_database)
+        QTimer.singleShot(700, self.first_run)
+
+    def first_run(self):
+        """The one-time offers, in order: the city database, then the tour."""
+        self.offer_city_database()
+        if not self.settings.tour_seen:
+            self.show_tour()
+
+    def show_tour(self):
+        from routemap.gui.tour import Tour
+        if getattr(self, "_tour", None) is not None:
+            return
+        self._tour = Tour(self.w)
+
+        def done():
+            self._tour = None
+            if not self.settings.tour_seen:
+                self.settings.tour_seen = True
+                config.save_settings(self.settings)
+
+        self._tour.finished.connect(done)
 
     # --------------------------------------------------------------- state ---
     def show_idle(self):

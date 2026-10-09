@@ -163,6 +163,8 @@ class Settings:
     sensitive_countries: list = field(default_factory=list)   # ISO codes, upper case
     falconeye_url: str = "https://falconeye.osintph.info"
     city_db_declined: bool = False           # "Not now" on the first-run download offer
+    # 0.2.0-beta.6
+    tour_seen: bool = False                  # the first-run tour was finished or skipped
 
     def origin(self) -> tuple[float, float, str] | None:
         """The chosen origin, or None when it is to come from the public IP."""
@@ -188,6 +190,9 @@ def load_settings() -> Settings:
         return Settings()
     known = {f.name for f in fields(Settings)}
     values = {k: v for k, v in raw.items() if k in known} if isinstance(raw, dict) else {}
+    # Settings saved before the tour existed belong to someone who has used the
+    # app already: the tour is for a first run, and Help > Show the Tour has it.
+    values.setdefault("tour_seen", True)
     try:
         settings = Settings(**values)
     except TypeError:
