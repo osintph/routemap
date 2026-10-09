@@ -3,7 +3,7 @@
 #   uv pip compile requirements/app.in --universal --python-version 3.11 \
 #       --generate-hashes -o requirements/app.txt
 # The same pins are in pyproject.toml; tests/test_engine_pin.py keeps them equal.
-routemap-engine[offline]==0.5.0
+routemap-engine[offline]==0.6.0
 maxminddb==3.2.0
 # Verifies the Ed25519 signature on a release's SHA256SUMS before an in-app update.
 cryptography==50.0.2
