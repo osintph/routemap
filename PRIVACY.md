@@ -20,6 +20,12 @@ automatic update check. Nothing is sent anywhere until you run or open a trace.
 | A request for the latest release tag | GitHub, api.github.com | only when you choose Check for Updates or run `routemap --check-update` |
 | A download of the release file for your system, `SHA256SUMS` and `SHA256SUMS.ed25519` | GitHub, github.com and its release-asset host release-assets.githubusercontent.com | only when you choose Download and check after Check for Updates. Not counted by the project site |
 
+**Continuous mode** (Watch) sends the same ICMP echo probes as a trace, to the
+target and the routers on the way, once per hop per cycle and at most 30 a
+second, until you stop it or it reaches its time limit. The lookups above run
+once for the hops of the first cycle and then only for a hop or router not
+seen before, never every cycle. It never uses RIPE Atlas.
+
 **Settings > Sources > Online lookups** switches every row above except the
 trace itself, the explicit update check and downloads you start: off, nothing
 new leaves this machine, and hops are placed from the offline data (carrier

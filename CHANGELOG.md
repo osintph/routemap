@@ -4,6 +4,62 @@ All notable changes to this project are documented here. The format is based
 on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 uses [Semantic Versioning](https://semver.org/).
 
+## [0.3.0-beta.1] - 2026-10-09
+
+"Live": continuous trace and ping plot. The engine is routemap-engine 0.6.0,
+which has its own list.
+
+### Added
+- **Continuous mode.** Watch (next to Trace), Trace > Watch Continuously
+  (Ctrl+Shift+W) or `routemap --watch TARGET` probes one target again and
+  again, mtr style, with the built-in ICMP prober: every hop once per cycle,
+  spaced evenly across the interval. Per hop: sent, received, loss, last,
+  best, average, worst and jitter (standard deviation), accumulating over the
+  session. Pause (P, outside text fields), Resume, Stop (Ctrl+.) and Reset
+  counters (no shortcut).
+- **Ping plot** under the table for the selected hop and the destination,
+  over 5 minutes, 15 minutes, an hour or the whole session (keys 1 to 4), with
+  lost probes and path changes marked so colour is never the only cue; it
+  uses the chosen RTT palette, the colour-blind one included.
+- **Path changes** with cycle and time: a hop's routers compared over the
+  last 10 cycles with the 10 before, so ECMP alternation is never a change; a
+  hop appearing or disappearing and the destination moving are changes too.
+- **Loss** follows the 0.2.0-beta.6 rule over the session's own figures:
+  intermediate-only loss is ICMP rate limiting, destination loss is real.
+- **Sleep and suspend** leave a gap in the plot and the statistics, never
+  loss, and the session notes it.
+- **The map** is drawn from the first full cycle; later cycles only add hops
+  or routers not seen before. Geolocation is not repeated per cycle.
+- **Limits** in Settings > Live, following mtr: 1 s per cycle by default and
+  never faster (mtr's default and its floor without root), at most 30 probes
+  a second, a 1 s wait per reply, 5 silent hops past the last that answered,
+  and a session that stops after 1 hour by default and 8 hours at most.
+- **Export and compare**: a session exports to PDF (the mtr table, the
+  changes and gaps, one plot per hop for the whole session) and to JSON
+  format version 3 (`session`: per-hop statistics, plot data, changes, gaps),
+  reopens from History or File > Open Trace, and compares like a trace, with
+  the session's average as each hop's RTT and its loss as the hop's loss.
+- **CLI**: `routemap --watch TARGET` with `--interval`, `--count` and
+  `--duration`, an mtr-style table that redraws on a terminal, and with
+  `--json` the version-3 export at the end. Values outside the limits are
+  refused with the reason.
+- **History** keeps stopped sessions, 50 MB of them at most together; past
+  that the oldest sessions are dropped first (Settings > Live says so).
+- **Accessibility**: every live control is named; the bar announces a pause,
+  the end of a session and path changes, not every tick; rows are read when
+  focused; the plot's description summarises the range shown.
+
+### Changed
+- JSON exports are format version 3. Version 2 files open as before; a file
+  from a newer version is refused with a clear message.
+- Files up to 8 MB are opened (was 1 MB), for an 8-hour session with its plot
+  data. A session from a file is rebuilt like a route: every count, time and
+  RTT checked, every list capped, the loss notes computed again.
+
+### Not in this release
+- IPv6 targets in continuous mode (planned for 0.4.0). RIPE Atlas is never
+  used for it.
+
 ## [0.2.0-beta.6] - 2026-10-09
 
 Housekeeping and usability. The engine is routemap-engine 0.5.0, which has its
