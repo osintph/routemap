@@ -18,7 +18,7 @@ from PySide6.QtCore import QByteArray, QObject, Qt, QTimer, QUrl
 from PySide6.QtGui import QDesktopServices, QGuiApplication, QIcon
 from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox
 
-from routemap import config, dbip, imported, insight, service, updater
+from routemap import bugreport, config, dbip, imported, insight, service, updater
 from routemap.__about__ import (DISPLAY_NAME, NAME, REPO_URL, engine_line, version_line,
                                 CONTACT_EMAIL, WINDOWS_SIGNED, SITE_LINKED, SITE_URL,
                                 VERSION)
@@ -66,6 +66,7 @@ class Controller(QObject):
         w.act_atlas.triggered.connect(self.atlas_trace)
         w.act_privacy.triggered.connect(lambda: dialogs.PrivacyDialog(w).exec())
         w.act_update.triggered.connect(self.check_update)
+        w.act_bug.triggered.connect(self.bug_report)
         w.act_notices.triggered.connect(lambda: dialogs.NoticesDialog(w).exec())
         w.act_about.triggered.connect(self.about)
         # Only when chosen from the menu; the app never asks on its own.
@@ -945,6 +946,23 @@ class Controller(QObject):
             QDesktopServices.openUrl(QUrl(offer[1] if offer else page))
         elif notes is not None and box.clickedButton() is notes:
             QDesktopServices.openUrl(QUrl(page))
+
+    def bug_report(self):
+        current = getattr(self, "current", None) or None
+        label = (current or {}).get("target") or ""
+        dialog = dialogs.BugReportDialog(
+            self.w, build=lambda include: bugreport.contents(self.settings, current, include),
+            has_trace=bool(current and current.get("route")), trace_label=label)
+        if not dialog.exec():
+            return
+        stem = bugreport.suggested_name(_dt.datetime.now())
+        path, _ = QFileDialog.getSaveFileName(self.w, "Save the bug report", stem, "Zip (*.zip)")
+        if not path:
+            return
+        try:
+            bugreport.write_zip(path, dialog.contents)
+        except OSError as exc:
+            self.error("Create Bug Report", f"The zip could not be saved: {exc.strerror or exc}")
 
     def _update_in_app(self, latest: dict, name: str, current: str):
         """Download, check and hand over the release file (routemap/updater.py)."""

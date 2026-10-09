@@ -276,5 +276,15 @@ most: your OS and version, the Route Map version (Help > About), what you
 traced, what you expected, and a screenshot or a JSON export (File > Export).
 A JSON export contains the trace, so leave it out if the path is private.
 
+**Help > Create Bug Report** makes a zip with what helps most and nothing
+private by default: `about.txt` (Route Map and engine version and commit, OS,
+Python, Qt, kind of build) and `settings.json` with every key and token
+replaced by `(removed)`, and your set origin (city or coordinates) and a
+FalconEye address other than the public one removed too. Tick **Include the
+last trace** to add the trace on screen as `last-trace.json` (target, every hop
+and your origin; the origin then stays in `settings.json` as well). The dialog
+shows every file exactly as it will be saved. Route Map sends nothing: you
+attach the zip yourself.
+
 See also: [troubleshooting](troubleshooting.md), [known limitations](limitations.md),
 [questions](faq.md).
