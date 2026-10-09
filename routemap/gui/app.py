@@ -541,6 +541,9 @@ class Controller(QObject):
             try:
                 doc = imported.export(imported.parse_json(text))
                 Route.from_dict(doc["route"])
+            except imported.NewerFormat as exc:
+                self.error(exc.title, exc.message)
+                return
             except (ValueError, KeyError, TypeError) as exc:
                 self.error("Not a route export", f"That JSON file is not a routemap export. {exc}")
                 return
@@ -1013,6 +1016,9 @@ class Controller(QObject):
             doc = imported.export(imported.parse_json(imported.read_file(path)))
             old = doc["route"]
             Route.from_dict(old)
+        except imported.NewerFormat as exc:
+            self.error(exc.title, exc.message)
+            return
         except (ValueError, KeyError, TypeError) as exc:
             self.error("Not a route export", f"That JSON file is not a routemap export. {exc}")
             return
