@@ -396,13 +396,16 @@ class SettingsDialog(QDialog):
                 ("colour-blind", "Colour-blind safe",
                  "grey, then rust to navy (light) or yellow to vermilion (dark); hot steps "
                  "also drawn dash-dot")):
-            button = QRadioButton(f"{label}: {note}")
+            button = QRadioButton(label)
             button.setProperty("palette", key)
             button.setAccessibleName(f"{label} RTT colours")
             button.setAccessibleDescription(note)
             button.setChecked(s.rtt_palette == key)
             self.palette_group.addButton(button)
             palettes.addWidget(button)
+            hint = _note(note[0].upper() + note[1:] + ".")
+            hint.setContentsMargins(24, 0, 0, 4)
+            palettes.addWidget(hint)
         form.addRow("Colours", palettes)
         self.sensitive = QLineEdit(", ".join(s.sensitive_countries))
         self.sensitive.setPlaceholderText("Two-letter country codes, e.g. SG, CN")
@@ -660,11 +663,14 @@ class AtlasTraceDialog(QDialog):
             if item.widget():
                 item.widget().deleteLater()
         for row, (label, value) in enumerate(view["lines"]):
-            text = QLabel(html.escape(value))
+            # Plain text: RIPE's own reason is shown as RIPE sent it, never as markup.
+            text = QLabel(value)
+            text.setTextFormat(Qt.PlainText)
             text.setWordWrap(True)
             text.setTextInteractionFlags(Qt.TextSelectableByMouse)
             if label:
-                name = QLabel(html.escape(label))
+                name = QLabel(label)
+                name.setTextFormat(Qt.PlainText)
                 name.setProperty("muted", True)
                 self._grid.addWidget(name, row, 0, Qt.AlignTop)
                 self._grid.addWidget(text, row, 1)
