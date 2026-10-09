@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (QButtonGroup, QCheckBox, QComboBox, QDialog, QDia
 from routemap.__about__ import (CONTACT_EMAIL, DISPLAY_NAME, DONATE_ADDRESSES, DONATE_LINKS,
                                 DONATE_URL, DONATIONS_PAY_FOR, SITE_LINKED)
 from routemap.config import ORIGIN_AUTO, ORIGIN_CITY, ORIGIN_COORDS, ORIGIN_MAP, Settings
+from routemap_engine.atlas import TRACEROUTE_CREDITS
 from routemap_engine.runner import DEFAULT_FLAGS
 
 
@@ -412,8 +413,9 @@ class SettingsDialog(QDialog):
         layout.addWidget(_note(
             "Create a key at <a href='https://atlas.ripe.net/keys/'>atlas.ripe.net/keys</a> "
             "with only <i>schedule a new measurement</i> permission. The key is stored in "
-            "your config folder and sent only to RIPE Atlas. Each traceroute costs 30 of "
-            "your credits."))
+            "your config folder and sent only to RIPE Atlas. Each traceroute costs "
+            f"{TRACEROUTE_CREDITS} of your credits (a one-off measurement costs twice a "
+            "periodic one)."))
         layout.addWidget(_rule())
         layout.addWidget(_note(
             "<b>Atlas measurements are public.</b> RIPE publishes every measurement, including "
@@ -587,7 +589,7 @@ class AtlasWarningDialog(QDialog):
             "afterwards.<br><br>"
             "What is <b>not</b> sent: your origin coordinates. The probe is chosen by your "
             "network (AS number) and country.<br><br>"
-            "The trace uses your own API key and costs 30 credits.")
+            f"The trace uses your own API key and costs {TRACEROUTE_CREDITS} credits.")
         body.setWordWrap(True)
         body.setTextFormat(Qt.RichText)
         layout.addWidget(body)
