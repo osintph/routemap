@@ -90,7 +90,9 @@ def notes(tag: str, fingerprint: str = "", windows_signed: bool = False) -> str:
               + (f" (key `{fpr}`)" if fpr else "")
               + ", then `sha256sum -c SHA256SUMS --ignore-missing` (Linux), "
                 "`shasum -a 256 -c SHA256SUMS --ignore-missing` (macOS), or "
-                "`Get-FileHash <file>` in PowerShell.")
+                "`Get-FileHash <file>` in PowerShell. `SHA256SUMS.ed25519` is a second signature, "
+                "with the update key built into the app, which Help > Check for Updates checks "
+                "before it installs anything.")
     return unwrap("\n\n".join([
         "## Install",
         ((WINDOWS_SIGNED if windows_signed else WINDOWS_UNSIGNED) + "\n" + REST)

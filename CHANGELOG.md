@@ -4,6 +4,62 @@ All notable changes to this project are documented here. The format is based
 on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 uses [Semantic Versioning](https://semver.org/).
 
+## [0.2.0-beta.6] - 2026-10-09
+
+Housekeeping and usability. The engine is routemap-engine 0.5.0, which has its
+own list.
+
+### Added
+- **One-click update.** Help > Check for Updates > Download and check fetches
+  the file for this system from this project's GitHub releases into a folder
+  only you can read, and checks that `SHA256SUMS.ed25519` is a signature by the
+  update key built into the app over the release tag and `SHA256SUMS`, that
+  `SHA256SUMS` lists the file once, and that the file's SHA-256 matches. Then
+  it runs the installer (Windows), opens the disk image (macOS), opens the
+  `.deb` or `.rpm` in your software installer, or replaces a running AppImage
+  in place and restarts. A failed check deletes the download and names the
+  check. Traffic goes only to this repository's release files and GitHub's
+  release-asset host; these downloads do not appear in the site's download
+  statistics. Versions up to beta.5 still open the download in the browser.
+  The GPG signature (`SHA256SUMS.asc`) is unchanged.
+- **Atlas credits before every Atlas trace**: your balance, what this trace
+  costs and what is left after it, from RIPE's own figures. A key RIPE does not
+  accept stops the trace with a button to Settings; a key without "credits
+  read" hides the balance and still traces.
+- **Help > Create Bug Report**: a zip of version, commit, OS and settings, with
+  every key and token and your set origin removed, and the last trace only if
+  you tick it. Every file is shown exactly as it will be saved. Nothing is
+  sent.
+- **A first-run tour** of the origin, a trace, the map, the table, Settings and
+  Help. Skip it with Esc; Help > Show the Tour brings it back. Settings from
+  an earlier version count as having seen it.
+- **Accessibility**: a colour-blind-safe RTT palette (Settings > Map >
+  Colours), checked by simulating protan, deutan and tritan vision, with hot
+  steps also drawn dash-dot; the map and the globe walked with the arrow keys,
+  Home, End, Enter and Esc (Shift with the arrows pans); a name for every
+  control and hop table rows read out in full.
+
+### Changed
+- **A RIPE Atlas trace costs 60 credits, not 30.** RIPE charges a one-off
+  measurement twice what a periodic one costs
+  (<https://atlas.ripe.net/docs/getting-started/credits>). The figure in
+  Settings and the Atlas dialog now comes from the engine.
+- **Loss that is only ICMP rate limiting is not reported as loss.** Its Loss
+  cell is greyed in the table and the PDF; the route summary, the PDF and the
+  JSON export (`"loss"`) report only the loss that reaches the destination, and
+  "unknown" when the destination never answers.
+- The Settings text asks for the "credits read" permission alongside "schedule
+  a new measurement", for the balance.
+
+### Fixed
+- With Atlas on but no key, Trace from a RIPE Atlas Probe opened Settings on
+  the Map tab instead of the RIPE Atlas tab.
+
+### Dependencies
+- cryptography 50.0.2 (with cffi 2.1.1 and pycparser 3.1) is back in the app,
+  by hash, to check the update signature.
+- fonttools 4.66.1 in the test lock.
+
 ## [0.2.0-beta.5] - 2026-10-06
 
 Fixes from a validation round on beta.3. The engine is routemap-engine
