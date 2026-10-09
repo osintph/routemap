@@ -404,14 +404,15 @@ class MainWindow(QMainWindow):
                              "finds the path</span>")
         self.set_state(f"Watching <b>{esc(target)}</b>")
 
-    def update_watch(self, hops: list[dict], snap: dict, running: bool) -> None:
+    def update_watch(self, hops: list[dict], snap: dict, running: bool, details: dict | None = None) -> None:
         """One cycle's figures: the table, the plot, the changes and the bar."""
-        self.table.set_hops(hops)
+        self.table.set_hops(hops, details)
         selected = self.table.selected_hops()
         self.live_plot.set_data(snap, selected[0] if selected else None)
         self.live_changes.set_data(snap)
         self.live_bar.show_state(snap, running)
         loss = (snap.get("loss") or {}).get("text") or ""
+        self.insight.set_loss(loss)
         placed = sum(1 for h in hops if h.get("lat") is not None)
         self.summary.setText(f"<b>{len(hops)} hops</b>, {placed} placed <span style='color:gray'>· "
                              f"{esc(loss)}</span>")

@@ -208,6 +208,13 @@ class InsightPanel(QScrollArea):
         self.setWidget(body)
         self.clear()
 
+    def set_loss(self, text: str) -> None:
+        """Only the Loss line, for a continuous session's running figures."""
+        if text:
+            self.sections["loss"][1].setText(html.escape(text))
+            self.sections["loss"][1].setAccessibleName("Loss: " + text)
+            self._show("loss", True)
+
     def _show(self, key: str, on: bool):
         head, content = self.sections[key]
         head.setVisible(on and bool(head.text()))

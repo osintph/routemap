@@ -82,9 +82,9 @@ class LiveBar(QWidget):
         elapsed = (snap.get("now") or time.time()) - (snap.get("started") or time.time())
         cycles = snap.get("cycles", 0)
         if not running:
-            why = {"duration": "reached its time limit", "count": "reached its cycle count",
-                   "user": "stopped", "error": "stopped by an error"}.get(snap.get("stopped_by"), "stopped")
-            text = f"Stopped ({why}) · {cycles} cycles · {_clock(elapsed)}"
+            why = {"duration": " (reached its time limit)", "count": " (reached its cycle count)",
+                   "error": " (an error stopped it)"}.get(snap.get("stopped_by"), "")
+            text = f"Stopped{why} · {cycles} cycles · {_clock(elapsed)}"
         elif snap.get("paused"):
             text = f"Paused at cycle {cycles} · {_clock(elapsed)}"
         else:
@@ -118,6 +118,8 @@ class PingPlot(QWidget):
         self.snap: dict | None = None
         self.hop: int | None = None
         self.range_index = 0
+        self.with_destination = True    # the PDF draws one hop per plot, on its own scale
+        self.printed = False            # in a PDF: only this hop's changes, no key hint
 
     def sizeHint(self):
         from PySide6.QtCore import QSize
@@ -180,7 +182,9 @@ class PingPlot(QWidget):
         w, h = self.width() - left - right, self.height() - top - bottom
         if w <= 10 or h <= 10:
             return
-        hop_pts, dst_pts = self.series(self.hop), self.series(self.destination())
+        hop_pts = self.series(self.hop)
+        dst_pts = self.series(self.destination()) if (self.with_destination or self.hop is None) \
+            and self.destination() != self.hop else []
         allp = hop_pts + dst_pts
         values = [r for _, r in allp if r is not None]
         muted = QColor(pal.overlay_muted)
@@ -191,8 +195,11 @@ class PingPlot(QWidget):
             p.setPen(muted)
             p.drawText(self.rect(), Qt.AlignCenter, "The plot fills as the cycles come in.")
             return
-        t0 = min(t for t, _ in allp)
-        t1 = max(max(t for t, _ in allp), t0 + 1)
+        span = RANGES[self.range_index][0]
+        t1 = max(t for t, _ in allp)
+        # A fixed range is always that wide, so a sleep inside it shows as a gap.
+        t0 = t1 - span if span is not None else min(t for t, _ in allp)
+        t1 = max(t1, t0 + 1)
         lo = min(values) if values else 0.0
         hi = max(values) if values else 1.0
         pad = max(2.0, (hi - lo) * 0.1)
@@ -212,10 +219,22 @@ class PingPlot(QWidget):
             p.drawText(QRectF(0, y(ms) - 8, left - 6, 16), Qt.AlignRight | Qt.AlignVCenter, f"{ms:.0f}")
         p.drawText(QRectF(left, top + h + 4, w, 16), Qt.AlignLeft, f"-{_clock(t1 - t0)}")
         p.drawText(QRectF(left, top + h + 4, w, 16), Qt.AlignRight, "now")
-        # Path changes inside the range.
         started = (self.snap or {}).get("started") or 0
+        # Sleep or suspend: shaded, labelled, never drawn as loss.
+        shade = QColor(pal.border)
+        shade.setAlpha(110)
+        for g in (self.snap or {}).get("gaps") or []:
+            if isinstance(g.get("from"), (int, float)) and isinstance(g.get("to"), (int, float)):
+                a, b = max(t0, g["from"] - started), min(t1, g["to"] - started)
+                if b > a:
+                    p.fillRect(QRectF(x(a), top, max(1.0, x(b) - x(a)), h), shade)
+                    p.setPen(muted)
+                    p.drawText(QRectF(x(a), top + 2, max(40.0, x(b) - x(a)), 14), Qt.AlignHCenter, "gap")
+        # Path changes inside the range.
         change_pen = QPen(QColor(pal.route), 1, Qt.DashLine)
         for c in (self.snap or {}).get("changes") or []:
+            if self.printed and c.get("hop") != self.hop:
+                continue
             at = c.get("at")
             if isinstance(at, (int, float)):
                 tc = at - started
@@ -224,12 +243,18 @@ class PingPlot(QWidget):
                     p.drawLine(QPointF(x(tc), top), QPointF(x(tc), top + h))
                     p.drawText(QPointF(x(tc) + 3, top + 10), f"cycle {c.get('cycle')}")
 
+        # A pause or a gap: samples further apart than this are not joined.
+        gap_after = 3 * float((self.snap or {}).get("interval") or 1.0)
+
         def line(points, color, style, width):
-            path, drawing = QPainterPath(), False
+            path, drawing, last_t = QPainterPath(), False, None
             for t, r in points:
                 if r is None:
                     drawing = False
                     continue
+                if last_t is not None and t - last_t > gap_after:
+                    drawing = False
+                last_t = t
                 pt = QPointF(x(t), y(min(hi, r)))
                 if drawing:
                     path.lineTo(pt)
@@ -251,8 +276,11 @@ class PingPlot(QWidget):
         p.setPen(QColor(pal.overlay_fg))
         dst = self.destination()
         label = (f"hop {self.hop} (solid)" if self.hop is not None and self.hop != dst else "")
-        label += (" · " if label else "") + f"destination, hop {dst} (dashed) · ms · marks: lost probes"
-        p.drawText(QPointF(left + 4, top - 5), f"{label} · {RANGES[self.range_index][1]} (keys 1 to 4)")
+        if dst_pts or self.hop == dst:
+            label += (" · " if label else "") + f"destination, hop {dst}" + (" (dashed)" if dst_pts else "")
+        label += " · ms · marks: lost probes"
+        hint = "" if self.printed else " (keys 1 to 4)"
+        p.drawText(QPointF(left + 4, top - 5), f"{label} · {RANGES[self.range_index][1]}{hint}")
 
 
 class ChangeList(QLabel):

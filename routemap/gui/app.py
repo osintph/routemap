@@ -264,11 +264,17 @@ class Controller(QObject):
         if answer == QMessageBox.Yes:
             self.watcher.reset()
 
+    def _live_details(self) -> dict:
+        ins = (self.current or {}).get("insight") if (self.current or {}).get("source") == "watch" else None
+        return ((ins or {}).get("online") or {}).get("hops") or {}
+
     def _watch_cycle(self, snap: dict):
         self.live_snap = snap
         self._place_new(snap)
         hops = live.merge_hops((self.live_route or {}).get("hops") or [], snap["hops"])
-        self.w.update_watch(hops, snap, running=True)
+        if self.current is not None and self.current.get("source") == "watch" and self.live_route is not None:
+            self.current["route"] = dict(self.live_route, hops=hops)
+        self.w.update_watch(hops, snap, running=True, details=self._live_details())
 
     def _place_new(self, snap: dict):
         """Place the first cycle's hops once, then only hops or addresses not
@@ -299,7 +305,13 @@ class Controller(QObject):
         self.w.map.set_route(self.live_route, destination=target, keep_view=not first)
         if self.live_snap is not None:
             hops = live.merge_hops(self.live_route["hops"], self.live_snap["hops"])
-            self.w.update_watch(hops, self.live_snap, running=self.watching())
+            if first:
+                # The route summary (AS path, countries, RIPE details) once, as for a trace.
+                self.current = {"route": dict(self.live_route, hops=hops), "target": target, "trace_text": "",
+                                "argv": None, "source": "watch", "origin_how": self.origin_how,
+                                "when": _dt.datetime.fromtimestamp(self.live_snap["started"]).astimezone()}
+                self._after_result()
+            self.w.update_watch(hops, self.live_snap, running=self.watching(), details=self._live_details())
             self.w.unplaced.set_hops(hops)
 
     def _watch_done(self, result: dict):
@@ -312,10 +324,13 @@ class Controller(QObject):
                                                            "target": target, "hoiho_ruleset_date": None},
                                       snap)
         argv = ["icmp", "watch", f"every {snap['interval']:g} s", target]
+        kept = (self.current or {}).get("insight") if (self.current or {}).get("source") == "watch" else None
         self.current = {"route": route, "target": target, "trace_text": "", "argv": argv, "source": "watch",
                         "origin_how": self.origin_how, "session": session,
                         "when": _dt.datetime.fromtimestamp(snap["started"]).astimezone()}
-        self.w.update_watch(route["hops"], snap, running=False)
+        if kept:
+            self.current["insight"] = kept
+        self.w.update_watch(route["hops"], snap, running=False, details=self._live_details())
         self.w.end_watch()
         self.w.statusBar().showMessage(f"Continuous trace ended after {snap['cycles']} cycles.", 8000)
         if self.settings.live_keep_history and snap["cycles"]:
@@ -340,8 +355,9 @@ class Controller(QObject):
         self.current = current
         self.w.show_result(current["route"], current["target"], current.get("argv"))
         self.w.set_live_mode(True)
-        self.w.update_watch(live.merge_hops(current["route"].get("hops") or [], snap["hops"]), snap, running=False)
         self._after_result()
+        self.w.update_watch(live.merge_hops(current["route"].get("hops") or [], snap["hops"]), snap, running=False,
+                            details=self._live_details())
 
     def leave_live(self):
         """Back to the trace view; a running session must be stopped first."""
