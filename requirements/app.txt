@@ -162,9 +162,9 @@ pyside6-essentials==6.11.2 \
     # via
     #   pyside6
     #   pyside6-addons
-routemap-engine==0.4.2 \
-    --hash=sha256:5bcd0ebb2482169ba49e80ef1c609d6f35ce6b89e3233aa954edb44fa400d97a \
-    --hash=sha256:f5f094c58e2892c104eea6f54b074587edb522f1ff11b5325e8aa7c3f823cf86
+routemap-engine==0.5.0 \
+    --hash=sha256:2af49b482000cd0d093377de876b0a135da8342b7de22b8c8dafb0272ee6a7a2 \
+    --hash=sha256:d214b7cbfc98e65cedfeeab068ce6a7381bbd5b6ea3b4952a8fa9d1a62aace38
     # via -r requirements/app.in
 shiboken6==6.11.2 \
     --hash=sha256:4bbbd6fa4d7cff5ec5e12bc4c10e1d845fa30c89457ecb13cc64f7bddb77f6f9 \
