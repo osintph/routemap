@@ -15,7 +15,8 @@
 #     Windows artifact (packaging/defender_scan.ps1), which fails the build on
 #     any detection
 #
-# Signing: SHA256SUMS with the GPG release key; macOS ad-hoc only. The
+# Signing: SHA256SUMS with the GPG release key, and with the Ed25519 update
+# key into SHA256SUMS.ed25519 for the in-app update; macOS ad-hoc only. The
 # Windows build is not code-signed yet (a Certum certificate is being set up)
 # and the run summary says so.
 #
@@ -346,7 +347,7 @@ jobs:
       needs.sbom.result == 'success'
     needs: [build, linux-packages, sbom]
     runs-on: ubuntu-24.04
-    # The GPG release key lives in this environment.
+    # The GPG release key and the update signing key live in this environment.
     environment: downloads
     permissions:
       contents: write       # the GitHub Release
@@ -367,6 +368,11 @@ jobs:
           GPG_RELEASE_KEY: ${{ secrets.GPG_RELEASE_KEY }}
         run: |
           [ -n "$GPG_RELEASE_KEY" ] || { echo "::error::GPG_RELEASE_KEY is not set: nothing is published unsigned."; exit 1; }
+      - name: Update key present
+        env:
+          UPDATE_ED25519_KEY: ${{ secrets.UPDATE_ED25519_KEY }}
+        run: |
+          [ -n "$UPDATE_ED25519_KEY" ] || { echo "::error::UPDATE_ED25519_KEY is not set: nothing is published without the update signature."; exit 1; }
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           pattern: routemap-*
@@ -393,6 +399,16 @@ jobs:
           python3 packaging/release_notes.py "$V" --fingerprint "$FPR" > notes.md
           echo "FPR=$FPR" >> "$GITHUB_ENV"
           cat release/SHA256SUMS
+      - name: Update signature (Ed25519), checked with the key the app embeds
+        env:
+          UPDATE_ED25519_KEY: ${{ secrets.UPDATE_ED25519_KEY }}
+        run: |
+          openssl version
+          bash packaging/sign_update.sh "$GITHUB_REF_NAME" release
+          bash packaging/verify_update_signature.sh "$GITHUB_REF_NAME" release
+      - name: Remove any trace of the update key
+        if: always()
+        run: rm -rf "$RUNNER_TEMP"/routemap-update-sign.* "$RUNNER_TEMP"/routemap-update-verify.*
       - name: GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}

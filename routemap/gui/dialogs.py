@@ -657,6 +657,121 @@ class AtlasTraceDialog(QDialog):
         self.go.setEnabled(self.ack.isChecked() and bool(view.get("can_run", True)))
 
 
+# ------------------------------------------------------------------- update ---
+
+class UpdateDialog(QDialog):
+    """Offer, download and check an update, one visible step at a time.
+
+    States: offer -> checking -> verified | failed. The worker reports steps
+    through :meth:`step`; :meth:`verified` and :meth:`failed` end it.
+    """
+
+    DOWNLOAD = 10   # done() codes
+    HAND_OVER = 11
+    NOTES = 12
+    STEPS = (("download", "Download {name}"),
+             ("signature", "SHA256SUMS is signed by the {product} update key"),
+             ("hash", "The file's SHA-256 is the one SHA256SUMS lists"))
+    MARKS = {"pending": "\u2013", "running": "\u2026", "ok": "\u2713", "failed": "\u2717"}
+    MARK_WORDS = {"pending": "not started", "running": "running", "ok": "passed", "failed": "failed"}
+
+    def __init__(self, parent=None, *, tag: str, current: str, name: str):
+        super().__init__(parent)
+        self.setWindowTitle("Check for updates")
+        self.setMinimumWidth(560)
+        layout = QVBoxLayout(self)
+        layout.setSpacing(10)
+        self.head = QLabel(f"<b>{html.escape(DISPLAY_NAME)} {html.escape(tag)} is out; you have "
+                           f"{html.escape(current)}.</b>")
+        self.head.setTextFormat(Qt.RichText)
+        layout.addWidget(self.head)
+        self.body = _note(f"For this computer: <code>{html.escape(name)}</code>. {html.escape(DISPLAY_NAME)} "
+                          "downloads it from this project's GitHub releases, checks its signature and "
+                          "its SHA-256, and only then hands it to your system. Your settings and history "
+                          "stay.")
+        layout.addWidget(self.body)
+        self.rows: dict[str, QLabel] = {}
+        self._words: dict[str, str] = {}
+        box = QFrame()
+        box.setFrameShape(QFrame.StyledPanel)
+        grid = QGridLayout(box)
+        for n, (key, text) in enumerate(self.STEPS):
+            mark, label = QLabel(self.MARKS["pending"]), QLabel(text.format(name=name, product=DISPLAY_NAME))
+            mark.setFixedWidth(18)
+            label.setWordWrap(True)
+            grid.addWidget(mark, n, 0, Qt.AlignTop)
+            grid.addWidget(label, n, 1)
+            self.rows[key] = mark
+            self._words[key] = label.text()
+            mark.setAccessibleName(f"{label.text()}: {self.MARK_WORDS['pending']}")
+        self.progress = QLabel("")
+        self.progress.setProperty("muted", True)
+        grid.addWidget(self.progress, len(self.STEPS), 1)
+        self.steps_box = box
+        box.setVisible(False)
+        layout.addWidget(box)
+        self.result_text = _note("")
+        self.result_text.setVisible(False)
+        layout.addWidget(self.result_text)
+
+        buttons = QDialogButtonBox()
+        self.notes = buttons.addButton("Release notes", QDialogButtonBox.HelpRole)
+        self.notes.clicked.connect(lambda: self.done(self.NOTES))
+        self.close_button = buttons.addButton(QDialogButtonBox.Close)
+        self.close_button.clicked.connect(self.reject)
+        self.cancel_button = buttons.addButton("Cancel", QDialogButtonBox.RejectRole)
+        self.cancel_button.setVisible(False)
+        self.go = buttons.addButton("Download and check", QDialogButtonBox.ActionRole)
+        self.go.setDefault(True)
+        self.hand = buttons.addButton("Install", QDialogButtonBox.ActionRole)
+        self.hand.setVisible(False)
+        self.hand.clicked.connect(lambda: self.done(self.HAND_OVER))
+        self.page = buttons.addButton("Open the release page", QDialogButtonBox.ActionRole)
+        self.page.setVisible(False)
+        self.page.clicked.connect(lambda: self.done(self.NOTES))
+        layout.addWidget(buttons)
+        self.state = "offer"
+
+    def checking(self) -> None:
+        self.state = "checking"
+        self.steps_box.setVisible(True)
+        for b in (self.go, self.notes, self.close_button):
+            b.setVisible(False)
+        self.cancel_button.setVisible(True)
+
+    def step(self, key: str, state: str) -> None:
+        mark = self.rows.get(key)
+        if mark is not None and state in self.MARKS:
+            mark.setText(self.MARKS[state])
+            mark.setAccessibleName(f"{self._words[key]}: {self.MARK_WORDS[state]}")
+
+    def bytes_done(self, written: int, total: int | None) -> None:
+        mb = written / 1_048_576
+        self.progress.setText(f"{mb:.1f} of {total / 1_048_576:.1f} MB" if total else f"{mb:.1f} MB")
+
+    def verified(self, text: str, action: str) -> None:
+        self.state = "verified"
+        self.progress.setText("")
+        self.cancel_button.setVisible(False)
+        self.close_button.setVisible(True)
+        self.result_text.setText(html.escape(text))
+        self.result_text.setVisible(True)
+        self.hand.setText(action)
+        self.hand.setVisible(True)
+        self.hand.setDefault(True)
+
+    def failed(self, step: str, message: str) -> None:
+        self.state = "failed"
+        self.step(step, "failed")
+        self.progress.setText("")
+        self.cancel_button.setVisible(False)
+        self.close_button.setVisible(True)
+        self.page.setVisible(True)
+        self.result_text.setText(f"<b>{html.escape(message)}</b> The download was deleted and nothing was "
+                                 "installed. The release page lists every file if you want to check by hand.")
+        self.result_text.setVisible(True)
+
+
 # -------------------------------------------------------------------- paste ---
 
 class PasteTraceDialog(QDialog):

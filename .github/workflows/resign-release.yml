@@ -43,10 +43,10 @@ jobs:
   resign:
     name: Check every file, then sign
     runs-on: ubuntu-24.04
-    # The GPG release key lives in this environment.
+    # The GPG release key and the update signing key live in this environment.
     environment: downloads
     permissions:
-      contents: write   # upload SHA256SUMS and its signature
+      contents: write   # upload SHA256SUMS and its signatures
       actions: read     # the build run's artifacts
     env:
       GH_TOKEN: ${{ github.token }}
@@ -88,7 +88,7 @@ jobs:
                        || { cat "$RUNNER_TEMP/verify.txt"; echo "::error::$1: the Authenticode signature does not verify"; return 1; }; }
           mkdir rel && cd rel
           gh release download "$TAG" --repo "$GITHUB_REPOSITORY"
-          rm -f SHA256SUMS SHA256SUMS.asc
+          rm -f SHA256SUMS SHA256SUMS.asc SHA256SUMS.ed25519
           fail=0
           for f in *; do
             h=$(sha256sum "$f" | awk '{print $1}')
@@ -123,5 +123,15 @@ jobs:
           gpg --batch --verify SHA256SUMS.asc SHA256SUMS
           sha256sum -c SHA256SUMS
           cat SHA256SUMS
+      - name: Update signature (Ed25519), checked with the key the app embeds
+        env:
+          UPDATE_ED25519_KEY: ${{ secrets.UPDATE_ED25519_KEY }}
+        run: |
+          openssl version
+          bash packaging/sign_update.sh "$TAG" rel
+          bash packaging/verify_update_signature.sh "$TAG" rel
+      - name: Remove any trace of the update key
+        if: always()
+        run: rm -rf "$RUNNER_TEMP"/routemap-update-sign.* "$RUNNER_TEMP"/routemap-update-verify.*
       - name: Upload
-        run: gh release upload "$TAG" rel/SHA256SUMS rel/SHA256SUMS.asc --clobber --repo "$GITHUB_REPOSITORY"
+        run: gh release upload "$TAG" rel/SHA256SUMS rel/SHA256SUMS.asc rel/SHA256SUMS.ed25519 --clobber --repo "$GITHUB_REPOSITORY"
