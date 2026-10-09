@@ -190,7 +190,10 @@ def route(data) -> dict:
     rebuilt = _coerce(data, _schema())
     if rebuilt is _DROP or not isinstance(rebuilt, dict) or not rebuilt.get("hops"):
         raise ImportRejected("the file's route does not match the route format")
-    rebuilt["parser_label"] = PARSER_LABELS.get(rebuilt.get("parser"), "")
+    # A route placed from a list of hops (a continuous session) has the
+    # engine's parser "hops", which the text parsers' labels do not name.
+    rebuilt["parser_label"] = PARSER_LABELS.get(rebuilt.get("parser")) or (
+        "hops" if rebuilt.get("parser") == "hops" else "")
     target = rebuilt.get("target")
     rebuilt["target"] = _target(target)
     return rebuilt

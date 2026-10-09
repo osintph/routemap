@@ -106,11 +106,19 @@ def merge_hops(route_hops: list[dict], snap_hops: list[dict]) -> list[dict]:
     return out
 
 
+# The live columns: kept in the export's "session", not in its route, so the
+# route stays exactly the engine's route.schema.json.
+LIVE_ONLY = ("received", "last_ms", "best_ms", "avg_ms", "worst_ms", "stdev_ms")
+
+
 def route_for_export(route: dict, snap: dict) -> dict:
     """The route a compare or an export uses: placements from the session's
     route, RTT and loss from the session's figures."""
     body = copy.deepcopy(route)
     body["hops"] = merge_hops(route.get("hops") or [], snap["hops"])
+    for h in body["hops"]:
+        for k in LIVE_ONLY:
+            h.pop(k, None)
     return body
 
 
