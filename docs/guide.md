@@ -89,6 +89,13 @@ only some probes because the router rate-limits ICMP (not real loss further
 on), a destination that does not answer ICMP, and RTTs that jump in a way that
 suggests the reply took a different path back.
 
+Loss at a hop counts as ICMP rate limiting when any later hop that answered
+shows less of it: the packets were getting through, and the router only
+declined to answer some probes. Its **Loss** cell is greyed. The route summary,
+the PDF and the JSON export (`"loss"`) report only the loss measured at the
+destination; when the destination never answers, its loss is reported as
+unknown, never as 0%.
+
 ### The map
 
 Lines follow the great circle between hops, the way the packets actually fly,

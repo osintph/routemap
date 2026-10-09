@@ -69,4 +69,4 @@ def test_no_em_dash_in_any_view():
     for kw in ({"state": "ok", "current": 9000, "daily_income": 1, "daily_expenditure": 2},
                {"state": "ok", "current": 1}, {"state": "bad_key", "message": "x"},
                {"state": "no_permission"}, {"state": "unavailable"}):
-        assert "—" not in repr(view(**kw))
+        assert chr(0x2014) not in repr(view(**kw))

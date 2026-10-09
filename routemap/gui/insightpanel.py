@@ -184,7 +184,8 @@ class InsightPanel(QScrollArea):
         self.box.setSpacing(4)
         self.sections: dict[str, tuple[QLabel, QWidget]] = {}
         for key, title in (("diff", "Compared with"), ("path", "AS path"), ("countries", "Countries transited"),
-                           ("anycast", "Destination"), ("baseline", "Typical latency (RIPE Atlas)"),
+                           ("anycast", "Destination"), ("loss", "Loss"),
+                           ("baseline", "Typical latency (RIPE Atlas)"),
                            ("ris", "BGP view (RIPE RIS)"), ("updates", "BGP updates, last 48 h"),
                            ("rtt", "RTT per hop and the physics floor"), ("status", "")):
             head = heading(title)
@@ -259,6 +260,14 @@ class InsightPanel(QScrollArea):
             self._show("anycast", True)
         else:
             self._show("anycast", False)
+        # loss: the destination's, with the hops that only rate-limit named
+        loss = s.get("loss") or {}
+        if loss.get("text"):
+            self.sections["loss"][1].setText(html.escape(loss["text"]))
+            self.sections["loss"][1].setAccessibleName("Loss: " + loss["text"])
+            self._show("loss", True)
+        else:
+            self._show("loss", False)
         status = s["status"]
         off = status == insight_mod.OFF
         loading = status in ("loading", "partial")

@@ -15,8 +15,9 @@ from PySide6.QtGui import QColor, QFont, QFontDatabase, QFontMetricsF, QPageLayo
 
 from routemap.__about__ import DISPLAY_NAME, VERSION
 from routemap.gui import geometry, mapview, theme
-from routemap.gui.hoptable import NOTE_SHORT
+from routemap.gui.hoptable import NOTE_SHORT, rate_limited
 from routemap.insight import RPKI_SHORT
+from routemap_engine.geo import loss_verdict
 
 INK = QColor("#1f2933")
 MUTED = QColor("#5f6b78")
@@ -103,7 +104,8 @@ class _Flow:
         self.text(value, 12, bold=True, gap=2)
 
     def table(self, header: list[str] | None, rows: list[list[str]], widths_mm: list[float],
-              size: float = 7.5, align_right: set[int] = frozenset()):
+              size: float = 7.5, align_right: set[int] = frozenset(),
+              muted: set[tuple[int, int]] = frozenset()):
         font, bold = self.font(size), self.font(size, bold=True)
         metrics = QFontMetricsF(font, self.writer)
         scale = self.width / self.mm(sum(widths_mm))
@@ -116,7 +118,7 @@ class _Flow:
                                       int(Qt.TextWordWrap), c).height()
                        for c, w in zip(cells, widths)) + 2 * pad
 
-        def draw(cells, f, fill=None):
+        def draw(cells, f, fill=None, row=None):
             h = row_height(cells, f)
             if self.y + h > self.bottom:
                 self.new_page()
@@ -128,6 +130,7 @@ class _Flow:
             self.p.setFont(f)
             self.p.setPen(INK)
             for i, (c, w) in enumerate(zip(cells, widths)):
+                self.p.setPen(MUTED if (row, i) in muted else INK)
                 flags = int(Qt.TextWordWrap | (Qt.AlignRight if i in align_right else Qt.AlignLeft))
                 self.p.drawText(QRectF(x + pad, self.y + pad, w - 2 * pad, h - 2 * pad), flags, c)
                 x += w
@@ -138,8 +141,8 @@ class _Flow:
         _ = metrics
         if header:
             draw(header, bold, ZEBRA)
-        for row in rows:
-            draw(row, font)
+        for n, row in enumerate(rows):
+            draw(row, font, row=n)
         self.y += self.mm(3)
 
     def image(self, image, height_mm: float):
@@ -221,6 +224,8 @@ def write_pdf(path: str, route: dict, *, target: str, trace_text: str, tool_labe
 
     if insight:
         _summary_section(flow, route, insight, origin_cc)
+    else:
+        flow.text("Loss: " + loss_verdict(route.get("hops") or [])["text"], 8.5)
 
     flow.heading("Hops")
     rows = []
@@ -240,8 +245,10 @@ def write_pdf(path: str, route: dict, *, target: str, trace_text: str, tool_labe
                      name, address,
                      _fmt(h.get("min_rtt_ms")), "" if h.get("loss_pct") is None else f"{h['loss_pct']:.0f}%",
                      ", ".join(NOTE_SHORT.get(a, a) for a in h.get("annotations") or [])])
+    limited = {(n, 8) for n, h in enumerate(hops) if rate_limited(h)}
     flow.table(["#", "Location", "Source", "ASN", "RPKI", "Hostname", "IP address", "RTT min", "Loss",
-                "Notes"], rows, [7, 25, 18, 14, 12, 34, 22, 14, 9, 18], align_right={0, 7, 8})
+                "Notes"], rows, [7, 25, 18, 14, 12, 34, 22, 14, 9, 18], align_right={0, 7, 8},
+               muted=limited)
 
     if comparison:
         _comparison_section(flow, route, comparison, target, quiet_ms, hot_ms)
@@ -303,6 +310,8 @@ def _summary_section(flow: "_Flow", route: dict, ins: dict, origin_cc: str | Non
         rows.append(["Countries", " > ".join(cs)])
     if s["anycast"]:
         rows.append(["Destination", s["anycast"]])
+    if (s.get("loss") or {}).get("text"):
+        rows.append(["Loss", s["loss"]["text"]])
     if isinstance(s["baseline"], dict):
         rows.append(["Typical latency", f"{s['baseline']['text']} ({s['baseline']['delta']}); "
                                         f"{s['baseline']['detail']}"])
