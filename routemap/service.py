@@ -229,6 +229,52 @@ ASSET_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._+-]{0,199}")
 SHA256 = re.compile(r"sha256:([0-9a-f]{64})")
 
 
+def atlas_credit_view(balance, cost: int) -> dict:
+    """What the Atlas trace dialog says about credits, from an atlas.Balance.
+
+    Returns {"state", "lines", "can_run", "fix_key"}. ``lines`` are
+    (label, value) rows for "ok" and "low", or a single ("", sentence) row
+    otherwise. Only an unknown or invalid key (401) and a balance that cannot
+    pay stop the trace; a key that may not read the balance (403) and a
+    balance that could not be read do not, because RIPE's own check at
+    scheduling time is the one that counts.
+    """
+    state = getattr(balance, "state", None) or "unavailable"
+    reason = (getattr(balance, "message", "") or "").strip().rstrip(".")
+    said = f' RIPE said: "{reason}".' if reason else ""
+    if state == "ok":
+        current = balance.current
+        after = current - cost
+        if after < 0:
+            return {"state": "low", "can_run": False, "fix_key": False, "lines": [
+                ("", f"Not enough credits. Your balance is {current:,} credits and this trace "
+                     f"costs {cost}; RIPE would refuse it.")]}
+        lines = [("Your balance", f"{current:,} credits"),
+                 ("This trace", f"{cost} credits (one-off traceroute, one probe)"),
+                 ("After it", f"{after:,} credits")]
+        income, spent = balance.daily_income, balance.daily_expenditure
+        if income is not None or spent is not None:
+            parts = []
+            if income is not None:
+                parts.append(f"+{income:,} a day earned")
+            if spent is not None:
+                parts.append(f"{spent:,} a day spent")
+            lines.append(("RIPE's estimate", ", ".join(parts)))
+        return {"state": "ok", "can_run": True, "fix_key": False, "lines": lines}
+    if state == "bad_key":
+        return {"state": "bad_key", "can_run": False, "fix_key": True, "lines": [
+            ("", "RIPE Atlas did not accept your API key, so the trace cannot run either."
+                 f"{said} Check or replace the key in Settings \u203a RIPE Atlas.")]}
+    if state == "no_permission":
+        return {"state": "no_permission", "can_run": True, "fix_key": False, "lines": [
+            ("", "Your key may not read the balance, so it is not shown. The trace can still "
+                 f"run.{said} To see the balance here, give the key the \u201ccredits read\u201d "
+                 "permission at atlas.ripe.net/keys.")]}
+    return {"state": "unavailable", "can_run": True, "fix_key": False, "lines": [
+        ("", f"The balance could not be read: RIPE Atlas did not answer. This trace costs "
+             f"{cost} credits; RIPE refuses it if the account cannot pay.")]}
+
+
 def release_url(url) -> str | None:
     """*url* when it is a page or file of this repository on github.com over
     https, else None (hardening 9): the update check opens nothing else."""
