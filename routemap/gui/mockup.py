@@ -183,7 +183,7 @@ def render_all(out: pathlib.Path) -> list[pathlib.Path]:
     _settle(window)
     for name, dialog in (
         ("export", dialogs.ExportDialog(window, selected="pdf")),
-        ("atlas-warning", dialogs.AtlasWarningDialog(window, target="heise.de")),
+        ("atlas-warning", dialogs.AtlasTraceDialog(window, target="heise.de")),
         ("paste", dialogs.PasteTraceDialog(
             window, text=_fixture("amazon_route")["trace_text"],
             detected="Detected: mtr --report, 18 hops", origin_label=MANILA[2])),

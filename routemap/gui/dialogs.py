@@ -1,6 +1,7 @@
 """Dialogs: settings, export, the RIPE Atlas warning, paste a trace, privacy."""
 from __future__ import annotations
 
+import html
 import shlex
 
 from PySide6.QtCore import Qt, Signal
@@ -42,6 +43,8 @@ def _rule() -> QFrame:
 
 class SettingsDialog(QDialog):
     """Every setting, read from and written back to a config.Settings."""
+
+    ATLAS_TAB = 4   # index of the RIPE Atlas tab, as added in __init__
 
     pickRequested = Signal()
     clearCacheRequested = Signal()
@@ -412,7 +415,8 @@ class SettingsDialog(QDialog):
         layout.addLayout(form)
         layout.addWidget(_note(
             "Create a key at <a href='https://atlas.ripe.net/keys/'>atlas.ripe.net/keys</a> "
-            "with only <i>schedule a new measurement</i> permission. The key is stored in "
+            "with the <i>schedule a new measurement</i> permission, and <i>credits read</i> "
+            "if you want your balance shown before each trace. The key is stored in "
             "your config folder and sent only to RIPE Atlas. Each traceroute costs "
             f"{TRACEROUTE_CREDITS} of your credits (a one-off measurement costs twice a "
             "periodic one)."))
@@ -570,10 +574,18 @@ class ExportDialog(QDialog):
 
 # ------------------------------------------------------------------- Atlas ----
 
-class AtlasWarningDialog(QDialog):
-    """Must be acknowledged before the first Atlas trace."""
+class AtlasTraceDialog(QDialog):
+    """Shown before every Atlas trace: what will be public, and the credits.
 
-    def __init__(self, parent=None, target: str = ""):
+    The public-measurement checkbox appears until it has been acknowledged
+    once. The credits box starts as "Reading your balance" and is filled by
+    :meth:`set_credits` with a view from ``service.atlas_credit_view``.
+    """
+
+    SETTINGS = 2   # done() code: the user chose to fix the key in Settings
+
+    def __init__(self, parent=None, target: str = "", acknowledged: bool = False,
+                 cost: int = TRACEROUTE_CREDITS):
         super().__init__(parent)
         self.setWindowTitle("Trace from a RIPE Atlas probe")
         self.setMinimumWidth(520)
@@ -584,24 +596,65 @@ class AtlasWarningDialog(QDialog):
         layout.addWidget(title)
         body = QLabel(
             "RIPE Atlas publishes every measurement in its public database, including the "
-            f"target you trace{(' (<b>' + target + '</b>)') if target else ''}, the probe that "
+            f"target you trace{(' (<b>' + html.escape(target) + '</b>)') if target else ''}, the probe that "
             "ran it, the time, and your Atlas account. It cannot be made private or deleted "
             "afterwards.<br><br>"
             "What is <b>not</b> sent: your origin coordinates. The probe is chosen by your "
-            "network (AS number) and country.<br><br>"
-            f"The trace uses your own API key and costs {TRACEROUTE_CREDITS} credits.")
+            "network (AS number) and country.")
         body.setWordWrap(True)
         body.setTextFormat(Qt.RichText)
         layout.addWidget(body)
+
+        self.credits = QFrame()
+        self.credits.setFrameShape(QFrame.StyledPanel)
+        self.credits.setAccessibleName("RIPE Atlas credits")
+        self._grid = QGridLayout(self.credits)
+        self._grid.setHorizontalSpacing(18)
+        layout.addWidget(self.credits)
+        self.set_credits({"state": "loading", "can_run": True, "fix_key": False,
+                          "lines": [("", f"Reading your balance\u2026 This trace costs {cost} credits.")]})
+
         self.ack = QCheckBox("I understand that this measurement and its target will be public.")
+        self.ack.setVisible(not acknowledged)
+        self.ack.setChecked(acknowledged)
         layout.addWidget(self.ack)
         buttons = QDialogButtonBox(QDialogButtonBox.Cancel)
+        self.fix = buttons.addButton("Open Settings", QDialogButtonBox.ActionRole)
+        self.fix.setVisible(False)
+        self.fix.clicked.connect(lambda: self.done(self.SETTINGS))
         self.go = buttons.addButton("Trace with Atlas", QDialogButtonBox.AcceptRole)
-        self.go.setEnabled(False)
-        self.ack.toggled.connect(self.go.setEnabled)
+        self.ack.toggled.connect(lambda _: self._sync())
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
+        self._sync()
+
+    def set_credits(self, view: dict) -> None:
+        self._view = view
+        while self._grid.count():
+            item = self._grid.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+        for row, (label, value) in enumerate(view["lines"]):
+            text = QLabel(html.escape(value))
+            text.setWordWrap(True)
+            text.setTextInteractionFlags(Qt.TextSelectableByMouse)
+            if label:
+                name = QLabel(html.escape(label))
+                name.setProperty("muted", True)
+                self._grid.addWidget(name, row, 0, Qt.AlignTop)
+                self._grid.addWidget(text, row, 1)
+                text.setAccessibleName(f"{label}: {value}")
+            else:
+                self._grid.addWidget(text, row, 0, 1, 2)
+                text.setAccessibleName(value)
+        if hasattr(self, "go"):
+            self._sync()
+
+    def _sync(self) -> None:
+        view = getattr(self, "_view", {})
+        self.fix.setVisible(bool(view.get("fix_key")))
+        self.go.setEnabled(self.ack.isChecked() and bool(view.get("can_run", True)))
 
 
 # -------------------------------------------------------------------- paste ---

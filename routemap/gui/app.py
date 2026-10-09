@@ -503,17 +503,33 @@ class Controller(QObject):
     def atlas_trace(self):
         s = self.settings
         if not (s.atlas_enabled and s.atlas_key):
-            self.open_settings(tab=3)
+            self.open_settings(tab=dialogs.SettingsDialog.ATLAS_TAB)
             return
         try:
             target = validate_target(self.w.target.text())
         except InvalidTarget as exc:
             self.w.summary.setText(f"<span style='color:#c0392b'>{exc}.</span>")
             return
+        dialog = dialogs.AtlasTraceDialog(self.w, target=target, acknowledged=s.atlas_acknowledged)
+
+        def read_balance(on_line, on_progress, cancel, **_):
+            # Only the key goes to RIPE here, to its own credits endpoint.
+            return asyncio.run(atlas.Atlas(s.atlas_key, user_agent=service.user_agent()).balance())
+
+        balance_task = Task(read_balance, self)
+        balance_task.succeeded.connect(
+            lambda b: dialog.set_credits(service.atlas_credit_view(b, atlas.TRACEROUTE_CREDITS)))
+        balance_task.failed.connect(lambda _m: dialog.set_credits(service.atlas_credit_view(
+            atlas.Balance("unavailable"), atlas.TRACEROUTE_CREDITS)))
+        self._balance_task = balance_task
+        balance_task.start()
+        answer = dialog.exec()
+        if answer == dialogs.AtlasTraceDialog.SETTINGS:
+            self.open_settings(tab=dialogs.SettingsDialog.ATLAS_TAB)
+            return
+        if not answer:
+            return
         if not s.atlas_acknowledged:
-            dialog = dialogs.AtlasWarningDialog(self.w, target=target)
-            if not dialog.exec():
-                return
             s.atlas_acknowledged = True
             config.save_settings(s)
         origin = self.origin

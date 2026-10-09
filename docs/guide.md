@@ -227,11 +227,15 @@ With a RIPE Atlas account you can trace from an Atlas probe on your own network
 instead of from this computer, which helps when your machine cannot run a trace
 (a locked-down laptop) or when you want a second vantage point.
 
-1. Create a key at [atlas.ripe.net/keys](https://atlas.ripe.net/keys/) with only
-   the *schedule a new measurement* permission.
+1. Create a key at [atlas.ripe.net/keys](https://atlas.ripe.net/keys/) with the
+   *schedule a new measurement* permission, and *credits read* if you want your
+   balance shown before each trace.
 2. In **Settings > RIPE Atlas**, paste it and switch on the Trace menu entry.
 3. Choose **Trace > Trace from a RIPE Atlas Probe**. The first time, confirm
-   that the measurement will be public.
+   that the measurement will be public. Every time, the dialog shows your
+   balance, what this trace costs and what is left after it. A key RIPE does
+   not accept stops the trace there, with a button to Settings; a key without
+   *credits read* hides the balance but can still trace.
 
 Route Map finds a connected probe on your network's AS (or, failing that, in
 your country), schedules one traceroute (60 credits: RIPE charges a one-off
