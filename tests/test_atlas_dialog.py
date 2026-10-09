@@ -62,3 +62,14 @@ def test_a_target_is_escaped_in_the_dialog(app):
     from PySide6.QtWidgets import QLabel
     texts = [w.text() for w in d.findChildren(QLabel)]
     assert any("&lt;b&gt;x&lt;/b&gt;&amp;" in t for t in texts)
+
+
+def test_ripes_reason_is_shown_as_text_never_as_markup(app):
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QLabel
+    d = _dialog("bad_key", message="<b>bold</b> & it's")
+    labels = [w for w in d.credits.findChildren(QLabel) if "bold" in w.text()]
+    assert labels and all(w.textFormat() == Qt.PlainText for w in labels)
+    assert any("<b>bold</b> & it's" in w.text() for w in labels)
+    rows = [w.text() for w in d.credits.findChildren(QLabel)]
+    assert not any("&#x27;" in r or "&amp;" in r for r in rows)
