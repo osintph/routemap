@@ -772,6 +772,65 @@ class UpdateDialog(QDialog):
         self.result_text.setVisible(True)
 
 
+# --------------------------------------------------------------- bug report ---
+
+class BugReportDialog(QDialog):
+    """Shows every file of the bug report, byte for byte, before it is saved."""
+
+    def __init__(self, parent=None, *, build=None, has_trace: bool = False, trace_label: str = ""):
+        super().__init__(parent)
+        self.setWindowTitle("Create Bug Report")
+        self.resize(760, 520)
+        self._build = build            # include_trace -> [(name, bytes)]
+        layout = QVBoxLayout(self)
+        layout.addWidget(_note(
+            "A zip you save and send yourself. Every file in it is listed here, exactly as it will "
+            "be saved. Keys and tokens are removed. Your set origin (city or coordinates) is left "
+            "out of settings.json unless you include the last trace."))
+        row = QHBoxLayout()
+        self.files = QListWidget()
+        self.files.setAccessibleName("Files in the report")
+        self.files.setMaximumWidth(220)
+        self.view = QPlainTextEdit()
+        self.view.setReadOnly(True)
+        self.view.setAccessibleName("Contents of the selected file")
+        self.view.setFont(QFontDatabase.systemFont(QFontDatabase.FixedFont))
+        row.addWidget(self.files)
+        row.addWidget(self.view, 1)
+        layout.addLayout(row, 1)
+        self.include = QCheckBox("Include the last trace" + (f" ({trace_label})" if trace_label else "")
+                                 + ". It names the target, every hop address and your origin.")
+        self.include.setEnabled(has_trace)
+        if not has_trace:
+            self.include.setText("Include the last trace (there is no trace on screen).")
+        layout.addWidget(self.include)
+        layout.addWidget(_note(f"{DISPLAY_NAME} sends nothing. Attach the zip to an issue or an email "
+                               "yourself."))
+        buttons = QDialogButtonBox(QDialogButtonBox.Cancel)
+        self.save = buttons.addButton("Save Zip\u2026", QDialogButtonBox.AcceptRole)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+        self.files.currentRowChanged.connect(self._show)
+        self.include.toggled.connect(lambda _: self.refresh())
+        self.refresh()
+
+    def refresh(self) -> None:
+        self.contents = self._build(self.include.isChecked()) if self._build else []
+        keep = max(0, self.files.currentRow())
+        self.files.clear()
+        for name, data in self.contents:
+            self.files.addItem(f"{name}  ({len(data):,} bytes)")
+        self.files.setCurrentRow(min(keep, len(self.contents) - 1))
+        self._show(self.files.currentRow())
+
+    def _show(self, row: int) -> None:
+        if 0 <= row < len(self.contents):
+            self.view.setPlainText(self.contents[row][1].decode("utf-8", errors="replace"))
+        else:
+            self.view.clear()
+
+
 # -------------------------------------------------------------------- paste ---
 
 class PasteTraceDialog(QDialog):
