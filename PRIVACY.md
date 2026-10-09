@@ -18,6 +18,7 @@ automatic update check. Nothing is sent anywhere until you run or open a trace.
 | Your RIPE Atlas API key, your network's AS number (or your country code if no probe is on your network), and the target | RIPE Atlas, atlas.ripe.net | only when Atlas is on in Settings with your own key and you choose Trace from a RIPE Atlas Probe. RIPE NCC publishes every measurement, target included |
 | Your public IP address, to find your network's AS number for the Atlas probe | RIPEstat, stat.ripe.net | only for an Atlas trace |
 | A request for the latest release tag | GitHub, api.github.com | only when you choose Check for Updates or run `routemap --check-update` |
+| A download of the release file for your system, `SHA256SUMS` and `SHA256SUMS.ed25519` | GitHub, github.com and its release-asset host release-assets.githubusercontent.com | only when you choose Download and check after Check for Updates. Not counted by the project site |
 
 **Settings > Sources > Online lookups** switches every row above except the
 trace itself, the explicit update check and downloads you start: off, nothing

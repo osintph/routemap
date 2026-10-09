@@ -11,13 +11,14 @@ import asyncio
 import datetime as _dt
 import json
 import os
+import pathlib
 import sys
 
 from PySide6.QtCore import QByteArray, QObject, Qt, QTimer, QUrl
 from PySide6.QtGui import QDesktopServices, QGuiApplication, QIcon
 from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox
 
-from routemap import config, dbip, imported, insight, service
+from routemap import config, dbip, imported, insight, service, updater
 from routemap.__about__ import (DISPLAY_NAME, NAME, REPO_URL, engine_line, version_line,
                                 CONTACT_EMAIL, WINDOWS_SIGNED, SITE_LINKED, SITE_URL,
                                 VERSION)
@@ -923,6 +924,9 @@ class Controller(QObject):
         offer = service.installer_for(latest["assets"])
         if offer and not service.release_url(offer[1]):
             offer = None
+        if offer and updater.available(latest):
+            self._update_in_app(latest, offer[0], current)
+            return
         digest = (latest.get("digests") or {}).get(offer[0]) if offer else None
         box.setText(f"{DISPLAY_NAME} {tag} is out; you have {current}.")
         box.setInformativeText(
@@ -941,6 +945,83 @@ class Controller(QObject):
             QDesktopServices.openUrl(QUrl(offer[1] if offer else page))
         elif notes is not None and box.clickedButton() is notes:
             QDesktopServices.openUrl(QUrl(page))
+
+    def _update_in_app(self, latest: dict, name: str, current: str):
+        """Download, check and hand over the release file (routemap/updater.py)."""
+        dialog = dialogs.UpdateDialog(self.w, tag=latest["tag"], current=current, name=name)
+        state = {"task": None, "path": None, "workdir": None}
+
+        def job(on_line, on_progress, cancel, **_):
+            work = updater.private_dir()
+            state["workdir"] = work
+            try:
+                path = updater.download_and_verify(
+                    latest, name, work, on_step=lambda s, st: on_progress(s, st, ""),
+                    on_bytes=lambda w, tot: on_progress("bytes", str(w), str(tot or "")), cancel=cancel)
+            except updater.UpdateFailed as exc:
+                return {"failed": exc.step, "message": exc.message}
+            return {"path": str(path)}
+
+        def progress(source, st, detail):
+            if source == "bytes":
+                dialog.bytes_done(int(st), int(detail) if detail else None)
+            else:
+                dialog.step("hash" if source == updater.STEP_LISTED else source, st)
+
+        def finished(result):
+            if result.get("failed"):
+                dialog.failed(result["failed"], result["message"])
+                return
+            state["path"] = pathlib.Path(result["path"])
+            plan = updater.plan(state["path"], sys.platform, os.environ.get("APPIMAGE"))
+            state["plan"] = plan
+            action = {"installer": "Install and quit", "replace": "Restart with the update"}.get(
+                plan["kind"], "Open")
+            dialog.verified(plan["text"], action)
+
+        def start():
+            task = Task(job, self)
+            task.progress.connect(progress)
+            task.succeeded.connect(finished)
+            task.failed.connect(lambda m: dialog.failed(updater.STEP_DOWNLOAD, m))
+            state["task"] = task
+            dialog.checking()
+            task.start()
+
+        dialog.go.clicked.connect(start)
+        answer = dialog.exec()
+        task = state["task"]
+        if task is not None and task.isRunning():
+            task.stop()
+            task.wait(5000)
+        page = service.release_url(latest.get("page")) or f"{REPO_URL}/releases"
+        if answer == dialogs.UpdateDialog.NOTES:
+            QDesktopServices.openUrl(QUrl(page))
+        if answer != dialogs.UpdateDialog.HAND_OVER or state["path"] is None:
+            if state["workdir"] is not None:
+                updater.discard(state["workdir"])
+            return
+        self._hand_over(state["plan"], state["path"], state["workdir"])
+
+    def _hand_over(self, plan: dict, path, workdir):
+        import subprocess
+        try:
+            if plan["kind"] == "replace":
+                updater.replace_appimage(path, plan["argv"][0])
+                updater.discard(workdir)
+                subprocess.Popen(plan["argv"], start_new_session=True)
+                QApplication.quit()
+            elif plan["kind"] == "installer":
+                flags = getattr(subprocess, "DETACHED_PROCESS", 0) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+                subprocess.Popen(plan["argv"], creationflags=flags)
+                QApplication.quit()
+            elif plan["argv"]:
+                # The system's own installer reads the file from the private folder;
+                # the folder is the operating system's temporary space and is left to it.
+                subprocess.Popen(plan["argv"], start_new_session=True)
+        except (OSError, updater.UpdateFailed) as exc:
+            updater.discard(workdir)
+            self.error("Update", getattr(exc, "message", None) or str(exc))
 
     def about(self):
         QMessageBox.about(self.w, f"About {DISPLAY_NAME}", (

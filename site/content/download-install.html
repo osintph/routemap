@@ -29,7 +29,11 @@ run it, or unpack the <code>tar.gz</code> and run <code>./routemap</code>.</p>
 so a later install picks them up. To remove them too, delete <code>%APPDATA%\routemap</code>
 (Windows), <code>~/Library/Application Support/routemap</code> (macOS) or
 <code>~/.config/routemap</code> (Linux). <strong>Check for Updates</strong> in the Help menu offers
-the right file for your system when a new version is out.</p>
+the right file for your system when a new version is out. From 0.2.0-beta.6 it can also download
+the file itself, check its signature and SHA-256, and then run the installer (Windows), open the
+disk image (macOS), open the package in your software installer (Linux .deb and .rpm) or replace
+the AppImage in place. These downloads go to GitHub directly and do not appear in this site's
+download statistics.</p>
 <p><strong>Not on PyPI</strong>: Route Map is not on PyPI. <code>pip install routemap</code>
 installs an unrelated project of the same name, not this app; Route Map comes only from its
 GitHub Releases and this page. Its engine is on PyPI as <code>routemap-engine</code>.</p>

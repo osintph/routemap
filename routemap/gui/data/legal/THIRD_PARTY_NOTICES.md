@@ -18,6 +18,8 @@ changes these terms.
 | certifi | MPL-2.0 | https://pypi.org/project/certifi/ |
 | typing_extensions | PSF-2.0 | https://pypi.org/project/typing-extensions/ |
 | maxminddb (reads the DB-IP files) | Apache-2.0 | https://pypi.org/project/maxminddb/ |
+| cryptography (checks the update signature), with OpenSSL | Apache-2.0 OR BSD-3-Clause; OpenSSL Apache-2.0 | https://pypi.org/project/cryptography/ |
+| cffi, pycparser (used by cryptography) | MIT-0, BSD-3-Clause | https://pypi.org/project/cffi/ |
 | Nuitka runtime (in compiled builds) | Apache-2.0 | https://nuitka.net/ |
 
 **Qt and Qt for Python (LGPL-3.0).** The Qt libraries and the PySide6 and

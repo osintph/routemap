@@ -31,7 +31,17 @@ Download the latest release from
 **Upgrade** by installing the new version over the old one (installer,
 package or DMG); settings, history and databases stay. **Help > Check for
 Updates** says whether a newer version is out and offers the file for your
-system. **Uninstall**: Settings > Apps on Windows, the Trash on macOS,
+system. **Download and check** fetches it from this project's GitHub releases
+into a folder only you can read and checks three things before anything runs:
+that `SHA256SUMS.ed25519` is a signature by the update key built into this
+version over the release tag and `SHA256SUMS`, that `SHA256SUMS` lists the
+file once, and that the file's SHA-256 matches. Then it runs the installer
+(Windows), opens the disk image (macOS), opens the `.deb` or `.rpm` in your
+software installer, or replaces a running AppImage in place and restarts. A
+failed check deletes the download and says which check failed. These downloads
+go to GitHub directly, so they do not appear in the project site's download
+statistics. Versions up to 0.2.0-beta.5 open the download in the browser
+instead. **Uninstall**: Settings > Apps on Windows, the Trash on macOS,
 `sudo apt remove routemap` or `sudo dnf remove routemap` on Linux. Settings and
 history are kept in `%APPDATA%\routemap`, `~/Library/Application
 Support/routemap` or `~/.config/routemap` until you delete that folder.
