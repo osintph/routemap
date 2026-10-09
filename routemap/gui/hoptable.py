@@ -25,6 +25,14 @@ COLUMNS = ["#", "Location", "Source", "ASN", "RPKI", "Hostname", "IP address", "
 KEYS = ["hop", "place", "source", "asn", "rpki", "hostname", "address", "min", "avg", "loss", "notes"]
 WIDTHS = [32, 132, 150, 78, 64, 186, 112, 76, 76, 50]
 NUMERIC = {"hop", "min", "avg", "loss"}
+# Continuous mode: the mtr columns first, then where the hop is.
+LIVE_COLUMNS = ["#", "Location", "Loss", "Sent", "Last", "Avg", "Best", "Worst", "StDev", "Source", "ASN",
+                "Hostname", "IP address", "Notes"]
+LIVE_KEYS = ["hop", "place", "loss", "sent", "last", "avg", "best", "worst", "stdev", "source", "asn",
+             "hostname", "address", "notes"]
+LIVE_WIDTHS = [32, 132, 70, 50, 62, 62, 62, 62, 58, 150, 78, 186, 112]
+LIVE_NUMERIC = {"hop", "loss", "sent", "last", "avg", "best", "worst", "stdev"}
+_LIVE_FIELDS = {"last": "last_ms", "best": "best_ms", "worst": "worst_ms", "stdev": "stdev_ms"}
 
 # Short forms of the engine's annotation labels, for a narrow column. The full
 # label and its detail are in the tooltip.
@@ -67,6 +75,16 @@ class HopModel(QAbstractTableModel):
         self.icons: dict = {}
         self.details: dict = {}       # str(hop) -> {"prefix", "rpki"} from the online insight
         self.marks: dict = {}         # hop -> diff mark
+        self.columns, self.keys, self.numeric = COLUMNS, KEYS, NUMERIC
+
+    def set_live(self, on: bool) -> None:
+        """Switch between the trace columns and continuous mode's mtr columns."""
+        self.beginResetModel()
+        if on:
+            self.columns, self.keys, self.numeric = LIVE_COLUMNS, LIVE_KEYS, LIVE_NUMERIC
+        else:
+            self.columns, self.keys, self.numeric = COLUMNS, KEYS, NUMERIC
+        self.endResetModel()
 
     def set_hops(self, hops: list[dict], details: dict | None = None, marks: dict | None = None):
         self.beginResetModel()
@@ -82,17 +100,25 @@ class HopModel(QAbstractTableModel):
         return 0 if parent.isValid() else len(self.hops)
 
     def columnCount(self, parent=QModelIndex()):
-        return len(COLUMNS)
+        return len(self.columns)
 
     def headerData(self, section, orientation, role=Qt.DisplayRole):
         if orientation == Qt.Horizontal and role == Qt.DisplayRole:
-            return COLUMNS[section]
+            return self.columns[section]
         return None
 
     def text(self, hop: dict, column: int) -> str:
-        key = KEYS[column]
+        key = self.keys[column]
         if key == "hop":
             return str(hop["hop"])
+        if key == "sent":
+            return "" if hop.get("sent") is None else str(hop["sent"])
+        if key in _LIVE_FIELDS:
+            value = hop.get(_LIVE_FIELDS[key])
+            return "" if value is None else f"{value:.1f}"
+        if key == "loss" and self.keys is LIVE_KEYS:
+            loss = hop.get("loss_pct")
+            return "" if loss is None else f"{loss:.1f}%"
         if key == "address":
             extra = len(hop.get("addresses") or []) - 1
             return (hop.get("address") or "*") + (f" (+{extra})" if extra > 0 else "")
@@ -127,7 +153,7 @@ class HopModel(QAbstractTableModel):
         """The row as a screen reader says it: number, place, network, RTT, loss, notes."""
         parts = [f"Hop {hop['hop']}"]
         for key in ("place", "asn", "address"):
-            value = self.text(hop, KEYS.index(key))
+            value = self.text(hop, self.keys.index(key)) if key in self.keys else ""
             if value:
                 parts.append(value)
         rtt = hop.get("min_rtt_ms")
@@ -142,7 +168,12 @@ class HopModel(QAbstractTableModel):
         return ", ".join(parts)
 
     def sort_key(self, hop: dict, column: int):
-        key = KEYS[column]
+        key = self.keys[column]
+        if key == "sent":
+            return hop.get("sent") or 0
+        if key in _LIVE_FIELDS:
+            value = hop.get(_LIVE_FIELDS[key])
+            return float("inf") if value is None else value
         if key == "hop":
             return hop["hop"]
         if key in ("min", "avg"):
@@ -191,21 +222,21 @@ class HopModel(QAbstractTableModel):
             return self.text(hop, column)
         if role == Qt.UserRole:
             return self.sort_key(hop, column)
-        if role == Qt.DecorationRole and KEYS[column] == "source":
+        if role == Qt.DecorationRole and self.keys[column] == "source":
             if hop.get("precision") == "country":
                 return self.icons.get("country")
             return self.icons.get(hop.get("source"))
         if role == Qt.ToolTipRole:
             return self.tooltip(hop)
         if role == Qt.AccessibleTextRole:
-            return self.spoken(hop) if column == 0 else f"{COLUMNS[column]}: {self.text(hop, column) or 'none'}"
-        if role == Qt.TextAlignmentRole and KEYS[column] in NUMERIC:
+            return self.spoken(hop) if column == 0 else f"{self.columns[column]}: {self.text(hop, column) or 'none'}"
+        if role == Qt.TextAlignmentRole and self.keys[column] in self.numeric:
             return int(Qt.AlignRight | Qt.AlignVCenter)
-        if role == Qt.ForegroundRole and KEYS[column] == "rpki":
+        if role == Qt.ForegroundRole and self.keys[column] == "rpki":
             state = (self.details.get(str(hop["hop"])) or {}).get("rpki") or ""
             if state.startswith("invalid"):
                 return QColor("#c0392b")
-        if role == Qt.ForegroundRole and KEYS[column] == "loss" and rate_limited(hop):
+        if role == Qt.ForegroundRole and self.keys[column] == "loss" and rate_limited(hop):
             return QColor(theme.current().overlay_muted)
         if role == Qt.ForegroundRole and hop.get("lat") is None:
             return QColor(theme.current().overlay_muted)
@@ -240,10 +271,20 @@ class HopTable(QTableView):
         header.setHighlightSections(False)
         header.setStretchLastSection(True)
         header.setSectionResizeMode(QHeaderView.Interactive)
-        for column, width in enumerate(WIDTHS):
-            self.setColumnWidth(column, width)
+        self._widths(WIDTHS)
         self._syncing = False
         self.selectionModel().selectionChanged.connect(self._selection_changed)
+
+    def _widths(self, widths) -> None:
+        for column, width in enumerate(widths):
+            self.setColumnWidth(column, width)
+
+    def set_live(self, on: bool) -> None:
+        """The mtr columns for a continuous session, or the trace columns."""
+        if (self.model_.keys is LIVE_KEYS) == on:
+            return
+        self.model_.set_live(on)
+        self._widths(LIVE_WIDTHS if on else WIDTHS)
 
     def _selection_changed(self, *_):
         if self._syncing:
@@ -318,11 +359,11 @@ class HopTable(QTableView):
         """Selected rows (or all of them) as tab-separated text with a header."""
         rows = sorted({i.row() for i in self.selectionModel().selectedIndexes()}) \
             or list(range(self.proxy.rowCount()))
-        lines = ["\t".join(COLUMNS)]
+        lines = ["\t".join(self.model_.columns)]
         for row in rows:
             source_row = self.proxy.mapToSource(self.proxy.index(row, 0)).row()
             hop = self.model_.hops[source_row]
-            lines.append("\t".join(self._cell(self.model_.text(hop, c)) for c in range(len(COLUMNS))))
+            lines.append("\t".join(self._cell(self.model_.text(hop, c)) for c in range(len(self.model_.columns))))
         text = "\n".join(lines) + "\n"
         QGuiApplication.clipboard().setText(text)
         return text

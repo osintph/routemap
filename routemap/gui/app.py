@@ -18,7 +18,7 @@ from PySide6.QtCore import QByteArray, QObject, Qt, QTimer, QUrl
 from PySide6.QtGui import QDesktopServices, QGuiApplication, QIcon
 from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox
 
-from routemap import bugreport, config, dbip, imported, insight, service, updater
+from routemap import bugreport, config, dbip, imported, insight, live, service, updater
 from routemap.__about__ import (DISPLAY_NAME, NAME, REPO_URL, engine_line, version_line,
                                 CONTACT_EMAIL, WINDOWS_SIGNED, SITE_LINKED, SITE_URL,
                                 VERSION)
@@ -51,6 +51,14 @@ class Controller(QObject):
         self.generation = 0               # bumps per shown result; stale background answers are dropped
         self.compare_next: dict | None = None   # the route to compare the next result with
         self.comparison: dict | None = None     # {"old", "diff", "label"} while one is shown
+        # Continuous mode: the engine's Watch, its worker, the latest snapshot,
+        # the placed route (first cycle, then only new hops) and its placer.
+        self.watcher = None
+        self.watch_task: Task | None = None
+        self.live_snap: dict | None = None
+        self.live_route: dict | None = None
+        self.live_placing: Task | None = None
+        self.live_target: str | None = None
         self._wire()
 
     # ------------------------------------------------------------- wiring ---
@@ -58,6 +66,16 @@ class Controller(QObject):
         w = self.w
         w.trace_button.clicked.connect(self.trace_or_stop)
         w.act_stop.triggered.connect(self.stop)
+        w.watch_button.clicked.connect(self.watch)
+        w.act_watch.triggered.connect(self.watch)
+        w.act_reset_live.triggered.connect(self.reset_watch)
+        w.live_bar.pauseToggled.connect(self.toggle_pause)
+        w.live_bar.stopClicked.connect(self.stop)
+        w.live_bar.resetClicked.connect(self.reset_watch)
+        w.live_bar.exportClicked.connect(self.export)
+        w.table.hopsSelected.connect(lambda hops: w.live_plot.set_data(w.live_plot.snap, hops[0]) if hops else None)
+        from PySide6.QtWidgets import QApplication as _QApp
+        _QApp.instance().installEventFilter(self)
         w.act_open.triggered.connect(self.open_file)
         w.act_paste.triggered.connect(self.paste)
         w.act_export.triggered.connect(self.export)
@@ -164,6 +182,173 @@ class Controller(QObject):
     def busy(self) -> bool:
         return self.task is not None and self.task.isRunning()
 
+    def watching(self) -> bool:
+        return self.watch_task is not None and self.watch_task.isRunning()
+
+    # ---------------------------------------------------------- continuous ---
+    def eventFilter(self, obj, event):
+        """P pauses or resumes a running session, unless focus is in a text field."""
+        from PySide6.QtCore import QEvent
+        if event.type() == QEvent.KeyPress and event.key() == Qt.Key_P and not event.modifiers() \
+                and self.watching() and not event.isAutoRepeat():
+            from PySide6.QtWidgets import (QAbstractSpinBox, QApplication as _QApp, QComboBox, QLineEdit,
+                                           QPlainTextEdit, QTextEdit)
+            focus = _QApp.focusWidget()
+            typing = isinstance(focus, (QLineEdit, QPlainTextEdit, QTextEdit, QAbstractSpinBox)) or (
+                isinstance(focus, QComboBox) and focus.isEditable())
+            if not typing and focus is not None and focus.window() is self.w:
+                self.toggle_pause()
+                return True
+        return False
+
+    def watch(self):
+        """Start a continuous session for the target in the box."""
+        if self.watching() or self.busy():
+            return
+        raw = self.w.target.text()
+        try:
+            target = validate_target(raw)
+        except InvalidTarget as exc:
+            self.w.summary.setText(f"<span style='color:#c0392b'>{exc}.</span>")
+            self.w.target.setFocus()
+            return
+        from routemap_engine import probe as _probe
+        ok, why = _probe.available()
+        if not ok:
+            self.error("Continuous trace", "Continuous mode needs the built-in ICMP prober, which this "
+                       f"system does not allow: {why}")
+            return
+        from routemap_engine import watch as _watch
+        s = self.settings
+        options = _watch.WatchOptions(interval=s.live_interval, duration=s.live_duration_min * 60)
+        self._end_comparison_quietly()
+        self.live_snap, self.live_route, self.live_target = None, None, target
+        self.watcher = None
+        holder = {}
+
+        def job(on_line, on_progress, cancel, on_hop, **_):
+            w = _watch.Watch(target, options, on_cycle=lambda sess: on_hop(
+                live.snapshot(sess, paused=holder["w"].paused)))
+            holder["w"] = w
+            self.watcher = w
+            session = w.run()
+            return {"snapshot": live.snapshot(session), "session": session.to_dict()}
+
+        task = Task(job, self)
+        task.hop.connect(self._watch_cycle)
+        task.succeeded.connect(self._watch_done)
+        task.failed.connect(self._watch_failed)
+        self.watch_task = task
+        self.w.show_watching(target)
+        if self.origin:
+            self.w.map.set_origin(*self.origin)
+        task.start()
+
+    def toggle_pause(self):
+        if not self.watching() or self.watcher is None:
+            return
+        if self.watcher.paused:
+            self.watcher.resume()
+        else:
+            self.watcher.pause()
+        if self.live_snap is not None:
+            snap = dict(self.live_snap, paused=self.watcher.paused)
+            self.w.live_bar.show_state(snap, running=True)
+
+    def reset_watch(self):
+        if not self.watching() or self.watcher is None:
+            return
+        answer = QMessageBox.question(self.w, "Reset counters",
+                                      "Start the statistics and the plot again? The map and the path "
+                                      "changes stay.")
+        if answer == QMessageBox.Yes:
+            self.watcher.reset()
+
+    def _watch_cycle(self, snap: dict):
+        self.live_snap = snap
+        self._place_new(snap)
+        hops = live.merge_hops((self.live_route or {}).get("hops") or [], snap["hops"])
+        self.w.update_watch(hops, snap, running=True)
+
+    def _place_new(self, snap: dict):
+        """Place the first cycle's hops once, then only hops or addresses not
+        placed yet. One placement at a time; never every cycle."""
+        if self.live_placing is not None and self.live_placing.isRunning():
+            return
+        route_hops = (self.live_route or {}).get("hops") or []
+        todo = live.as_hops(snap["hops"]) if self.live_route is None else live.unplaced(snap["hops"], route_hops)
+        if not todo:
+            return
+        settings, origin, first = self.settings, self.origin, self.live_route is None
+
+        def job(on_line, on_progress, cancel, **_):
+            return service.analyse_sync(todo, origin[:2] if origin else None, settings).to_dict()
+
+        task = Task(job, self)
+        task.succeeded.connect(lambda body: self._placed(body, first))
+        task.failed.connect(lambda m: self.w.statusBar().showMessage(f"Could not place hops: {m}", 6000))
+        self.live_placing = task
+        task.start()
+
+    def _placed(self, body: dict, first: bool):
+        if first or self.live_route is None:
+            self.live_route = body
+        else:
+            self.live_route["hops"] = live.add_placed(self.live_route.get("hops") or [], body.get("hops") or [])
+        target = self.live_target or ""
+        self.w.map.set_route(self.live_route, destination=target, keep_view=not first)
+        if self.live_snap is not None:
+            hops = live.merge_hops(self.live_route["hops"], self.live_snap["hops"])
+            self.w.update_watch(hops, self.live_snap, running=self.watching())
+            self.w.unplaced.set_hops(hops)
+
+    def _watch_done(self, result: dict):
+        snap, session = result["snapshot"], result["session"]
+        self.live_snap = snap
+        target = self.live_target or snap["target"]
+        route = live.route_for_export(self.live_route or {"hops": [], "origin": {}, "warnings": [],
+                                                           "parser": "traceroute",
+                                                           "parser_label": "built-in ICMP prober",
+                                                           "target": target, "hoiho_ruleset_date": None},
+                                      snap)
+        argv = ["icmp", "watch", f"every {snap['interval']:g} s", target]
+        self.current = {"route": route, "target": target, "trace_text": "", "argv": argv, "source": "watch",
+                        "origin_how": self.origin_how, "session": session,
+                        "when": _dt.datetime.fromtimestamp(snap["started"]).astimezone()}
+        self.w.update_watch(route["hops"], snap, running=False)
+        self.w.end_watch()
+        self.w.statusBar().showMessage(f"Continuous trace ended after {snap['cycles']} cycles.", 8000)
+        if self.settings.live_keep_history and snap["cycles"]:
+            entry = config.history_entry(route, target=target, trace_text="", argv=argv, source="watch",
+                                         session=session)
+            entry["origin_how"] = self.origin_how
+            config.add_history(entry, self.settings)
+            self.refresh_history()
+        self._refresh_compare_actions()
+
+    def _watch_failed(self, message: str):
+        self.w.end_watch()
+        if self.live_snap is None:
+            self.w.set_live_mode(False)
+        self.error("Continuous trace", message if "IPv4" not in message else
+                   "Continuous mode needs an IPv4 address for now; IPv6 comes in 0.4.0.")
+
+    def show_session(self, current: dict):
+        """A stored or opened session, drawn stopped."""
+        snap = live.saved_snapshot(current["session"])
+        self.live_snap, self.live_route, self.live_target = snap, current["route"], current["target"]
+        self.current = current
+        self.w.show_result(current["route"], current["target"], current.get("argv"))
+        self.w.set_live_mode(True)
+        self.w.update_watch(live.merge_hops(current["route"].get("hops") or [], snap["hops"]), snap, running=False)
+        self._after_result()
+
+    def leave_live(self):
+        """Back to the trace view; a running session must be stopped first."""
+        if self.live_snap is not None and not self.watching():
+            self.live_snap = self.live_route = None
+            self.w.set_live_mode(False)
+
     def error(self, title: str, text: str):
         box = QMessageBox(QMessageBox.Warning, title, text, QMessageBox.Ok, self.w)
         box.setTextFormat(Qt.PlainText)
@@ -207,11 +392,18 @@ class Controller(QObject):
             self.trace()
 
     def stop(self):
+        if self.watching():
+            self.watcher.stop()
+            self.w.statusBar().showMessage("Stopping the continuous trace…", 3000)
+            return
         if self.busy():
             self.task.stop()
             self.w.statusBar().showMessage("Stopping…", 3000)
 
     def trace(self):
+        if self.watching():
+            return
+        self.leave_live()
         raw = self.w.target.text()
         try:
             target = validate_target(raw)
@@ -345,6 +537,11 @@ class Controller(QObject):
             self.current = {"route": doc["route"], "target": doc["target"] or os.path.basename(path),
                             "trace_text": doc["trace_text"], "argv": doc["argv"], "source": doc["source"],
                             "origin_how": doc["origin_how"], "when": _dt.datetime.now().astimezone()}
+            if doc.get("session"):
+                self.current["session"] = doc["session"]
+                self.show_session(self.current)
+                return
+            self.leave_live()
             self.w.show_result(doc["route"], self.current["target"], self.current["argv"],
                                trace_text=self.current["trace_text"])
             self._after_result()
@@ -511,11 +708,18 @@ class Controller(QObject):
     def open_history(self, row: int):
         if not 0 <= row < len(self.history):
             return
+        if self.watching():
+            return
         e = self.history[row]
         self.current = {"route": e["route"], "target": e["target"], "trace_text": e.get("trace_text", ""),
                         "argv": e.get("argv"), "source": e.get("source", LOCAL),
                         "origin_how": e.get("origin_how"),
                         "when": _dt.datetime.fromtimestamp(e["when"]).astimezone()}
+        if e.get("session"):
+            self.current["session"] = e["session"]
+            self.show_session(self.current)
+            return
+        self.leave_live()
         self.w.show_result(e["route"], e["target"], e.get("argv"), trace_text=e.get("trace_text", ""))
         self._after_result()
 
@@ -1198,7 +1402,8 @@ def write_export(fmt: str, path: str, current: dict, *, dark_png: bool = False,
     if fmt == "json":
         text = service.export_json(route, target=target, trace_text=current.get("trace_text", ""),
                                    argv=current.get("argv"), source=current.get("source", LOCAL),
-                                   origin_how=current.get("origin_how"), insight=ins, comparison=cmp)
+                                   origin_how=current.get("origin_how"), insight=ins, comparison=cmp,
+                                   session=current.get("session"))
         with open(path, "w", encoding="utf-8") as handle:
             handle.write(text)
     elif fmt == "png":
@@ -1218,7 +1423,8 @@ def write_export(fmt: str, path: str, current: dict, *, dark_png: bool = False,
                          tool_label=label, origin_how=current.get("origin_how"),
                          source=current.get("source", LOCAL), when=when, include_trace=include_trace,
                          insight=ins, comparison=cmp, quiet_ms=settings.rtt_quiet_ms,
-                         hot_ms=settings.rtt_hot_ms, origin_cc=_origin_cc_of(route))
+                         hot_ms=settings.rtt_hot_ms, origin_cc=_origin_cc_of(route),
+                         session=current.get("session"))
     else:
         raise ValueError(f"unknown export format {fmt!r}")
 
