@@ -24,6 +24,7 @@ REPLAY_SECONDS = 4.0
 class MapPane(QWidget):
     originPicked = Signal(float, float)
     markerClicked = Signal(list)
+    markerStepped = Signal(list)
     backgroundClicked = Signal()
     projectionChanged = Signal(str)
 
@@ -43,6 +44,7 @@ class MapPane(QWidget):
         self._replay_timer.timeout.connect(self._replay_step)
         for view in (self.flat, self.globe):
             view.markerClicked.connect(self.markerClicked)
+            view.markerStepped.connect(self.markerStepped)
             view.backgroundClicked.connect(self.backgroundClicked)
         self.flat.originPicked.connect(self.originPicked)
         self._build_switch()

@@ -444,6 +444,9 @@ class Controller(QObject):
         self.refresh_history()
         self.w.map.set_thresholds(self.settings.rtt_quiet_ms, self.settings.rtt_hot_ms)
         from routemap.gui import theme as _theme
+        if self.settings.rtt_palette != _theme.rtt_palette():
+            _theme.set_rtt_palette(self.settings.rtt_palette)
+            self.w._theme_changed()
         if self.settings.theme != _theme.choice():
             self.set_theme(self.settings.theme)
         if self.settings.projection != self.w.map.projection:
@@ -1264,6 +1267,7 @@ def run_gui(target: str | None = None, origin_override: tuple | None = None) -> 
     service.startup()
     settings = config.load_settings()
     from routemap.gui import theme
+    theme.set_rtt_palette(settings.rtt_palette)
     theme.apply(app, settings.theme)
     window = MainWindow()
     controller = Controller(window, settings)

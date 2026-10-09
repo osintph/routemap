@@ -24,8 +24,8 @@ from PySide6.QtGui import QBrush, QColor, QFont, QFontMetricsF, QPainter, QPaint
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QToolButton, QToolTip, QVBoxLayout, QWidget
 
 from routemap.gui import arcs, geometry, navigation, theme
-from routemap.gui.mapview import (ATTRIBUTION_BASE, ATTRIBUTION_DBIP, group_tooltip, hop_range,
-                                  is_country_only, place_label, route_groups, uses_dbip, _short)
+from routemap.gui.mapview import (ATTRIBUTION_BASE, ATTRIBUTION_DBIP, describe_hops, group_tooltip, hop_range,
+                                  is_country_only, place_label, route_groups, step_index, uses_dbip, _short)
 from routemap.gui.naturalearth import simplify
 from routemap.gui.text import plain
 
@@ -81,6 +81,7 @@ def _coarse_world() -> dict:
 
 class GlobeView(QWidget):
     markerClicked = Signal(list)
+    markerStepped = Signal(list)       # chosen with the keyboard: focus stays here
     backgroundClicked = Signal()
 
     def __init__(self, parent: QWidget | None = None):
@@ -373,6 +374,8 @@ class GlobeView(QWidget):
                 pen.setCapStyle(Qt.RoundCap)
                 if group["gap_before"] or group["country_only"] or ghost:
                     pen.setStyle(Qt.DashLine)
+                elif pal.hot_dashed and step["class"] == "hot":
+                    pen.setStyle(Qt.DashDotLine)   # as on the flat map: hot not by colour alone
                 p.setPen(pen)
                 p.setBrush(Qt.NoBrush)
                 path = QPainterPath()
@@ -573,18 +576,32 @@ class GlobeView(QWidget):
             self.zoom(1 / navigation.BUTTON_ZOOM)
         elif key == Qt.Key_0:
             self.fit_route()
-        elif key == Qt.Key_Left:
-            self.rotate_by(step, 0)
-        elif key == Qt.Key_Right:
-            self.rotate_by(-step, 0)
-        elif key == Qt.Key_Up:
-            self.rotate_by(0, step)
-        elif key == Qt.Key_Down:
-            self.rotate_by(0, -step)
+        elif event.modifiers() & Qt.ShiftModifier and key in (Qt.Key_Left, Qt.Key_Right, Qt.Key_Up, Qt.Key_Down):
+            self.rotate_by(*{Qt.Key_Left: (step, 0), Qt.Key_Right: (-step, 0),
+                             Qt.Key_Up: (0, step), Qt.Key_Down: (0, -step)}[key])
+        elif key in (Qt.Key_Left, Qt.Key_Up, Qt.Key_Right, Qt.Key_Down, Qt.Key_Home, Qt.Key_End):
+            delta, absolute = {Qt.Key_Left: (-1, False), Qt.Key_Up: (-1, False), Qt.Key_Right: (1, False),
+                               Qt.Key_Down: (1, False), Qt.Key_Home: (0, True), Qt.Key_End: (-1, True)}[key]
+            self.step_marker(delta, absolute)
+        elif key in (Qt.Key_Return, Qt.Key_Enter) and self.selected_hops:
+            self.markerClicked.emit(sorted(self.selected_hops))
+        elif key == Qt.Key_Escape:
+            self.highlight([])
+            self.backgroundClicked.emit()
         else:
             super().keyPressEvent(event)
             return
         event.accept()
+
+    def step_marker(self, delta: int, absolute: bool = False) -> None:
+        groups = [[h["hop"] for h in g["hops"]] for g in route_groups(self.route or {}) if not g["silent"]] \
+            if self.route else []
+        index = step_index(groups, self.selected_hops, delta, absolute)
+        if index is None:
+            return
+        self.highlight(groups[index], center=True)
+        self.setAccessibleDescription(describe_hops(self.route, groups[index], index, len(groups)))
+        self.markerStepped.emit(groups[index])
 
     def _hit(self, pos: QPointF):
         for rect, hops, tip in reversed(self._hits):
@@ -608,7 +625,8 @@ def _legend_rows(route: dict, pal: theme.Palette, quiet_ms: float, hot_ms: float
         rows.append(("title", "RTT added per step"))
         rows += [("line", (pal.route_quiet, f"under {quiet_ms:.0f} ms")),
                  ("line", (theme.mix(pal.route_warm, pal.route_hot, 0.3), f"{quiet_ms:.0f} to {hot_ms:.0f} ms")),
-                 ("line", (pal.route_hot, f"{hot_ms:.0f} ms or more")),
+                 ("line", (pal.route_hot, f"{hot_ms:.0f} ms or more"
+                                          + (", dash-dot line" if pal.hot_dashed else ""))),
                  ("dash", (pal.route_gap, "silent stretch or country only"))]
     return rows
 

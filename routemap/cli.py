@@ -45,7 +45,9 @@ def _headless_qt():
     from routemap.gui.app import headless_platform, make_app
     headless_platform()
     app = make_app()
-    theme.apply(app, config.load_settings().theme)
+    settings = config.load_settings()
+    theme.set_rtt_palette(settings.rtt_palette)
+    theme.apply(app, settings.theme)
     return app
 
 

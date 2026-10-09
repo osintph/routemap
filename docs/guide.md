@@ -118,6 +118,13 @@ and are coloured by how much round-trip time each step added: grey under 15 ms,
 warming to the hot colour at 60 ms (both set in **Settings > Map**). A dashed
 line crosses hops that did not answer or a country-only placement.
 
+**Settings > Map > Colours** has a **Colour-blind safe** option: rust to navy
+on the light map and yellow to vermilion on the dark one, chosen with a
+colour-vision simulation so that the three steps stay apart for protan,
+deutan and tritan colour vision, each at least 3:1 against the map. Hot steps
+are also drawn dash-dot, so colour is never the only cue. The exports use the
+same colours.
+
 Traces probe the same way on every platform: ICMP echo from the app's own
 prober, 30 hops, three probes per hop, one second per reply, with every
 router that answers a hop listed (a hop answered by two routers shows both).
@@ -140,8 +147,16 @@ Moving around the map:
 | Drag | pan | turn |
 | Double-click | zoom in one step | zoom in one step |
 | `+` and `-` (after clicking the map) | zoom | zoom |
-| Arrow keys | pan | turn |
+| Arrow keys | previous or next hop | previous or next hop |
+| `Home` and `End` | first hop, destination | first hop, destination |
+| `Enter`, `Esc` | select the hop's rows, clear | select the hop's rows, clear |
+| `Shift` + arrow keys | pan | turn |
 | `0`, or the **Fit** button | frame the route | centre on the route |
+
+Tab moves between the target field, the map, the summary and the hop table;
+the arrow keys move between hops in the map and in the table, and each follows
+the other. Every control has a name for screen readers, and a hop is read out
+as its number, place, network, RTT, loss and notes.
 
 Zoom stops at the whole world and at city-street level, markers and labels
 keep their size, and selecting a row centres its marker without changing the

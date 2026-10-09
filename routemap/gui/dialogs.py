@@ -104,9 +104,11 @@ class SettingsDialog(QDialog):
         city_row.setContentsMargins(24, 0, 0, 0)
         self.city_search = QLineEdit()
         self.city_search.setPlaceholderText("Search the bundled city list (offline)")
+        self.city_search.setAccessibleName("Search for your city")
         city_row.addWidget(self.city_search)
         layout.addLayout(city_row)
         self.city_results = QListWidget()
+        self.city_results.setAccessibleName("Matching cities")
         self.city_results.setMaximumHeight(110)
         results_row = QHBoxLayout()
         results_row.setContentsMargins(24, 0, 0, 0)
@@ -131,6 +133,8 @@ class SettingsDialog(QDialog):
         self.lon = QDoubleSpinBox()
         self.lon.setRange(-180, 180)
         self.lon.setDecimals(2)
+        self.lat.setAccessibleName("Origin latitude, degrees")
+        self.lon.setAccessibleName("Origin longitude, degrees")
         if s.origin_lat is not None:
             self.lat.setValue(s.origin_lat)
             self.lon.setValue(s.origin_lon)
@@ -211,6 +215,7 @@ class SettingsDialog(QDialog):
         mono = QFontDatabase.systemFont(QFontDatabase.FixedFont)
         for name in ("icmp", "traceroute", "mtr", "tracert"):
             edit = QLineEdit(shlex.join(s.flags_for(name)))
+            edit.setAccessibleName(f"Options for {name}")
             edit.setFont(mono)
             edit.textChanged.connect(self._check_flags)
             self.flags[name] = edit
@@ -376,12 +381,29 @@ class SettingsDialog(QDialog):
         self.rtt_hot.setDecimals(0)
         self.rtt_hot.setSuffix(" ms")
         self.rtt_hot.setValue(s.rtt_hot_ms)
+        self.rtt_quiet.setAccessibleName("RTT steps are grey under this")
+        self.rtt_hot.setAccessibleName("RTT steps are fully warm from this")
         steps.addWidget(QLabel("grey under"))
         steps.addWidget(self.rtt_quiet)
         steps.addWidget(QLabel("fully warm from"))
         steps.addWidget(self.rtt_hot)
         steps.addStretch(1)
         form.addRow("RTT step colours", steps)
+        palettes = QVBoxLayout()
+        self.palette_group = QButtonGroup(self)
+        for key, label, note in (
+                ("standard", "Standard", "grey, then amber warming to orange"),
+                ("colour-blind", "Colour-blind safe",
+                 "grey, then rust to navy (light) or yellow to vermilion (dark); hot steps "
+                 "also drawn dash-dot")):
+            button = QRadioButton(f"{label}: {note}")
+            button.setProperty("palette", key)
+            button.setAccessibleName(f"{label} RTT colours")
+            button.setAccessibleDescription(note)
+            button.setChecked(s.rtt_palette == key)
+            self.palette_group.addButton(button)
+            palettes.addWidget(button)
+        form.addRow("Colours", palettes)
         self.sensitive = QLineEdit(", ".join(s.sensitive_countries))
         self.sensitive.setPlaceholderText("Two-letter country codes, e.g. SG, CN")
         form.addRow("Sensitive countries", self.sensitive)
@@ -493,6 +515,8 @@ class SettingsDialog(QDialog):
         settings.theme = self.theme.currentData() or "system"
         settings.rtt_quiet_ms = float(self.rtt_quiet.value())
         settings.rtt_hot_ms = float(self.rtt_hot.value())
+        chosen = self.palette_group.checkedButton()
+        settings.rtt_palette = chosen.property("palette") if chosen else "standard"
         if settings.rtt_hot_ms <= settings.rtt_quiet_ms:
             problems.append("The fully warm RTT step must be above the grey one; it was set 1 ms above.")
         codes = [c.strip().upper() for c in self.sensitive.text().replace(";", ",").split(",") if c.strip()]
@@ -846,6 +870,7 @@ class PasteTraceDialog(QDialog):
                                "nothing is uploaded except the lookups listed in Settings "
                                "\u203a Sources."))
         self.edit = QPlainTextEdit()
+        self.edit.setAccessibleName("Trace output to analyse")
         mono = QFontDatabase.systemFont(QFontDatabase.FixedFont)
         self.edit.setFont(mono)
         self.edit.setLineWrapMode(QPlainTextEdit.NoWrap)
@@ -947,6 +972,7 @@ class PrivacyDialog(QDialog):
         self.resize(600, 520)
         layout = QVBoxLayout(self)
         view = QTextBrowser()
+        view.setAccessibleName("Privacy")
         view.setHtml(PRIVACY_HTML)
         view.setOpenExternalLinks(True)
         layout.addWidget(view)
@@ -965,6 +991,7 @@ class NoticesDialog(QDialog):
         self.resize(720, 600)
         layout = QVBoxLayout(self)
         view = QTextBrowser()
+        view.setAccessibleName("Third-party notices")
         view.setOpenExternalLinks(True)
         view.setMarkdown(notices_markdown())
         layout.addWidget(view)
@@ -993,6 +1020,7 @@ class SupportDialog(QDialog):
         for name, address in DONATE_ADDRESSES:
             row = QHBoxLayout()
             field = QLineEdit(address)
+            field.setAccessibleName(f"{name} address")
             field.setReadOnly(True)
             field.setMinimumWidth(420)
             field.setCursorPosition(0)
