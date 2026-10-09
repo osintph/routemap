@@ -204,6 +204,56 @@ with your own last RIPE Atlas traceroute to the target (no credits spent).
 Hops are matched by place, not by hop number, and a run that simply stopped
 answering is not reported as lost hops. The PDF includes the comparison.
 
+## Continuous mode
+
+**Watch** (next to Trace), **Trace > Watch Continuously** (Ctrl+Shift+W) or
+`routemap --watch TARGET` probes one target again and again, mtr style: every
+hop once per cycle, with the built-in ICMP prober and no administrator rights.
+The hop table switches to the mtr columns: Loss, Sent, Last, Avg, Best, Worst
+and StDev (the standard deviation of the answered RTTs, the jitter). The map is
+drawn from the first full cycle; later cycles only add hops that were not there
+before, so nothing is looked up again every second.
+
+Under the table, the **ping plot** shows the selected hop (solid line) and the
+destination (dashed) over the last 5 minutes; the keys 1 to 4 choose 5 minutes,
+15 minutes, an hour or the whole session. Lost probes are marks on the baseline,
+and a path change is a vertical rule with its cycle. The plot follows the row or
+marker you select and the RTT palette you chose in Settings.
+
+**Path changes** are listed with their cycle and time: a hop answering from a
+different router, a hop starting or stopping to answer, the destination moving
+to another hop count. A hop's routers are compared over the last 10 cycles with
+the 10 before, so a load balancer alternating between the same routers is never
+reported as a change.
+
+**Loss** follows the same rule as a single trace: loss at a hop that later hops
+do not share is ICMP rate limiting, greyed with its note; only the loss at the
+destination is real. If the computer sleeps or the app is suspended, the missed
+time is a gap in the plot and the statistics, never loss, and the session notes
+it.
+
+**Pause** (P, when the cursor is not in a text field), **Stop** (Ctrl+.) and
+**Reset counters** (a button and a Trace menu item, with no shortcut) control a
+running session. A stopped session stays on screen: export it as PDF (the table,
+the changes, the gaps and one plot per hop for the whole session) or JSON
+(format version 3, with the statistics, the plot data and the changes), compare
+it with another run as with any trace, or reopen it from History or File >
+Open Trace.
+
+**Limits**, in Settings > Live, so it never floods a network. They follow mtr:
+
+| | Default | Allowed | Where it comes from |
+|---|---|---|---|
+| Interval | 1 s | 1 to 60 s | mtr's default, and the shortest it allows without root |
+| Probes per second | at most 30 | fixed | what mtr sends by default on a 30-hop path |
+| Wait for a reply | 1 s | fixed | as a single trace and mtr |
+| Silent hops probed | 5 past the last answer | fixed | mtr's `--max-unknown` default in its manual |
+| Session length | 1 hour | 5 minutes to 8 hours | a limit of Route Map's own |
+
+Stopped sessions are kept in History, 50 MB of them at most together; past that
+the oldest sessions are dropped first. Continuous mode needs IPv4 for now (IPv6
+is planned for 0.4.0) and never uses RIPE Atlas.
+
 ## Paste a trace
 
 **File > Paste Trace** (Ctrl+Shift+V) takes the output of `traceroute`,

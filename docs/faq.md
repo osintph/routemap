@@ -45,6 +45,14 @@ Yes: File > Paste Trace, and say where it was run from. Output of `traceroute`,
 
 No. It runs your system's own trace tool as you.
 
+## Can it watch a route over time?
+
+Yes: **Watch**, or `routemap --watch TARGET`, probes every hop once a second,
+mtr style, with per-hop loss, latency and jitter, a ping plot and the path
+changes. It never goes faster than mtr's own defaults (one cycle a second, at
+most 30 probes a second) and stops by itself after an hour unless you choose
+longer, 8 hours at most. See the [guide](guide.md#continuous-mode).
+
 ## Is there a command line?
 
 Yes, on every platform: see the [command-line reference](cli.md).

@@ -31,6 +31,16 @@ routemap --version
 | `--origin ORIGIN` | where the trace starts: `"lat,lon"` or a city such as `"Manila, PH"`; overrides Settings for this run |
 | `--offline` | contact nothing: offline data only (carrier site codes, DB-IP Lite City and ASN) |
 | `--compare FILE` | compare with an earlier JSON export: the PDF gets a comparison section, `--envelope` JSON a `comparison` block |
+| `--watch` | trace TARGET continuously, mtr style, printing a live table; Ctrl+C stops |
+| `--interval SECONDS` | with `--watch`: seconds per cycle, 1 to 60 (default from Settings > Live, 1) |
+| `--count N` | with `--watch`: stop after N cycles |
+| `--duration TIME` | with `--watch`: stop after this long, as `90s`, `10m` or `2h`, 5 minutes to 8 hours (default 1 hour) |
+
+With `--watch`, `--json` prints the export (format version 3, with the
+session) on stdout when the session ends, and the table goes to stderr. On a
+terminal the table redraws in place; piped, it prints once at the end. Values
+outside the limits are refused with the reason; the limits are those of
+Settings > Live (see the [guide](guide.md#continuous-mode)).
 
 The PDF and the `--envelope` JSON include the route summary: the AS path and
 countries always (offline), and the RIPE details unless `--offline` is given

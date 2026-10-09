@@ -40,3 +40,12 @@
 - **The typical latency is between countries**, from the nearest RIPE Atlas
   anchors to the origin and the destination; small countries with no anchor
   have no baseline.
+
+## Continuous mode
+
+- IPv4 only for now: an IPv6 target is refused with the reason (IPv6 is planned
+  for 0.4.0).
+- The built-in ICMP prober only; the system `traceroute` and `mtr` are not used
+  for it, and neither is RIPE Atlas.
+- One probe per hop per cycle, so ECMP siblings show up over several cycles,
+  not in one.

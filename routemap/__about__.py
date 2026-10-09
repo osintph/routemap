@@ -39,7 +39,7 @@ WINDOWS_SIGNED = False
 
 # PEP 440, for Python packaging only. Everything a person sees (About,
 # --version, file names, installer, packages, User-Agent) uses VERSION.
-__version__ = "0.2.0b6"
+__version__ = "0.3.0b1"
 
 
 def display_version(version: str = __version__) -> str:
