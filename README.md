@@ -22,6 +22,13 @@ RIPE's route collectors see for the destination, its recent BGP activity and a
 typical latency from RIPE Atlas. Flat map or globe, lines coloured by the RTT
 each step added, and a comparison with an earlier run.
 
+**Paths** finds every route a load balancer can send your packets along
+(Paris traceroute and the multipath detection algorithm, at most 20 probes a
+second), each with its own loss and latency. **Reverse trace** asks a RIPE
+Atlas probe near the target to trace back to you and compares the two
+directions. **Watch** traces continuously, mtr style. All of it over IPv4 or
+IPv6.
+
 The trace runs on your machine with the system's own `tracert`, `traceroute`
 or `mtr`. Nothing about it is sent anywhere except the lookups listed in
 [PRIVACY.md](PRIVACY.md).

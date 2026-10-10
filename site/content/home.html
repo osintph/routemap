@@ -90,6 +90,14 @@
   computer that sleeps leaves a gap, not loss. It never probes faster than mtr's defaults and stops
   by itself after an hour; export the session as PDF or JSON and compare it like any trace.
   <a href="/docs/guide/#continuous-mode">How it works</a>.</p>
+  <p><strong>Paths</strong> finds every route a load balancer can send your packets along, with
+  Paris traceroute and the multipath detection algorithm's stopping rule, and gives each path its
+  own latency and loss: on the map one colour per path, in the table a row per router where they
+  part ways. At most 20 probes a second and 1,500 in all. <strong>Reverse trace</strong> asks a
+  RIPE Atlas probe near the target to trace back to you, with your own Atlas key, and shows both
+  directions side by side, aligned by network. It publishes your public IP address as the
+  measurement's target, so it asks first. Traces, Paths and Watch run over IPv4 or IPv6.
+  <a href="/docs/guide/#paths">Paths</a>, <a href="/docs/guide/#reverse-trace">reverse trace</a>.</p>
   [[pic statusbar png 2880 54 crop strip|The status bar: origin Manila, NCR, PH, set in Settings; the built-in prober's settings icmp -m 30 -q 3 -w 1; and checks for the trace, PTR, Hoiho and the IP database]]
 
   <h3 id="labels">The source labels</h3>

@@ -35,8 +35,12 @@ routemap --version
 | `--interval SECONDS` | with `--watch`: seconds per cycle, 1 to 60 (default from Settings > Live, 1) |
 | `--count N` | with `--watch`: stop after N cycles |
 | `--duration TIME` | with `--watch`: stop after this long, as `90s`, `10m` or `2h`, 5 minutes to 8 hours (default 1 hour) |
+| `--paths` | find every path a load balancer can send packets along (ICMP Paris, at most 20 probes a second and the Settings budget, 1,500 at most); prints the hops with the paths through each and one line per path, or exports with `--json`, `--png`, `--pdf` |
+| `--reverse` | also trace back from a RIPE Atlas probe near the target to your public IP (Atlas key from Settings; 60 credits) |
+| `--publish-my-ip` | with `--reverse`: agree, for this run, that your public IP address is published as the target of a public RIPE Atlas measurement. Without it `--reverse` refuses (exit code 2) |
+| `-4`, `-6` | trace (or `--paths`, `--watch`) over IPv4 only or IPv6 only, for this run |
 
-With `--watch`, `--json` prints the export (format version 3, with the
+With `--watch`, `--json` prints the export (format version 4, with the
 session) on stdout when the session ends, and the table goes to stderr. On a
 terminal the table redraws in place; piped, it prints once at the end. Values
 outside the limits are refused with the reason; the limits are those of

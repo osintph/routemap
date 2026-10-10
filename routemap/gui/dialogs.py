@@ -1148,6 +1148,13 @@ no probe is on it, your country code) to find a probe, and the target, to schedu
 measurement. To find the AS number, your public IP goes to RIPEstat once. Atlas
 measurements, target included, are published by RIPE NCC. Your origin coordinates are
 never sent: they only rank probes on this machine.</td></tr>
+<tr><td><b>Reverse traces</b></td><td>only when you choose Reverse trace and have agreed to
+it (Settings &rsaquo; RIPE Atlas &rsaquo; Withdraw consent stops it). To RIPEstat: your public
+IP address of the traced family and the target's address, to learn both networks. To
+atlas.ripe.net: your API key, the probe chosen near the target, and <b>your public IP address
+as the measurement's target</b>, which RIPE NCC publishes.</td></tr>
+<tr><td><b>Paths</b></td><td>ICMP probes to the target and the routers on the way, as a trace,
+at most 20 a second and 1,500 in all; the same lookups as one trace.</td></tr>
 <tr><td><b>Update check</b></td><td>only when you choose Help &rsaquo; Check for updates: one
 request to GitHub for the latest release tag.</td></tr>
 </table>
