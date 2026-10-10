@@ -387,10 +387,15 @@ shows both directions side by side.
   shows the probe, the IP address that will be published (it changes when you
   change networks) and the cost, 60 credits. **Settings > RIPE Atlas >
   Withdraw consent** stops reverse traces at once until you agree again.
+- It usually takes 1 to 3 minutes, and longer when routers on the way back
+  do not answer: RIPE Atlas waits 4 seconds for each of 3 probes at a silent
+  hop before going on.
 - The result is drawn dashed in its own colour, with diamonds where the two
   directions split and rejoin, and listed under the table aligned by network,
   not by hop number, with the rows that differ tinted. Different routes each
-  way are normal on the Internet.
+  way are normal on the Internet. When several hops in a row stay silent,
+  Atlas sends one last probe with TTL 255; its answer is shown as the next
+  hop with the note "TTL 255 probe", as RIPE's own results page numbers it.
 - It is kept in History and in the JSON export with the trace it reverses,
   and the PDF has a Reverse trace section. From the command line:
   `routemap TARGET --reverse --publish-my-ip` (the second option is the

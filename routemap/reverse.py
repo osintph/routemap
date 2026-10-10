@@ -139,9 +139,15 @@ async def run(p: Plan, settings: config.Settings, *, consent: bool, on_wait=None
     extra = {"transport": transport} if transport is not None else {}
     client = atlas.Atlas(settings.atlas_key, user_agent=service.user_agent(), **extra)
     measurement = await client.create_reverse(p.public_ip, int(p.probe["id"]), consent=True)
-    text = await client.wait(measurement, on_wait=on_wait)
-    origin = (round(p.probe["lat"], 2), round(p.probe["lon"], 2)) if p.probe.get("lat") is not None else None
-    route = await analyse(text, origin, sources=sources or service.sources_for(settings))
+    result = await client.wait_result(measurement, on_wait=on_wait)
+    text = atlas.to_trace_text(result)
+    # The probe's published position, unrounded: the physics check gets the
+    # probe's own few kilometres of uncertainty, not the 300 km of an origin
+    # guessed from a public IP (measurement 221303797).
+    origin = (p.probe["lat"], p.probe["lon"]) if p.probe.get("lat") is not None else None
+    route = await analyse(text, origin, sources=sources or service.sources_for(settings),
+                          origin_slack_km=atlas.PROBE_SLACK_KM)
+    atlas.mark_final_probe(route, atlas.final_probe(result))
     route.target = YOUR_IP_LABEL
     if origin:
         route.origin["label"] = f"RIPE Atlas probe #{p.probe['id']} near {route.origin['label']}"

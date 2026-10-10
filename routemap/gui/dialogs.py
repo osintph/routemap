@@ -876,7 +876,8 @@ class ReverseConfirmDialog(QDialog):
                  (f"<br>{html.escape(rows[''])}" if rows.get("") else ""))
         box = QLabel(f"Target: your public IPv{plan.af if plan else 4} address "
                      f"<b>{html.escape(plan.public_ip if plan else '')}</b> (public on RIPE Atlas)<br>"
-                     f"Cost: {reverse.CREDITS} credits{money}")
+                     f"Cost: {reverse.CREDITS} credits{money}<br>"
+                     "Usually 1 to 3 minutes; longer when routers on the way back do not answer.")
         box.setTextFormat(Qt.RichText)
         box.setWordWrap(True)
         box.setFrameShape(QFrame.StyledPanel)
