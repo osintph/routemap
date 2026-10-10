@@ -90,6 +90,9 @@ class GlobeView(QWidget):
         self.destination: str | None = None
         self.origin_only: tuple | None = None
         self.ghost: dict | None = None
+        self.selected_path: str | None = None
+        self.reverse_route: dict | None = None
+        self.reverse_cmp: dict | None = None
         self.marks: dict | None = None
         self.selected_hops: set[int] = set()
         self.quiet_ms, self.hot_ms = 15.0, 60.0
@@ -303,6 +306,7 @@ class GlobeView(QWidget):
             self._draw_route(p, proj, self.ghost, pal, ghost=True, size=size)
         if self.route is not None:
             self._draw_route(p, proj, self.route, pal, size=size)
+            self._draw_overlays(p, proj, pal, size)
         elif self.origin_only is not None:
             lat, lon, label = self.origin_only
             x, y, vis = proj.project(lat, lon)
@@ -315,7 +319,7 @@ class GlobeView(QWidget):
         p.drawEllipse(QPointF(proj.cx, proj.cy), r, r)
         if self.route is not None:
             paint_legend(p, QPointF(rect.left() + 12, rect.bottom() - 12), pal, self.route,
-                         self.quiet_ms, self.hot_ms, size=size)
+                         self.quiet_ms, self.hot_ms, size=size, reverse=self.reverse_route is not None)
 
     @staticmethod
     def _ring(path: QPainterPath, proj: Ortho, ring) -> None:
@@ -340,6 +344,52 @@ class GlobeView(QWidget):
             else:
                 path.moveTo(x, y)
                 drawing = True
+
+    def _arc(self, p: QPainter, proj: Ortho, a, b, pen: QPen):
+        path = QPainterPath()
+        self._line(path, proj, [(lon, lat) for lat, lon in arcs.great_circle(a[0], a[1], b[0], b[1])])
+        p.setPen(pen)
+        p.setBrush(Qt.NoBrush)
+        p.drawPath(path)
+
+    def _draw_overlays(self, p: QPainter, proj: Ortho, pal: theme.Palette, size: float):
+        """A path discovery's branches and a reverse trace, as the flat map draws them."""
+        from routemap.gui.mapview import path_segments, reverse_segments, split_points
+        segments = path_segments(self.route)
+        sharing: dict = {}
+        for seg in segments:
+            sharing.setdefault((seg["a"], seg["b"]), []).append(seg["id"])
+        for seg in segments:
+            group = sharing[(seg["a"], seg["b"])]
+            under = len(group) - 1 - group.index(seg["id"])
+            color = theme.path_color(pal, seg["index"])
+            if self.selected_path and seg["id"] != self.selected_path:
+                color.setAlpha(60)
+            pen = QPen(color, ((2.6 if seg["id"] == self.selected_path else 2.0) + 2.4 * under) * size)
+            pen.setCapStyle(Qt.RoundCap)
+            self._arc(p, proj, seg["a"], seg["b"], pen)
+        if self.reverse_route is None:
+            return
+        color = theme.reverse_color(pal)
+        pen = QPen(color, 2.4 * size, Qt.DashLine)
+        pen.setCapStyle(Qt.RoundCap)
+        for a, b in reverse_segments(self.reverse_route):
+            self._arc(p, proj, a, b, pen)
+        for lat, lon in split_points(self.reverse_cmp):
+            x, y, vis = proj.project(lat, lon)
+            if vis:
+                p.setPen(QPen(color, 2 * size))
+                p.setBrush(pal.overlay_bg)
+                d = 7 * size
+                p.drawPolygon([QPointF(x, y - d), QPointF(x + d, y), QPointF(x, y + d), QPointF(x - d, y)])
+
+    def set_selected_path(self, path_id: str | None):
+        self.selected_path = path_id
+        self.update()
+
+    def set_reverse(self, reverse_route: dict | None, comparison: dict | None):
+        self.reverse_route, self.reverse_cmp = reverse_route, comparison
+        self.update()
 
     def _graticule(self, p: QPainter, proj: Ortho, pal: theme.Palette):
         pen = QPen(pal.coast, 0.5)
@@ -610,7 +660,8 @@ class GlobeView(QWidget):
         return None
 
 
-def _legend_rows(route: dict, pal: theme.Palette, quiet_ms: float, hot_ms: float) -> list:
+def _legend_rows(route: dict, pal: theme.Palette, quiet_ms: float, hot_ms: float,
+                 reverse: bool = False) -> list:
     """The rows both legends show, in order: (kind, value)."""
     from routemap.gui.mapview import route_groups
     hops = route.get("hops") or []
@@ -628,6 +679,17 @@ def _legend_rows(route: dict, pal: theme.Palette, quiet_ms: float, hot_ms: float
                  ("line", (pal.route_hot, f"{hot_ms:.0f} ms or more"
                                           + (", dash-dot line" if pal.hot_dashed else ""))),
                  ("dash", (pal.route_gap, "silent stretch or country only"))]
+    paths = (route.get("paths") or {}).get("paths") or []
+    if len(paths) > 1:
+        rows.append(("title", f"At least {len(paths)} paths"))
+        for index, path in enumerate(paths[:8]):
+            rtt, loss = path.get("rtt_to_target_ms"), path.get("loss_pct")
+            detail = " · ".join(x for x in (f"{rtt:.0f} ms" if rtt is not None else "",
+                                            f"{loss:g}% loss" if loss is not None else "") if x)
+            rows.append(("line", (theme.path_color(pal, index), f"Path {path.get('id')}"
+                                  + (f": {detail}" if detail else ""))))
+    if reverse:
+        rows += [("title", "Reverse trace"), ("dash", (theme.reverse_color(pal), "RIPE Atlas probe to you"))]
     return rows
 
 
@@ -638,9 +700,10 @@ def legend_rows(route: dict, pal: theme.Palette, quiet_ms: float, hot_ms: float)
 
 
 def paint_legend(p: QPainter, bottom_left: QPointF, pal: theme.Palette, route: dict,
-                 quiet_ms: float, hot_ms: float, size: float = 1.0) -> QRectF:
-    """The flat map's legend, painted: sources used, then the RTT step colours."""
-    rows = _legend_rows(route, pal, quiet_ms, hot_ms)
+                 quiet_ms: float, hot_ms: float, size: float = 1.0, reverse: bool = False) -> QRectF:
+    """The flat map's legend, painted: sources used, the RTT step colours,
+    then any discovered paths and a reverse trace."""
+    rows = _legend_rows(route, pal, quiet_ms, hot_ms, reverse)
     font = QFont()
     font.setPixelSize(round(12 * size))
     bold = QFont(font)

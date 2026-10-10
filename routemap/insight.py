@@ -52,6 +52,8 @@ def offline(route: dict, settings: config.Settings) -> dict:
     reader = _asn_reader()
     if reader is not None:
         osint.enrich_offline(route, reader)
+        for p in ((route.get("paths") or {}).get("paths") or []):      # a path discovery's own hops
+            osint.enrich_offline({"hops": p.get("located") or []}, reader)
     path = osint.as_path(route)
     city = dbip.city_database()
     asn = dbip.asn_database()

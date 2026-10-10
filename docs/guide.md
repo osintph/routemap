@@ -204,6 +204,41 @@ with your own last RIPE Atlas traceroute to the target (no credits spent).
 Hops are matched by place, not by hop number, and a run that simply stopped
 answering is not reported as lost hops. The PDF includes the comparison.
 
+## Paths
+
+**Paths** (next to Trace), **Trace > Find All Paths** (Ctrl+Shift+T) or
+`routemap TARGET --paths` finds the paths a load balancer can send your packets
+along, each with its own loss and latency. Many networks spread traffic over
+several equal routes; an ordinary trace shows one of them, or a mix of them
+hop by hop.
+
+How it works: Paris traceroute keeps every probe of one *flow* on one path (the
+fields routers hash stay the same while the probe's sequence number changes),
+and different flows can take different paths. At each hop Route Map adds flows
+until the multipath detection algorithm's stopping rule says, with 95%
+confidence, that no next hop is left unseen: 9 flows when a hop has one
+router, 17 when it has two, and so on. Each path found is then pinged ten
+times with one of its own flows, for its own latency and loss to the target.
+
+What you see: the routes where the paths part ways drawn one colour per path,
+with the path's letter; a **Paths** column in the hop table and a sub-row for
+each router at a hop where the paths differ (3a, 3b); and the **Paths** list
+under the table with each path's share of the flows, where it differs, and its
+RTT and loss to the target. Choose a path in the list to show it alone on the
+map.
+
+"At least": some load balancers do not spread ICMP probes, so a path can stay
+hidden; the count is a lower bound. A router that sends every packet another
+way (per-packet balancing) is named, and does not make paths of its own.
+
+**Limits**, so it never floods a network: at most 20 probes a second (the
+default rate of CAIDA's scamper), at most 1,500 probes per discovery, the pings
+included (Settings > Trace can lower this), at most 64 flows, and it stops
+after 3 silent hops. A typical discovery takes 20 to 60 seconds. Paths uses the
+built-in ICMP prober without administrator rights on macOS and Linux; Windows
+is not supported yet (Windows' own ICMP function picks each probe's identifier
+and sequence number itself, so it cannot keep a flow on one path).
+
 ## Continuous mode
 
 **Watch** (next to Trace), **Trace > Watch Continuously** (Ctrl+Shift+W) or
@@ -236,7 +271,7 @@ it.
 **Reset counters** (a button and a Trace menu item, with no shortcut) control a
 running session. A stopped session stays on screen: export it as PDF (the table,
 the changes, the gaps and one plot per hop for the whole session) or JSON
-(format version 3, with the statistics, the plot data and the changes), compare
+(format version 4, with the statistics, the plot data and the changes), compare
 it with another run as with any trace, or reopen it from History or File >
 Open Trace.
 
@@ -251,8 +286,8 @@ Open Trace.
 | Session length | 1 hour | 5 minutes to 8 hours | a limit of Route Map's own |
 
 Stopped sessions are kept in History, 50 MB of them at most together; past that
-the oldest sessions are dropped first. Continuous mode needs IPv4 for now (IPv6
-is planned for 0.4.0) and never uses RIPE Atlas.
+the oldest sessions are dropped first. Continuous mode runs over IPv4 or IPv6,
+as Settings > Trace > IP version chooses, and never uses RIPE Atlas.
 
 ## Paste a trace
 
@@ -294,7 +329,12 @@ same three formats; see the [command-line reference](cli.md).
   **Import database file** (for a machine with no internet).
 - **Map**: projection, the two RTT step colour thresholds, sensitive
   countries, and the FalconEye address used by Open in FalconEye.
-- **RIPE Atlas**: the API key and the Trace menu entry; see below.
+- **Trace** also has **IP version**: Automatic (the address your system
+  prefers), IPv4 only or IPv6 only, for a host that has both; it applies to
+  traces, Paths and continuous mode. And the **Paths** probe budget (1,500 at
+  most).
+- **RIPE Atlas**: the API key and the Trace menu entry, and **Reverse traces**
+  with **Withdraw consent**; see below.
 - **Privacy**: the trace history (the last 50 traces, on by default, clearable).
 
 ## Offline data
@@ -330,6 +370,37 @@ measurement twice what a periodic one costs), and draws the result from the
 probe's location. **Atlas measurements are public**: RIPE NCC publishes
 every measurement, including the target. Your origin coordinates are never
 sent; they only rank probes on your machine.
+
+## Reverse trace
+
+The route from you to a target is often not the route back. **Reverse trace**
+(next to the summary once a trace is on screen, or **Trace > Reverse Trace via
+RIPE Atlas**) asks a RIPE Atlas probe near the target to trace back to you, and
+shows both directions side by side.
+
+- The probe is a connected one in the target's network (its AS), or failing
+  that in its country, nearest the target, and never one in your own network.
+  If there is none, nothing is scheduled and no credits are spent.
+- **It publishes your public IP address.** Atlas measurements are public, and
+  a reverse trace's target is your public IP. Before the first one Route Map
+  says so and asks you to agree; nothing runs without that. Every time, it
+  shows the probe, the IP address that will be published (it changes when you
+  change networks) and the cost, 60 credits. **Settings > RIPE Atlas >
+  Withdraw consent** stops reverse traces at once until you agree again.
+- It usually takes 1 to 3 minutes, and longer when routers on the way back
+  do not answer: Route Map asks the probe to wait 2 seconds for each of 3
+  replies at a hop (RIPE's default is 4), so a silent hop costs 6 seconds. A
+  router that answers slower than 2 seconds counts as silent.
+- The result is drawn dashed in its own colour, with diamonds where the two
+  directions split and rejoin, and listed under the table aligned by network,
+  not by hop number, with the rows that differ tinted. Different routes each
+  way are normal on the Internet. When several hops in a row stay silent,
+  Atlas sends one last probe with TTL 255; its answer is shown as the next
+  hop with the note "TTL 255 probe", as RIPE's own results page numbers it.
+- It is kept in History and in the JSON export with the trace it reverses,
+  and the PDF has a Reverse trace section. From the command line:
+  `routemap TARGET --reverse --publish-my-ip` (the second option is the
+  agreement, given for that run only).
 
 ## Privacy
 

@@ -43,9 +43,34 @@
 
 ## Continuous mode
 
-- IPv4 only for now: an IPv6 target is refused with the reason (IPv6 is planned
-  for 0.4.0).
+- IPv4 or IPv6, as Settings > Trace > IP version chooses.
 - The built-in ICMP prober only; the system `traceroute` and `mtr` are not used
   for it, and neither is RIPE Atlas.
 - One probe per hop per cycle, so ECMP siblings show up over several cycles,
   not in one.
+
+## Paths
+
+- **A lower bound.** Paths probes with ICMP, and some load balancers do not
+  spread ICMP across their links, so a path can stay hidden.
+- **Not on Windows yet.** Windows' ICMP function chooses each probe's
+  identifier and sequence number, so a flow cannot be held on one path; the
+  options are being weighed for a later version.
+- **Rate-limited routers** answer only some probes; Paths does not add flows
+  there once more flows stop showing anything new, so a balancer behind a
+  heavily rate-limited hop can be missed now and then.
+- **Per-packet balancing** is named, not split into paths: every packet may
+  take another router there.
+- Discovery is not continuous: Live probes one flow per hop per cycle.
+
+## Reverse traces
+
+- They need RIPE Atlas with your own key and credits (60 each), and Online
+  lookups (to learn your public IP and the target's network).
+- A probe in or near the target's network must exist; for some networks and
+  small countries there is none.
+- Your public IP address is published as the target (see the guide). Behind
+  carrier NAT the reverse trace ends at your ISP's NAT address, not your
+  machine; on IPv6 with temporary addresses it traces to the address you had
+  at that moment.
+

@@ -355,3 +355,23 @@ def test_ga_id_is_checked(tmp_path):
     bad = subprocess.run([sys.executable, str(ROOT / "site" / "build.py"), "--out", str(tmp_path / "x"),
                           "--ga-id", "UA-1234-1"], capture_output=True, text=True)
     assert bad.returncode != 0 and "not a G- measurement ID" in bad.stderr
+
+
+def test_download_page_links_sha256sums_ed25519(tmp_path):
+    """Next to SHA256SUMS and SHA256SUMS.asc, through the same /dl/ door
+    (0.4.0 carry-over); no direct GitHub file link."""
+    import json
+    v, tag = "0.4.0-beta.1", "v0.4.0-beta.1"
+    names = [f"routemap-{v}-windows-x86_64-setup.exe", f"routemap-{v}-macos-arm64.dmg",
+             f"routemap-{v}-linux-x86_64.deb", "SHA256SUMS", "SHA256SUMS.asc", "SHA256SUMS.ed25519"]
+    rel = tmp_path / "release.json"
+    rel.write_text(json.dumps({"tagName": tag, "publishedAt": "2026-10-10T00:00:00Z",
+                               "assets": [{"name": n, "size": 1_000_000} for n in names]}))
+    out = tmp_path / "site"
+    subprocess.run([sys.executable, str(ROOT / "site" / "build.py"), "--out", str(out), "--tag", tag,
+                    "--release-json", str(rel)], check=True, capture_output=True)
+    page = (out / "download" / "index.html").read_text(encoding="utf-8")
+    for name in ("SHA256SUMS", "SHA256SUMS.asc", "SHA256SUMS.ed25519"):
+        assert f'href="/dl/{tag}/{name}"' in page, name
+    assert "github.com/osintph/routemap/releases/download" not in page
+

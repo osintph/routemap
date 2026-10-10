@@ -1,5 +1,7 @@
 """
 The hop table: one row per hop, sortable, copyable as tab-separated text.
+After a path discovery (0.4.0) a hop where the paths part ways has a sub-row
+per responder, and a Paths column says which paths use each row.
 
 The hostname column shows the hostname that produced the placement, which on an
 ECMP hop is not necessarily the first one the hop answered from (FalconEye
@@ -32,6 +34,42 @@ LIVE_KEYS = ["hop", "place", "loss", "sent", "last", "avg", "best", "worst", "st
              "hostname", "address", "notes"]
 LIVE_WIDTHS = [32, 132, 70, 50, 62, 62, 62, 62, 58, 150, 78, 186, 112]
 LIVE_NUMERIC = {"hop", "loss", "sent", "last", "avg", "best", "worst", "stdev"}
+# A path discovery (0.4.0): which paths use each row. A hop where the paths
+# part ways gets a sub-row per responder (9a, 9b, ...).
+PATH_COLUMNS = ["#", "Paths", *COLUMNS[1:]]
+PATH_KEYS = ["hop", "paths", *KEYS[1:]]
+PATH_WIDTHS = [40, 70, *WIDTHS[1:]]
+ALL_PATHS = "all"
+
+
+def path_rows(hops: list[dict], paths: list[dict]) -> list[dict]:
+    """The table's rows for a route with discovered *paths*: every hop, with
+    the paths through it, and after a hop where the paths answered from more
+    than one router, one sub-row per router (its own place, from the path's
+    located hops)."""
+    rows = []
+    for hop in hops:
+        ttl = hop.get("hop")
+        by_addr: dict[str, list[str]] = {}
+        located: dict[str, dict] = {}
+        for p in paths:
+            entry = next((h for h in p.get("located") or [] if h.get("hop") == ttl), None)
+            if entry and entry.get("address"):
+                by_addr.setdefault(entry["address"], []).append(p.get("id") or "?")
+                located.setdefault(entry["address"], entry)
+        ids_here = [i for ids in by_addr.values() for i in ids]
+        main = dict(hop)
+        main["_paths"] = ALL_PATHS if len(by_addr) <= 1 and len(ids_here) == len(paths) else " ".join(sorted(ids_here))
+        rows.append(main)
+        if len(by_addr) < 2:
+            continue
+        for n, (addr, ids) in enumerate(by_addr.items()):
+            sub = {k: v for k, v in located[addr].items()}
+            sub.update({"hop": ttl, "_sub": "abcdefghijklmnop"[n % 16], "_paths": " ".join(ids),
+                        "addresses": [addr], "hostnames": [located[addr]["hostname"]] if located[addr].get("hostname")
+                        else [], "annotations": [], "loss_pct": None})
+            rows.append(sub)
+    return rows
 _LIVE_FIELDS = {"last": "last_ms", "best": "best_ms", "worst": "worst_ms", "stdev": "stdev_ms"}
 
 # Short forms of the engine's annotation labels, for a narrow column. The full
@@ -42,6 +80,7 @@ NOTE_SHORT = {
     "likely asymmetric return path": "asymmetric return",
     "ICMP rate limiting, not real loss": "ICMP rate limiting",
     "destination or path does not answer ICMP": "no ICMP reply",
+    "answered the final TTL 255 probe": "TTL 255 probe",
 }
 
 
@@ -72,6 +111,8 @@ class HopModel(QAbstractTableModel):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.hops: list[dict] = []
+        self.source_hops: list[dict] = []    # the hops as given; .hops adds a path discovery's sub-rows
+        self.paths_: list[dict] | None = None
         self.icons: dict = {}
         self.details: dict = {}       # str(hop) -> {"prefix", "rpki"} from the online insight
         self.marks: dict = {}         # hop -> diff mark
@@ -86,8 +127,16 @@ class HopModel(QAbstractTableModel):
             self.columns, self.keys, self.numeric = COLUMNS, KEYS, NUMERIC
         self.endResetModel()
 
-    def set_hops(self, hops: list[dict], details: dict | None = None, marks: dict | None = None):
+    def set_hops(self, hops: list[dict], details: dict | None = None, marks: dict | None = None,
+                 paths: list[dict] | None = None):
         self.beginResetModel()
+        self.source_hops, self.paths_ = list(hops), paths
+        if self.keys is not LIVE_KEYS:
+            if paths and len(paths) > 1:
+                self.columns, self.keys = PATH_COLUMNS, PATH_KEYS
+                hops = path_rows(hops, paths)
+            else:
+                self.columns, self.keys = COLUMNS, KEYS
         self.hops = list(hops)
         self.details = dict(details or {})
         self.marks = dict(marks or {})
@@ -110,7 +159,9 @@ class HopModel(QAbstractTableModel):
     def text(self, hop: dict, column: int) -> str:
         key = self.keys[column]
         if key == "hop":
-            return str(hop["hop"])
+            return str(hop["hop"]) + hop.get("_sub", "")
+        if key == "paths":
+            return hop.get("_paths", "")
         if key == "sent":
             return "" if hop.get("sent") is None else str(hop["sent"])
         if key in _LIVE_FIELDS:
@@ -154,7 +205,9 @@ class HopModel(QAbstractTableModel):
 
     def spoken(self, hop: dict) -> str:
         """The row as a screen reader says it: number, place, network, RTT, loss, notes."""
-        parts = [f"Hop {hop['hop']}"]
+        parts = [f"Hop {hop['hop']}{hop.get('_sub', '')}"]
+        if hop.get("_paths") and hop["_paths"] != ALL_PATHS:
+            parts.append(f"paths {hop['_paths']}")
         for key in ("place", "asn", "address"):
             value = self.text(hop, self.keys.index(key)) if key in self.keys else ""
             if value:
@@ -178,7 +231,8 @@ class HopModel(QAbstractTableModel):
             value = hop.get(_LIVE_FIELDS[key])
             return float("inf") if value is None else value
         if key == "hop":
-            return hop["hop"]
+            sub = hop.get("_sub")
+            return hop["hop"] + ((ord(sub) - 96) / 100 if sub else 0)
         if key in ("min", "avg"):
             value = hop.get("min_rtt_ms" if key == "min" else "avg_rtt_ms")
             return float("inf") if value is None else value
@@ -300,7 +354,9 @@ class HopTable(QTableView):
         for row in rows:
             source = self.proxy.mapToSource(self.proxy.index(row, 0)).row()
             if 0 <= source < len(self.model_.hops):
-                out.append(self.model_.hops[source]["hop"])
+                n = self.model_.hops[source]["hop"]
+                if n not in out:
+                    out.append(n)
         return out
 
     def select_hops(self, hops: list[int], scroll: bool = True):
@@ -325,13 +381,17 @@ class HopTable(QTableView):
         finally:
             self._syncing = False
 
-    def set_hops(self, hops: list[dict], details: dict | None = None, marks: dict | None = None):
+    def set_hops(self, hops: list[dict], details: dict | None = None, marks: dict | None = None,
+                 paths: list[dict] | None = None):
         """Replace the rows, keeping the selection (by hop number) and scroll position."""
         keep = self.selected_hops()
         scroll = self.verticalScrollBar().value()
         self._syncing = True
+        before = self.model_.keys
         try:
-            self.model_.set_hops(hops, details, marks)
+            self.model_.set_hops(hops, details, marks, paths)
+            if self.model_.keys is not before:
+                self._widths(PATH_WIDTHS if self.model_.keys is PATH_KEYS else WIDTHS)
             self.sortByColumn(self.horizontalHeader().sortIndicatorSection(),
                               self.horizontalHeader().sortIndicatorOrder())
         finally:

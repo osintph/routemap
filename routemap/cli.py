@@ -137,7 +137,7 @@ def _outputs(args, current: dict) -> int:
             current["route"], target=current["target"], trace_text=current["trace_text"],
             argv=current.get("argv"), source=current["source"],
             origin_how=current.get("origin_how"), insight=current.get("insight"),
-            comparison=current.get("comparison")) if args.envelope else
+            comparison=current.get("comparison"), reverse=current.get("reverse")) if args.envelope else
             json.dumps(current["route"], indent=2, ensure_ascii=False) + "\n")
     return 0
 
@@ -189,7 +189,8 @@ def cmd_watch(args) -> int:
         return 3
     tty = sys.stdout.isatty() and not args.json
     out = sys.stderr if args.json else sys.stdout
-    options = watch.WatchOptions(interval=interval, duration=duration, max_cycles=args.count)
+    family = "6" if getattr(args, "ipv6", False) else "4" if getattr(args, "ipv4", False) else settings.ip_version
+    options = watch.WatchOptions(interval=interval, duration=duration, max_cycles=args.count, family=family)
     until = time.strftime("%H:%M:%S", time.localtime(time.time() + duration))
     print(f"{DISPLAY_NAME} watch to {target}, every {interval:g} s, until {until}"
           + (f" or {args.count} cycles" if args.count else "") + " (Ctrl+C stops)", file=out, flush=True)
@@ -248,6 +249,84 @@ def cmd_watch(args) -> int:
     return 0
 
 
+def _paths_text(route: dict) -> str:
+    """A path discovery as the terminal shows it: the hops with the paths
+    through each, then one line per path."""
+    from routemap.gui.hoptable import path_rows
+    disc = route.get("paths") or {}
+    paths = disc.get("paths") or []
+    word = "path" if len(paths) == 1 else "paths"
+    lines = [f"Built-in ICMP{'v6' if disc.get('af') == 6 else ''} Paris · at least {len(paths)} {word} · "
+             f"{disc.get('flows')} flows · {disc.get('probes_sent')} probes in {disc.get('seconds', 0):.0f} s",
+             f"{'#':>4}  {'Paths':<6} {'Location':<22} {'Address':<40} {'Avg ms':>8} {'Loss':>5}"]
+    for row in path_rows(route.get("hops") or [], paths):
+        number = f"{row['hop']}{row.get('_sub', '')}"
+        place = (row.get("place") or ("local" if row.get("source") == "local" else ""))[:22]
+        avg = "" if row.get("avg_rtt_ms") is None else f"{row['avg_rtt_ms']:.1f}"
+        loss = "" if row.get("loss_pct") is None else f"{row['loss_pct']:.0f}%"
+        lines.append(f"{number:>4}  {row.get('_paths', ''):<6} {place:<22} {row.get('address') or '*':<40} "
+                     f"{avg:>8} {loss:>5}")
+    answers: dict = {}
+    for p in paths:
+        for h in p.get("located") or []:
+            answers.setdefault(h.get("hop"), set()).add(h.get("address"))
+    total = sum(len(p.get("flows") or []) for p in paths)
+    lines += ["", f"{'Path':<5} {'Flows':<7} {'Differs at':<28} {'RTT to target':<15} Loss to target"]
+    for p in paths:
+        differs = ", ".join(f"hop {h['hop']} {h.get('place') or h['address']}" for h in p.get("located") or []
+                            if h.get("address") and len(answers.get(h.get("hop"), ())) > 1)
+        rtt = "" if p.get("rtt_to_target_ms") is None else f"{p['rtt_to_target_ms']:.1f} ms"
+        loss = "" if p.get("loss_pct") is None else f"{p['loss_pct']:g}% ({p.get('lost')} of {p.get('sent')})"
+        flows = f"{len(p.get('flows') or [])}/{total}"
+        lines.append(f"{p.get('id'):<5} {flows:<7} {(differs or 'the same as the others')[:28]:<28} {rtt:<15} {loss}")
+    lines.append('"At least": some load balancers do not spread ICMP probes.')
+    return "\n".join(lines) + "\n"
+
+
+def _discover(target: str, settings, origin, offline: bool):
+    from routemap import service
+    from routemap_engine import analyse_paths, multipath
+    ok, why = multipath.available()
+    if not ok:
+        raise SystemExit(f"{NAME}: path discovery cannot run on this system yet: {why}")
+    _err(f"{NAME}: finding paths to {target} (at most {settings.paths_budget:,} probes, "
+         f"{multipath.MAX_RATE:g} a second)")
+    d = multipath.discover(target, family=settings.ip_version,
+                           options=multipath.Options(budget=settings.paths_budget),
+                           on_progress=lambda p: _err(f"{NAME}: hop {p['ttl']}, {p['paths']} paths so far, "
+                                                      f"{p['probes']} probes"))
+    sources = service.offline_sources() if offline else service.sources_for(settings)
+    route = asyncio.run(analyse_paths(d, origin[:2] if origin else None, sources=sources))
+    return route, d.trace_text(), ["icmp-paris", f"{d.flows_used} flows", f"{d.probes_sent} probes", target]
+
+
+def _reverse(args, current: dict, settings) -> None:
+    from routemap import reverse
+    if not args.publish_my_ip:
+        raise SystemExit(f"{NAME}: --reverse publishes your public IP address as the target of a public "
+                         "RIPE Atlas measurement. Add --publish-my-ip to agree for this run.")
+    ok, why = reverse.ready(settings)
+    if not ok:
+        raise SystemExit(f"{NAME}: {why}")
+    try:
+        plan = asyncio.run(reverse.plan(current["route"], settings))
+    except Exception as exc:  # noqa: BLE001
+        raise SystemExit(f"{NAME}: reverse trace: {exc}")
+    for paragraph in reverse.consent_paragraphs(current["target"], plan.public_ip)[:3]:
+        _err(f"{NAME}: {paragraph}")
+    _err(f"{NAME}: probe #{plan.probe.get('id')} (AS{plan.probe.get('asn')}, {plan.probe.get('country')}); "
+         f"waiting for RIPE Atlas")
+    try:
+        result = reverse.run_sync(plan, settings, consent=True, agreed_for_this_run=True)
+    except Exception as exc:  # noqa: BLE001
+        raise SystemExit(f"{NAME}: reverse trace: {exc}")
+    block = dict(result)
+    block["route"] = reverse.enrich(result["route"].to_dict())
+    current["reverse"] = block
+    cmp = reverse.compare(current["route"], block["route"])
+    _err(f"{NAME}: reverse trace (measurement {block['measurement_id']}): {cmp['summary']}")
+
+
 def cmd_trace(args) -> int:
     from routemap import config, service
     from routemap_engine import InvalidTarget, TraceParseError, validate_target
@@ -255,36 +334,63 @@ def cmd_trace(args) -> int:
 
     service.startup()
     settings = config.load_settings()
-    if not (args.json or args.png or args.pdf):
+    if args.ipv4 or args.ipv6:
+        settings.ip_version = "6" if args.ipv6 else "4"         # this run only, not saved
+    if not (args.json or args.png or args.pdf or args.paths or args.reverse):
         return open_window([args.target] + (["--origin", args.origin] if args.origin else []))
     try:
         target = validate_target(args.target)
     except InvalidTarget as exc:
         _err(f"{NAME}: {exc}")
         return 2
+    if args.reverse and not args.publish_my_ip:
+        _err(f"{NAME}: --reverse publishes your public IP address as the target of a public RIPE Atlas "
+             "measurement. Add --publish-my-ip to agree for this run.")
+        return 2
     origin, how = _origin(args, settings)
-    try:
-        result = service.run(target, settings, on_line=_err)
-    except TraceToolMissing as exc:
-        _err(f"{NAME}: {exc}")
-        return 3
-    if not result.text.strip():
-        _err(f"{NAME}: {result.tool} printed nothing (exit code {result.returncode})")
-        return 1
-    try:
-        route = _analyse(result.text, origin, settings, args.offline)
-    except TraceParseError as exc:
-        _err(f"{NAME}: {exc}")
-        return 1
+    from routemap_engine.probe import NoAddress
+    if args.paths:
+        try:
+            route, text, argv = _discover(target, settings, origin, args.offline)
+        except NoAddress as exc:
+            _err(f"{NAME}: {exc}")
+            return 2
+        source = "paths"
+    else:
+        try:
+            result = service.run(target, settings, on_line=_err)
+        except TraceToolMissing as exc:
+            _err(f"{NAME}: {exc}")
+            return 3
+        except NoAddress as exc:
+            _err(f"{NAME}: {exc}")
+            return 2
+        if not result.text.strip():
+            _err(f"{NAME}: {result.tool} printed nothing (exit code {result.returncode})")
+            return 1
+        try:
+            route = _analyse(result.text, origin, settings, args.offline)
+        except TraceParseError as exc:
+            _err(f"{NAME}: {exc}")
+            return 1
+        text, argv, source = result.text, result.argv, "local"
     body = route.to_dict()
-    current = {"route": body, "target": target, "trace_text": result.text, "argv": result.argv,
-               "source": "local", "origin_how": how if origin else "first-hop",
+    current = {"route": body, "target": target, "trace_text": text, "argv": argv,
+               "source": source, "origin_how": how if origin else "first-hop",
                "when": _dt.datetime.now().astimezone()}
+    if args.reverse:
+        from routemap import insight
+        insight.offline(body, settings)                  # ASNs on the forward hops, for the comparison
+        _reverse(args, current, settings)
     if settings.history_enabled:
-        entry = config.history_entry(body, target=target, trace_text=result.text,
-                                     argv=result.argv, source="local")
+        entry = config.history_entry(body, target=target, trace_text=text, argv=argv, source=source)
         entry["origin_how"] = current["origin_how"]
+        if current.get("reverse"):
+            entry["reverse"] = current["reverse"]
         config.add_history(entry, settings)
+    if args.paths and not (args.json or args.png or args.pdf):
+        sys.stdout.write(_paths_text(body))
+        return 0
     return _outputs(args, current)
 
 
@@ -634,8 +740,24 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--count", type=int, default=None, help="with --watch: stop after this many cycles")
     parser.add_argument("--duration", default=None,
                         help="with --watch: stop after this long, e.g. 90s, 10m, 2h (5 min to 8 h; default 1 h)")
+    parser.add_argument("--paths", action="store_true",
+                        help="find every path a load balancer can send packets along (ICMP Paris, at most "
+                             "20 probes a second); prints the hops and the paths, or exports with --json etc.")
+    parser.add_argument("--reverse", action="store_true",
+                        help="also trace back from a RIPE Atlas probe near the target to your public IP "
+                             "(public on RIPE Atlas; needs --publish-my-ip)")
+    parser.add_argument("--publish-my-ip", action="store_true",
+                        help="with --reverse: agree, for this run, that your public IP address is published "
+                             "as the target of a public RIPE Atlas measurement")
+    family = parser.add_mutually_exclusive_group()
+    family.add_argument("-4", dest="ipv4", action="store_true", help="trace over IPv4 only")
+    family.add_argument("-6", dest="ipv6", action="store_true", help="trace over IPv6 only")
     _common(parser)
     args = parser.parse_args(argv)
+    if args.publish_my_ip and not args.reverse:
+        parser.error("--publish-my-ip goes with --reverse")
+    if (args.paths or args.reverse) and args.watch:
+        parser.error("--paths and --reverse do not go with --watch")
     if args.watch:
         if not args.target:
             parser.error("--watch needs a target")

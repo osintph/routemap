@@ -112,10 +112,16 @@ class _Flow:
         widths = [self.mm(w) * scale for w in widths_mm]
         pad = self.mm(1.2)
 
+        def wrap(cell: str, w: float, m: QFontMetricsF) -> int:
+            """Word wrap, or anywhere for a cell with a word wider than the
+            column (a 39-character IPv6 address has nothing to break at)."""
+            if m.boundingRect(QRectF(0, 0, w - 2 * pad, 1e6), int(Qt.TextWordWrap), cell).width() > w - 2 * pad:
+                return int(Qt.TextWrapAnywhere)
+            return int(Qt.TextWordWrap)
+
         def row_height(cells, f):
             m = QFontMetricsF(f, self.writer)
-            return max(m.boundingRect(QRectF(0, 0, w - 2 * pad, 1e6),
-                                      int(Qt.TextWordWrap), c).height()
+            return max(m.boundingRect(QRectF(0, 0, w - 2 * pad, 1e6), wrap(c, w, m), c).height()
                        for c, w in zip(cells, widths)) + 2 * pad
 
         def draw(cells, f, fill=None, row=None):
@@ -129,9 +135,10 @@ class _Flow:
             x = 0.0
             self.p.setFont(f)
             self.p.setPen(INK)
+            m = QFontMetricsF(f, self.writer)
             for i, (c, w) in enumerate(zip(cells, widths)):
                 self.p.setPen(MUTED if (row, i) in muted else INK)
-                flags = int(Qt.TextWordWrap | (Qt.AlignRight if i in align_right else Qt.AlignLeft))
+                flags = wrap(c, w, m) | int(Qt.AlignRight if i in align_right else Qt.AlignLeft)
                 self.p.drawText(QRectF(x + pad, self.y + pad, w - 2 * pad, h - 2 * pad), flags, c)
                 x += w
             self.p.setPen(QPen(RULE, self.mm(0.15)))
@@ -175,7 +182,8 @@ def write_pdf(path: str, route: dict, *, target: str, trace_text: str, tool_labe
               origin_how: str | None, source: str, when: _dt.datetime | None = None,
               include_trace: bool = True, insight: dict | None = None,
               comparison: dict | None = None, quiet_ms: float = 15.0, hot_ms: float = 60.0,
-              origin_cc: str | None = None, session: dict | None = None) -> None:
+              origin_cc: str | None = None, session: dict | None = None, reverse: dict | None = None,
+              reverse_cmp: dict | None = None) -> None:
     when = when or _dt.datetime.now().astimezone()
     writer = QPdfWriter(path)
     writer.setResolution(300)
@@ -208,7 +216,8 @@ def write_pdf(path: str, route: dict, *, target: str, trace_text: str, tool_labe
                   "atlas": f"RIPE Atlas: {tool_label}",
                   "paste": f"pasted ({route.get('parser_label', '')})",
                   "file": f"opened from a file ({route.get('parser_label', '')})",
-                  "watch": "continuous, built-in ICMP prober"}.get(source, tool_label)
+                  "watch": "continuous, built-in ICMP prober",
+                  "paths": f"path discovery, built-in ICMP Paris prober: {tool_label}"}.get(source, tool_label)
     facts = [
         ["Target", target],
         ["Origin", f"{origin.get('label') or 'unknown'}, {how}" if how else (origin.get("label") or "unknown")],
@@ -224,7 +233,8 @@ def write_pdf(path: str, route: dict, *, target: str, trace_text: str, tool_labe
     credit = f"{geometry.ATTRIBUTION} · GeoNames CC BY 4.0" + (
         " · IP Geolocation by DB-IP" if mapview.uses_dbip(route) else "")
     image = mapview.render_png(route, width=1800, height=1013, title="", provenance=credit,
-                               destination=target, quiet_ms=quiet_ms, hot_ms=hot_ms)
+                               destination=target, quiet_ms=quiet_ms, hot_ms=hot_ms,
+                               reverse=(reverse or {}).get("route"), reverse_cmp=reverse_cmp)
     flow.image(image, (flow.width / flow.dpi * 25.4) * 1013 / 1800)
 
     if insight:
@@ -257,6 +267,11 @@ def write_pdf(path: str, route: dict, *, target: str, trace_text: str, tool_labe
     flow.table(["#", "Location", "Source", "ASN", "RPKI", "Hostname", "IP address", "RTT min", "Loss",
                 "Notes"], rows, [7, 25, 18, 14, 12, 34, 22, 14, 9, 18], align_right={0, 7, 8},
                muted=limited)
+
+    if route.get("paths"):
+        _paths_section(flow, route)
+    if reverse:
+        _reverse_section(flow, reverse, reverse_cmp)
 
     if comparison:
         _comparison_section(flow, route, comparison, target, quiet_ms, hot_ms)
@@ -300,6 +315,75 @@ def write_pdf(path: str, route: dict, *, target: str, trace_text: str, tool_labe
             flow.text(line or " ", 7.5, mono=True, gap=0.2)
     flow.finish()
     painter.end()
+
+
+def _paths_section(flow: "_Flow", route: dict) -> None:
+    """A path discovery: each path with its flows, where it differs, and its
+    own latency and loss to the target; then how the paths were found."""
+    disc = route.get("paths") or {}
+    paths = disc.get("paths") or []
+    flow.heading(f"Paths: at least {len(paths)}")
+    answers: dict = {}
+    for p in paths:
+        for h in p.get("located") or []:
+            answers.setdefault(h.get("hop"), set()).add(h.get("address"))
+    total = sum(len(p.get("flows") or []) for p in paths) or 1
+    rows = []
+    for p in paths:
+        differs = "; ".join(f"hop {h['hop']}: {h.get('place') or h.get('hostname') or h['address']}"
+                            for h in p.get("located") or []
+                            if h.get("address") and len(answers.get(h.get("hop"), ())) > 1)
+        loss = p.get("loss_pct")
+        rows.append([p.get("id") or "?", f"{len(p.get('flows') or [])} of {total}",
+                     differs or "the same as the others", _fmt(p.get("rtt_to_target_ms")),
+                     "" if loss is None else f"{loss:g}% ({p.get('lost')} of {p.get('sent')})"])
+    flow.table(["Path", "Flows", "Differs at", "RTT to target", "Loss to target"], rows,
+               [12, 18, 90, 25, 28], align_right={1, 3})
+    notes = [f"{disc.get('flows')} flow identifiers, {disc.get('probes_sent')} probes in "
+             f"{disc.get('seconds', 0):.0f} s, at most 20 a second. Paris traceroute keeps each flow on one "
+             "path; flows are added at each hop until the multipath detection algorithm's stopping rule is "
+             "met at 95% confidence. Each path's latency and loss come from ten pings of one of its flows.",
+             "At least: some load balancers do not spread ICMP probes, so a path can stay hidden."]
+    if disc.get("per_packet_hops"):
+        notes.append("Per-packet balancing at hop " + ", ".join(str(h) for h in disc["per_packet_hops"])
+                     + ": every packet may take another router there, so it does not make paths.")
+    if disc.get("stopped_by") == "budget":
+        notes.append("The discovery stopped at its probe budget; more paths may exist.")
+    for note in notes:
+        flow.text(note, 8.5, color=MUTED, gap=1)
+
+
+def _reverse_section(flow: "_Flow", rev: dict, cmp: dict | None) -> None:
+    """A reverse trace beside the forward route, aligned by network."""
+    flow.heading("Reverse trace")
+    probe = rev.get("probe") or {}
+    msm = rev.get("measurement_id")
+    flow.text(f"From RIPE Atlas probe #{probe.get('id')}"
+              + (f" in AS{probe.get('asn')}" if probe.get("asn") else "")
+              + (f", {probe.get('country')}" if probe.get("country") else "")
+              + f" back to this machine's public IP (measurement {msm}, public on RIPE Atlas: "
+              f"https://atlas.ripe.net/measurements/{msm}/).", 8.5, gap=1.5)
+    if cmp:
+        flow.text(cmp.get("summary") or "", 9, bold=True, gap=1.5)
+
+        def cell(seg, prefix=""):
+            if not seg:
+                return "(no hop)"
+            numbers = sorted(h["hop"] for h in seg["hops"])
+            n = f"{numbers[0]}" if len(numbers) == 1 else f"{numbers[0]}-{numbers[-1]}"
+            return f"{prefix}{n}  {seg.get('place') or seg['hops'][0].get('address') or ''}"
+        rows, muted = [], set()
+        for i, row in enumerate(cmp.get("rows") or []):
+            seg = row["forward"] or row["reverse"]
+            rows.append([cell(row["forward"]), f"AS{seg['asn']}" if seg and seg.get("asn") else "",
+                         cell(row["reverse"], "r"),
+                         "same" if row["same"] else ("end" if row.get("end") else "differs")])
+            if row["same"] or row.get("end"):
+                muted |= {(i, c) for c in range(4)}
+        flow.table(["Forward (you to target)", "Network", "Reverse (read you to target)", ""], rows,
+                   [60, 22, 60, 16], muted=muted)
+    flow.text("Different routes each way are normal on the Internet; reverse RTTs are measured from the "
+              "probe.", 8.5, color=MUTED)
 
 
 def _summary_section(flow: "_Flow", route: dict, ins: dict, origin_cc: str | None) -> None:

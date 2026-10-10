@@ -24,7 +24,8 @@ from routemap.gui.hoptable import HopTable
 from routemap.gui.insightpanel import HopDetails, InsightPanel
 from routemap.gui.livepanel import ChangeList, LiveBar, PingPlot
 from routemap.gui.mappane import MapPane
-from routemap.gui.panels import HistoryPanel, LiveOutput, SourceStatus, UnplacedPanel
+from routemap.gui.panels import (HistoryPanel, LiveOutput, PathsPanel, ReversePanel, SourceStatus,
+                                 UnplacedPanel)
 from routemap.gui.text import esc
 
 ORIGIN_APPROX = "approximate; wrong on a VPN or exit node"
@@ -70,6 +71,10 @@ class MainWindow(QMainWindow):
         self.trace_button.setDefault(True)
         self.trace_button.setMinimumWidth(96)
         self.trace_button.setMinimumHeight(30)
+        self.paths_button = QPushButton("Paths", central)
+        self.paths_button.setToolTip("Find every path a load balancer can send your packets along, with "
+                                     "each path's own loss and latency (Ctrl+Shift+T)")
+        self.paths_button.setMinimumHeight(30)
         self.watch_button = QPushButton("Watch", central)
         self.watch_button.setToolTip("Trace continuously: every hop probed once a cycle, mtr style "
                                      "(Ctrl+Shift+W)")
@@ -78,6 +83,7 @@ class MainWindow(QMainWindow):
         bar.addWidget(self.target, 1)
         bar.addWidget(self.busy, 0, Qt.AlignVCenter)
         bar.addWidget(self.trace_button)
+        bar.addWidget(self.paths_button)
         bar.addWidget(self.watch_button)
         outer.addLayout(bar)
 
@@ -123,8 +129,20 @@ class MainWindow(QMainWindow):
         self.right_split.setSizes([300, 460])
         self.live = LiveOutput(right)
         self.unplaced = UnplacedPanel(right)
-        right_layout.addWidget(self.summary)
+        self.paths = PathsPanel(right)
+        self.reverse = ReversePanel(right)
+        self.reverse_button = QPushButton("Reverse trace", right)
+        self.reverse_button.setToolTip("Trace from a RIPE Atlas probe near the target back to you, and "
+                                       "compare the two directions")
+        self.reverse_button.hide()
+        summary_row = QHBoxLayout()
+        summary_row.setContentsMargins(0, 0, 0, 0)
+        summary_row.addWidget(self.summary, 1)
+        summary_row.addWidget(self.reverse_button, 0, Qt.AlignTop)
+        right_layout.addLayout(summary_row)
         right_layout.addWidget(self.right_split, 1)
+        right_layout.addWidget(self.paths)
+        right_layout.addWidget(self.reverse)
         right_layout.addWidget(self.live)
         right_layout.addWidget(self.unplaced)
         self.splitter.addWidget(self.map)
@@ -215,6 +233,11 @@ class MainWindow(QMainWindow):
         self.act_trace = QAction("Trace", self)
         self.act_trace.triggered.connect(self.trace_button.click)
         self.act_stop = QAction("Stop", self, shortcut=QKeySequence("Ctrl+."))
+        self.act_paths = QAction("Find All Paths", self, shortcut=QKeySequence("Ctrl+Shift+T"))
+        self.act_paths.triggered.connect(self.paths_button.click)
+        self.act_reverse = QAction("Reverse Trace via RIPE Atlas…", self)
+        self.act_reverse.setEnabled(False)
+        self.act_reverse.triggered.connect(self.reverse_button.click)
         self.act_watch = QAction("Watch Continuously", self, shortcut=QKeySequence("Ctrl+Shift+W"))
         self.act_reset_live = QAction("Reset Counters", self)
         self.act_reset_live.setEnabled(False)
@@ -225,6 +248,7 @@ class MainWindow(QMainWindow):
         self.act_end_compare = QAction("End Comparison", self)
         self.act_end_compare.setEnabled(False)
         trace_menu.addAction(self.act_trace)
+        trace_menu.addAction(self.act_paths)
         trace_menu.addAction(self.act_watch)
         trace_menu.addAction(self.act_stop)
         trace_menu.addAction(self.act_reset_live)
@@ -235,6 +259,7 @@ class MainWindow(QMainWindow):
         trace_menu.addAction(self.act_end_compare)
         trace_menu.addSeparator()
         trace_menu.addAction(self.act_atlas)
+        trace_menu.addAction(self.act_reverse)
 
         help_menu = bar.addMenu("&Help")
         self.act_privacy = QAction("Privacy", self)
@@ -294,7 +319,7 @@ class MainWindow(QMainWindow):
     def _theme_changed(self):
         self.map.theme_changed()
         m = self.table.model_
-        self.table.set_hops(m.hops, m.details, m.marks)
+        self.table.set_hops(m.source_hops, m.details, m.marks, m.paths_)
         if callable(getattr(self, "refresh_panels", None)):
             self.refresh_panels()
 
@@ -331,6 +356,10 @@ class MainWindow(QMainWindow):
         self.sources.hide()
         self.table.set_hops([])
         self.unplaced.set_hops([])
+        self.paths.set_paths(None, [])
+        self.reverse.set_comparison(None, None)
+        self.reverse_button.hide()
+        self.map.clear_overlays()
         self.insight.clear()
         self.details.hide()
         self.live.start([])
@@ -360,6 +389,10 @@ class MainWindow(QMainWindow):
         self.map.hide_card()
         self.table.set_hops([])
         self.unplaced.set_hops([])
+        self.paths.set_paths(None, [])
+        self.reverse.set_comparison(None, None)
+        self.reverse_button.hide()
+        self.map.clear_overlays()
         self.insight.clear()
         self.details.hide()
         self.live.start(argv)
@@ -398,6 +431,10 @@ class MainWindow(QMainWindow):
         self.map.hide_card()
         self.table.set_hops([])
         self.unplaced.set_hops([])
+        self.paths.set_paths(None, [])
+        self.reverse.set_comparison(None, None)
+        self.reverse_button.hide()
+        self.map.clear_overlays()
         self.insight.clear()
         self.details.hide()
         self.summary.setText(f"<b>Watching {esc(target)}</b> <span style='color:gray'>· the first cycle "
@@ -436,11 +473,16 @@ class MainWindow(QMainWindow):
         self.sources.show()
         self.sources.finish()
         self.map.hide_card()
-        self.table.set_hops(hops)
+        discovery = route.get("paths")
+        paths = (discovery or {}).get("paths") or []
+        self.table.set_hops(hops, paths=paths)
+        self.paths.set_paths(discovery, hops)
         self.unplaced.set_hops(hops)
         self.unplaced.expand(expand_unplaced)
         if trace_text is not None:
             self.live.set_text(trace_text, argv)
+        self.map.clear_overlays()
+        self.reverse.set_comparison(None, None)
         self.map.set_route(route, destination=target, keep_view=keep_view)
         # Every value from the route is escaped: a route can come from a file.
         warnings = "".join(f"<br><span style='color:#b7791f'>{html.escape(str(w))}</span>"
@@ -449,8 +491,13 @@ class MainWindow(QMainWindow):
         detail = html.escape(str(route.get("parser_label") or ""))
         if ruleset:
             detail += f" · Hoiho ruleset {html.escape(str(ruleset))}"
-        self.summary.setText(
-            f"<b>{len(hops)} hops</b>, {placed} placed on the map "
-            f"<span style='color:gray'>· {detail}</span>{warnings}")
+        if discovery:
+            word = "path" if len(paths) == 1 else "paths"
+            detail = (f"{discovery.get('flows')} flows · {discovery.get('probes_sent')} probes in "
+                      f"{discovery.get('seconds', 0):.0f} s · ICMP Paris · " + detail)
+            head = f"<b>{len(hops)} hops, at least {len(paths)} {word}</b>"
+        else:
+            head = f"<b>{len(hops)} hops</b>, {placed} placed on the map"
+        self.summary.setText(f"{head} <span style='color:gray'>· {detail}</span>{warnings}")
         if argv:
             self.set_tool_status(argv)

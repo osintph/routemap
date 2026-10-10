@@ -292,3 +292,21 @@ def diff_color(palette: Palette, mark: str) -> QColor:
     return {"added": palette.route_warm, "moved": palette.route_warm, "removed": palette.route_gap,
             "rtt": palette.route_hot, "asn": palette.sources["hoiho"],
             "silent": palette.route_gap}.get(mark, palette.route)
+
+
+# 0.4.0: one colour per discovered path (A, B, C, ...) and one for a reverse
+# trace. None of them is a source colour or the RTT ramp, so a branch is never
+# read as "placed by" or "slow".
+PATH_COLORS_LIGHT = ["#24364b", "#3d6a9e", "#a0522d", "#5b7f1f", "#8a5a00", "#2f6f6f", "#7a3e5c", "#555f6b"]
+PATH_COLORS_DARK = ["#c9d6e3", "#8fb4dc", "#e2a07a", "#a7cf6e", "#e6b45c", "#7cc6c6", "#d49bb8", "#aab4bf"]
+REVERSE_LIGHT, REVERSE_DARK = "#7b3fb6", "#c4a1f0"
+
+
+def path_color(palette: Palette, index: int) -> QColor:
+    colors = PATH_COLORS_DARK if palette.dark else PATH_COLORS_LIGHT
+    return QColor(colors[index % len(colors)])
+
+
+def reverse_color(palette: Palette) -> QColor:
+    return QColor(REVERSE_DARK if palette.dark else REVERSE_LIGHT)
+

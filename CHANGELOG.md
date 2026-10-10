@@ -4,6 +4,67 @@ All notable changes to this project are documented here. The format is based
 on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 uses [Semantic Versioning](https://semver.org/).
 
+## [0.4.0-beta.1] - 2026-10-10
+
+"Paths": every path a load balancer offers, the route back via RIPE Atlas,
+and IPv6 end to end. The engine is routemap-engine 0.7.0, which has its own
+list.
+
+### Added
+- **Paths** (a button next to Trace, Trace > Find All Paths, Ctrl+Shift+T,
+  `routemap TARGET --paths`): finds the paths a per-flow load balancer can
+  send your packets along, with Paris traceroute and the multipath detection
+  algorithm's stopping rule at 95% confidence, and gives each path its own
+  latency and loss to the target from ten pings of one of its flows. The map
+  draws each path's branch in its own colour with its letter, the hop table
+  gets a Paths column and a sub-row per router where the paths part ways, and
+  the Paths list under the table shows each path's flows, where it differs,
+  and its RTT and loss; choosing one shows it alone. Per-packet balancing is
+  named and does not make paths. The count is "at least": some balancers do
+  not spread ICMP. At most 20 probes a second and 1,500 per discovery (the
+  pings included; Settings > Trace can lower the budget), 64 flows, 3 silent
+  hops. macOS and Linux; Windows is not supported yet.
+- **Reverse trace via RIPE Atlas** (next to the summary, Trace > Reverse Trace
+  via RIPE Atlas, `routemap TARGET --reverse --publish-my-ip`): a connected
+  probe in the target's network, or its country, nearest the target and never
+  in your own network, traces back to your public IP. Forward and reverse are
+  shown side by side, aligned by network, the differing rows tinted, and the
+  reverse route is drawn dashed with diamonds where the directions split and
+  rejoin. It costs 60 credits; nothing is scheduled when no probe is found.
+- Reverse traces ask the probe to wait 2 seconds for each reply (RIPE's
+  default is 4), so a path whose routers stay silent takes about half as
+  long; a router slower than 2 seconds counts as silent. A trace usually takes
+  1 to 3 minutes. The answer to Atlas's final TTL 255 probe is shown as the
+  next hop with the note "TTL 255 probe", and Atlas hops are checked against
+  the probe's own position (a few kilometres), not the 300 km allowed for an
+  origin found from a public IP.
+- OVHcloud's backbone is placed from OVH's own router names (engine 0.7.0),
+  where the IP database put it in the wrong cities.
+- **Consent for reverse traces.** A reverse trace publishes your public IP
+  address as the target of a public RIPE Atlas measurement. Before the first
+  one Route Map says so and asks you to agree; nothing runs without that.
+  Every reverse trace shows the probe, the IP that will be published and the
+  cost first. Settings > RIPE Atlas > Withdraw consent stops them at once.
+  The command line never uses the window's consent: `--reverse` needs
+  `--publish-my-ip` on the same command.
+- **IPv6 everywhere.** The built-in prober traces IPv6 on Windows, macOS and
+  Linux; Watch runs over IPv6 (0.3.0 refused it); macOS falls back to
+  `traceroute6`, the other tools get `-6`. Settings > Trace > **IP version**
+  (Automatic, IPv4 only, IPv6 only) and `-4`/`-6` on the command line choose
+  the family for a host that has both; the origin lookup and RIPE Atlas
+  follow it.
+- The PNG and PDF carry the paths and the reverse trace; the PDF has Paths
+  and Reverse trace sections.
+- The download page links `SHA256SUMS.ed25519` next to `SHA256SUMS` and
+  `SHA256SUMS.asc`.
+
+### Changed
+- **Export format 4.** Every export from this version is format 4 (paths, a
+  reverse trace and the address family); 0.3.0-beta.1 says "Made by a newer
+  Route Map" when it meets one. Formats 1 to 3 still open.
+- Addresses in special-purpose blocks follow the IANA registries row by row
+  (engine 0.7.0), the same on every Python.
+
 ## [0.3.0-beta.1] - 2026-10-10
 
 "Live": continuous trace and ping plot. The engine is routemap-engine 0.6.0,

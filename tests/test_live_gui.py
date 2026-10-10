@@ -40,8 +40,8 @@ def network(monkeypatch):
         return probe.Reply(f"192.0.2.{ttl}", 5.0 * ttl, ttl == DEPTH)
 
     monkeypatch.setattr(probe, "_probe", fake_probe)
-    monkeypatch.setattr(probe, "available", lambda: (True, ""))
-    monkeypatch.setattr(watch.socket, "gethostbyname", lambda host: "192.0.2.6")
+    monkeypatch.setattr(probe, "available", lambda family=4: (True, ""))
+    monkeypatch.setattr(probe, "resolve", lambda target, family="auto": "192.0.2.6")
     monkeypatch.setattr(watch, "INTERVAL_MIN", 0.01)
     return state
 
@@ -81,10 +81,43 @@ def test_a_session_runs_shows_pauses_stops_and_is_kept(app, network, tmp_path):
     assert "ICMP rate limiting, not real loss" in hops[3]["annotations"]
     assert hops[DEPTH]["loss_pct"] == 0.0
 
-    # P in the target field types a letter; P on the table pauses.
-    w.target.setFocus()
-    QTest.keyClick(w.target, Qt.Key_P)
-    assert not c.watcher.paused and w.target.text().endswith("p")
+    c.stop()
+    assert _wait(app, lambda: not c.watching() and c.current and c.current.get("session"))
+    assert c.current["source"] == "watch" and w.live_bar.export.isVisible()
+    entry = config.load_history()[0]
+    assert entry["source"] == "watch" and entry["session"]["cycles"] == c.current["session"]["cycles"]
+
+    # Export and open again: format 4, the session survives the rebuild.
+    from routemap.gui.app import write_export
+    path = tmp_path / "s.json"
+    write_export("json", str(path), c.current, settings=c.settings)
+    doc = json.loads(path.read_text())
+    assert doc["format_version"] == 4 and doc["session"]["cycles"] >= 15
+    back = imported.export(imported.parse_json(path.read_text()))
+    assert back["session"]["cycles"] == doc["session"]["cycles"]
+    assert [h["hop"] for h in back["session"]["hops"]] == list(range(1, DEPTH + 1))
+    pdf = tmp_path / "s.pdf"
+    write_export("pdf", str(pdf), c.current, settings=c.settings)
+    assert pdf.stat().st_size > 10_000
+    w.close()
+
+
+def _running_session(app):
+    w, c = _controller()
+    w.target.setText("example.net")
+    c.watch()
+    assert _wait(app, lambda: c.live_snap and c.live_snap["cycles"] >= 3)
+    return w, c
+
+
+def _stop(app, w, c):
+    c.stop()
+    assert _wait(app, lambda: not c.watching())
+    w.close()
+
+
+def test_p_on_the_table_pauses_and_resumes(app, network):
+    w, c = _running_session(app)
     w.table.setFocus()
     QTest.keyClick(w.table, Qt.Key_P)
     assert c.watcher.paused and w.live_bar.pause.text() == "Resume"
@@ -93,28 +126,18 @@ def test_a_session_runs_shows_pauses_stops_and_is_kept(app, network, tmp_path):
     app.processEvents()
     assert c.live_snap["cycles"] == paused_at
     QTest.keyClick(w.table, Qt.Key_P)
-    assert not c.watcher.paused
+    assert not c.watcher.paused and w.live_bar.pause.text() == "Pause"
     assert _wait(app, lambda: c.live_snap["cycles"] > paused_at)
+    _stop(app, w, c)
 
-    c.stop()
-    assert _wait(app, lambda: not c.watching() and c.current and c.current.get("session"))
-    assert c.current["source"] == "watch" and w.live_bar.export.isVisible()
-    entry = config.load_history()[0]
-    assert entry["source"] == "watch" and entry["session"]["cycles"] == c.current["session"]["cycles"]
 
-    # Export and open again: format 3, the session survives the rebuild.
-    from routemap.gui.app import write_export
-    path = tmp_path / "s.json"
-    write_export("json", str(path), c.current, settings=c.settings)
-    doc = json.loads(path.read_text())
-    assert doc["format_version"] == 3 and doc["session"]["cycles"] >= 15
-    back = imported.export(imported.parse_json(path.read_text()))
-    assert back["session"]["cycles"] == doc["session"]["cycles"]
-    assert [h["hop"] for h in back["session"]["hops"]] == list(range(1, DEPTH + 1))
-    pdf = tmp_path / "s.pdf"
-    write_export("pdf", str(pdf), c.current, settings=c.settings)
-    assert pdf.stat().st_size > 10_000
-    w.close()
+def test_p_in_the_target_field_types_a_p(app, network):
+    w, c = _running_session(app)
+    w.target.setFocus()
+    before = w.target.text()
+    QTest.keyClick(w.target, Qt.Key_P)
+    assert w.target.text() == before + "p" and not c.watcher.paused
+    _stop(app, w, c)
 
 
 def test_a_stored_session_reopens_stopped(app, network):
@@ -145,15 +168,23 @@ def test_a_normal_trace_leaves_live_mode(app, network):
     w.close()
 
 
-def test_ipv6_target_says_why(app, network, monkeypatch):
-    monkeypatch.setattr(watch.socket, "gethostbyname", lambda host: "2001:db8::1")
+def test_an_ipv6_target_runs_live(app, network, monkeypatch):
+    """0.3.0 refused IPv6 in Live; 0.4.0 watches it like IPv4, with the IP
+    version from Settings reaching the resolver."""
+    asked = []
+    monkeypatch.setattr(probe, "resolve", lambda target, family="auto": asked.append(family) or "2001:db8::6")
+    monkeypatch.setattr(probe, "_probe", lambda dst, ttl, seq, wait: probe.Reply(
+        f"2001:db8::{min(ttl, 6)}", 2.0 * ttl, reached=ttl >= 6))
     errors = []
     w, c = _controller()
+    c.settings.ip_version = "6"
     monkeypatch.setattr(c, "error", lambda title, text: errors.append(text))
     w.target.setText("example.net")
     c.watch()
-    assert _wait(app, lambda: errors)
-    assert "IPv4" in errors[0]
+    assert _wait(app, lambda: c.live_snap and c.live_snap["cycles"] >= 3)
+    c.stop()
+    assert _wait(app, lambda: not c.watching())
+    assert not errors and asked and set(asked) == {"6"}
     w.close()
 
 
@@ -226,9 +257,9 @@ def test_a_newer_export_is_refused_with_its_own_title(app, tmp_path, monkeypatch
     shown = []
     monkeypatch.setattr(c, "error", lambda title, text: shown.append((title, text)))
     path = tmp_path / "newer.json"
-    path.write_text(json.dumps({"format": "routemap/route-export", "format_version": 4, "route": {}}))
+    path.write_text(json.dumps({"format": "routemap/route-export", "format_version": 5, "route": {}}))
     c.open_path(str(path))
     assert shown == [("Made by a newer Route Map",
-                      "This export is format version 4, made by a newer Route Map. "
-                      "This Route Map opens format 3 and older. Update Route Map to open it.")]
+                      "This export is format version 5, made by a newer Route Map. "
+                      "This Route Map opens format 4 and older. Update Route Map to open it.")]
     w.close()

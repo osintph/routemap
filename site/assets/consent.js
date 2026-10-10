@@ -69,7 +69,7 @@
   }
 
   function platform(file) {
-    if (/^SHA256SUMS(\.asc)?$/.test(file)) return "checksums";
+    if (/^SHA256SUMS(\.asc|\.ed25519)?$/.test(file)) return "checksums";
     var m = /-(windows|macos|linux)-/.exec(file);
     return m ? m[1] : "other";
   }
