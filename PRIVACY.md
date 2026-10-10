@@ -17,6 +17,8 @@ automatic update check. Nothing is sent anywhere until you run or open a trace.
 | Your public IP address, to find your city | RIPEstat, stat.ripe.net | at startup, only while no origin is set in Settings |
 | Your RIPE Atlas API key, your network's AS number (or your country code if no probe is on your network), and the target | RIPE Atlas, atlas.ripe.net | only when Atlas is on in Settings with your own key and you choose Trace from a RIPE Atlas Probe. RIPE NCC publishes every measurement, target included |
 | Your public IP address, to find your network's AS number for the Atlas probe | RIPEstat, stat.ripe.net | only for an Atlas trace |
+| Your public IPv4 or IPv6 address (the family of the trace), to be the target of a reverse trace and to find your network's AS so the probe is not in it; the target's address, to find its AS | RIPEstat, stat.ripe.net | only when you choose Reverse Trace (or `--reverse`) |
+| Your RIPE Atlas API key, the probe chosen near the target, and **your public IP address as the measurement target** | RIPE Atlas, atlas.ripe.net | only when you choose Reverse Trace after agreeing to it (Settings > RIPE Atlas > Withdraw consent stops it), or run `--reverse --publish-my-ip`. RIPE NCC publishes the measurement, your IP included |
 | A request for the latest release tag | GitHub, api.github.com | only when you choose Check for Updates or run `routemap --check-update` |
 | A download of the release file for your system, `SHA256SUMS` and `SHA256SUMS.ed25519` | GitHub, github.com and its release-asset host release-assets.githubusercontent.com | only when you choose Download and check after Check for Updates. Not counted by the project site |
 
@@ -25,6 +27,11 @@ target and the routers on the way, once per hop per cycle and at most 30 a
 second, until you stop it or it reaches its time limit. The lookups above run
 once for the hops of the first cycle and then only for a hop or router not
 seen before, never every cycle. It never uses RIPE Atlas.
+
+**Paths** sends ICMP echo probes to the target and the routers on the way, as a
+trace does, with different flow identifiers: at most 20 a second and at most
+1,500 per discovery. Its lookups are those of one trace, made once for every
+router any path answered from.
 
 **Settings > Sources > Online lookups** switches every row above except the
 trace itself, the explicit update check and downloads you start: off, nothing
