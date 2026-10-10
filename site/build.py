@@ -702,6 +702,9 @@ sha256sum -c SHA256SUMS --ignore-missing        # Linux
 shasum -a 256 -c SHA256SUMS --ignore-missing    # macOS</code></pre>
 <p>On Windows, compare <code>Get-FileHash .\\{html.escape(win_name)}</code> in PowerShell with
 its line in <code>SHA256SUMS</code>.</p>
+<p><a href="{rel.base}/SHA256SUMS.ed25519"><code>SHA256SUMS.ed25519</code></a> is a second signature
+over <code>SHA256SUMS</code>, made with the update key built into {S['product']}: Help › Check for updates
+checks it before it installs anything.</p>
 </article>"""
     page("/download/", "Download", body,
          f"Download {S['product']} {rel.tag} for Windows, macOS and Linux from GitHub Releases: "
