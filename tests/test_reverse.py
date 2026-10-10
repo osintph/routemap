@@ -150,3 +150,30 @@ def test_the_consent_text_says_public_and_names_the_ip_and_the_cost():
                   "cannot remove it afterwards", "withdraw this at any time in Settings › RIPE Atlas",
                   "origin coordinates are never sent"):
         assert words in text
+
+
+def test_each_directions_own_ends_are_not_differences():
+    """Found in the Phase 1 renders: the forward route starts in your own
+    network and ends at the target, the reverse starts in the probe's network
+    and ends at your public IP. Those ends have no partner and are not a
+    difference; only what lies between shared segments is."""
+    forward = {"hops": [hop(1, "192.168.1.1", place="local", source="local"),
+                        hop(2, "122.2.187.146", 9299, "Manila, PH"),
+                        hop(3, "62.115.1.2", 1299, "Singapore, SG"),
+                        hop(4, "62.115.1.3", 1299, "Paris, FR"),
+                        hop(5, "62.115.1.4", 1299, "Frankfurt, DE"),
+                        hop(6, "193.99.144.80", 12306, "Hannover, DE")]}
+    back = {"hops": [hop(1, "193.99.145.9", 12306, "Frankfurt am Main, DE"),       # the probe's own network
+                     hop(2, "62.115.2.4", 1299, "Frankfurt, DE"),
+                     hop(3, "62.115.2.6", 1299, "Mumbai, IN"),
+                     hop(4, "62.115.2.2", 1299, "Singapore, SG"),
+                     hop(5, "122.2.187.140", 9299, "Manila, PH"),
+                     hop(6, "122.2.190.47", 9299, "Manila, PH")]}                 # your public IP
+    result = reverse.compare(forward, back)
+    ends = [r for r in result["rows"] if r.get("end")]
+    assert ends and all(not r["same"] for r in ends)
+    middle = [r for r in result["rows"] if not r["same"] and not r.get("end")]
+    assert [(r["forward"] and r["forward"]["place"], r["reverse"] and r["reverse"]["place"]) for r in middle] == \
+        [("Paris, FR", "Mumbai, IN")]
+    assert result["summary"] == ("The paths differ between Singapore, SG and Frankfurt, DE: forward goes via "
+                                 "Paris, FR, reverse via Mumbai, IN.")

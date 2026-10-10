@@ -187,12 +187,12 @@ class ReversePanel(_Collapsible):
         self.set_comparison(None, None)
 
     @staticmethod
-    def _cell(seg: dict | None) -> str:
+    def _cell(seg: dict | None, prefix: str = "") -> str:
         if not seg:
             return "(no hop)"
-        hops = seg["hops"]
-        n = (f"{hops[0]['hop']}" if len(hops) == 1 else f"{hops[0]['hop']}-{hops[-1]['hop']}")
-        return f"{n}  {seg.get('place') or hops[0].get('address') or ''}"
+        numbers = sorted(h["hop"] for h in seg["hops"])
+        n = f"{numbers[0]}" if len(numbers) == 1 else f"{numbers[0]}-{numbers[-1]}"
+        return f"{prefix}{n}  {seg.get('place') or seg['hops'][0].get('address') or ''}"
 
     def set_comparison(self, reverse: dict | None, comparison: dict | None):
         self.list.clear()
@@ -206,8 +206,8 @@ class ReversePanel(_Collapsible):
             seg = row["forward"] or row["reverse"]
             asn = seg.get("asn") if seg else None
             item = QTreeWidgetItem([self._cell(row["forward"]), f"AS{asn}" if asn else "",
-                                    self._cell(row["reverse"])])
-            if not row["same"]:
+                                    self._cell(row["reverse"], "r")])
+            if not row["same"] and not row.get("end"):
                 for col in range(3):
                     item.setBackground(col, tint)
                 item.setToolTip(0, "The two directions take different routers here.")

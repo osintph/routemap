@@ -210,15 +210,19 @@ def compare(forward: dict, reverse_route: dict) -> dict:
 
     pairs = _lcs(fwd, rev, same)
     rows, i, j = [], 0, 0
-    for pi, pj in pairs + [(len(fwd), len(rev))]:
+    for n, (pi, pj) in enumerate(pairs + [(len(fwd), len(rev))]):
         gap_f, gap_r = fwd[i:pi], rev[j:pj]
+        # Before the first and after the last shared segment each direction has
+        # its own ends (your network and the target; the probe's network and
+        # your public IP): shown, not a difference.
+        end = not pairs or n == 0 or n == len(pairs)
         for k in range(max(len(gap_f), len(gap_r))):
             rows.append({"forward": gap_f[k] if k < len(gap_f) else None,
-                         "reverse": gap_r[k] if k < len(gap_r) else None, "same": False})
+                         "reverse": gap_r[k] if k < len(gap_r) else None, "same": False, "end": end})
         if pi < len(fwd):
-            rows.append({"forward": fwd[pi], "reverse": rev[pj], "same": True})
+            rows.append({"forward": fwd[pi], "reverse": rev[pj], "same": True, "end": False})
         i, j = pi + 1, pj + 1
-    differs = any(not r["same"] for r in rows)
+    differs = any(not r["same"] and not r["end"] for r in rows)
     return {"rows": rows, "differs": differs, "summary": _summary(rows)}
 
 
@@ -232,10 +236,12 @@ def _where(seg: dict | None) -> str:
 def _summary(rows: list[dict]) -> str:
     if not rows:
         return "Neither direction has an answering hop to compare."
-    if all(r["same"] for r in rows):
+    if not any(r["same"] for r in rows):
+        return "The two directions share no network and place at all."
+    if all(r["same"] or r["end"] for r in rows):
         return "Both directions go through the same networks and places."
-    first = next(i for i, r in enumerate(rows) if not r["same"])
-    last = max(i for i, r in enumerate(rows) if not r["same"])
+    first = next(i for i, r in enumerate(rows) if not r["same"] and not r["end"])
+    last = max(i for i, r in enumerate(rows) if not r["same"] and not r["end"])
     before = next((rows[i]["forward"] for i in range(first - 1, -1, -1) if rows[i]["same"]), None)
     after = next((rows[i]["forward"] for i in range(last + 1, len(rows)) if rows[i]["same"]), None)
     fwd = [_where(r["forward"]) for r in rows[first:last + 1] if r["forward"]]
