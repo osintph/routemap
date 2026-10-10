@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 import tempfile
 import time
@@ -170,6 +171,12 @@ class Settings:
     live_interval: float = 1.0               # seconds per cycle, 1 to 60
     live_duration_min: int = 60              # minutes before a session stops itself, 5 to 480
     live_keep_history: bool = True           # keep stopped sessions in History
+    # 0.4.0-beta.1 "Paths"
+    ip_version: str = "auto"                 # "auto" (the system's order), "4" or "6"
+    paths_budget: int = 1500                 # probes per path discovery, 100 to 1,500 (engine cap)
+    # When the user agreed that reverse traces publish their public IP (ISO
+    # time, UTC); "" means no consent, and no reverse trace runs.
+    reverse_consent_at: str = ""
 
     def origin(self) -> tuple[float, float, str] | None:
         """The chosen origin, or None when it is to come from the public IP."""
@@ -316,6 +323,8 @@ def ripe_cache_path() -> Path:
 
 
 PROJECTIONS = ("flat", "globe")
+IP_VERSIONS = ("auto", "4", "6")
+CONSENT_WHEN = re.compile(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ")
 
 
 def normalise(settings: Settings) -> Settings:
@@ -337,6 +346,14 @@ def normalise(settings: Settings) -> Settings:
     except (TypeError, ValueError, OverflowError):
         settings.live_duration_min = 60
     settings.live_keep_history = bool(settings.live_keep_history)
+    if settings.ip_version not in IP_VERSIONS:
+        settings.ip_version = "auto"
+    try:
+        settings.paths_budget = int(min(1500, max(100, int(settings.paths_budget))))
+    except (TypeError, ValueError, OverflowError):
+        settings.paths_budget = 1500
+    consent = settings.reverse_consent_at
+    settings.reverse_consent_at = consent if isinstance(consent, str) and CONSENT_WHEN.fullmatch(consent) else ""
     try:
         quiet = max(0.0, float(settings.rtt_quiet_ms))
         hot = max(quiet + 1.0, float(settings.rtt_hot_ms))

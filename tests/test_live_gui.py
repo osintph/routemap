@@ -40,8 +40,8 @@ def network(monkeypatch):
         return probe.Reply(f"192.0.2.{ttl}", 5.0 * ttl, ttl == DEPTH)
 
     monkeypatch.setattr(probe, "_probe", fake_probe)
-    monkeypatch.setattr(probe, "available", lambda: (True, ""))
-    monkeypatch.setattr(watch.socket, "gethostbyname", lambda host: "192.0.2.6")
+    monkeypatch.setattr(probe, "available", lambda family=4: (True, ""))
+    monkeypatch.setattr(probe, "resolve", lambda target, family="auto": "192.0.2.6")
     monkeypatch.setattr(watch, "INTERVAL_MIN", 0.01)
     return state
 
@@ -107,7 +107,7 @@ def test_a_session_runs_shows_pauses_stops_and_is_kept(app, network, tmp_path):
     path = tmp_path / "s.json"
     write_export("json", str(path), c.current, settings=c.settings)
     doc = json.loads(path.read_text())
-    assert doc["format_version"] == 3 and doc["session"]["cycles"] >= 15
+    assert doc["format_version"] == 4 and doc["session"]["cycles"] >= 15
     back = imported.export(imported.parse_json(path.read_text()))
     assert back["session"]["cycles"] == doc["session"]["cycles"]
     assert [h["hop"] for h in back["session"]["hops"]] == list(range(1, DEPTH + 1))
@@ -145,15 +145,23 @@ def test_a_normal_trace_leaves_live_mode(app, network):
     w.close()
 
 
-def test_ipv6_target_says_why(app, network, monkeypatch):
-    monkeypatch.setattr(watch.socket, "gethostbyname", lambda host: "2001:db8::1")
+def test_an_ipv6_target_runs_live(app, network, monkeypatch):
+    """0.3.0 refused IPv6 in Live; 0.4.0 watches it like IPv4, with the IP
+    version from Settings reaching the resolver."""
+    asked = []
+    monkeypatch.setattr(probe, "resolve", lambda target, family="auto": asked.append(family) or "2001:db8::6")
+    monkeypatch.setattr(probe, "_probe", lambda dst, ttl, seq, wait: probe.Reply(
+        f"2001:db8::{min(ttl, 6)}", 2.0 * ttl, reached=ttl >= 6))
     errors = []
     w, c = _controller()
+    c.settings.ip_version = "6"
     monkeypatch.setattr(c, "error", lambda title, text: errors.append(text))
     w.target.setText("example.net")
     c.watch()
-    assert _wait(app, lambda: errors)
-    assert "IPv4" in errors[0]
+    assert _wait(app, lambda: c.live_snap and c.live_snap["cycles"] >= 3)
+    c.stop()
+    assert _wait(app, lambda: not c.watching())
+    assert not errors and asked and set(asked) == {"6"}
     w.close()
 
 
@@ -226,9 +234,9 @@ def test_a_newer_export_is_refused_with_its_own_title(app, tmp_path, monkeypatch
     shown = []
     monkeypatch.setattr(c, "error", lambda title, text: shown.append((title, text)))
     path = tmp_path / "newer.json"
-    path.write_text(json.dumps({"format": "routemap/route-export", "format_version": 4, "route": {}}))
+    path.write_text(json.dumps({"format": "routemap/route-export", "format_version": 5, "route": {}}))
     c.open_path(str(path))
     assert shown == [("Made by a newer Route Map",
-                      "This export is format version 4, made by a newer Route Map. "
-                      "This Route Map opens format 3 and older. Update Route Map to open it.")]
+                      "This export is format version 5, made by a newer Route Map. "
+                      "This Route Map opens format 4 and older. Update Route Map to open it.")]
     w.close()
