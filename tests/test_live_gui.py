@@ -81,28 +81,13 @@ def test_a_session_runs_shows_pauses_stops_and_is_kept(app, network, tmp_path):
     assert "ICMP rate limiting, not real loss" in hops[3]["annotations"]
     assert hops[DEPTH]["loss_pct"] == 0.0
 
-    # P in the target field types a letter; P on the table pauses.
-    w.target.setFocus()
-    QTest.keyClick(w.target, Qt.Key_P)
-    assert not c.watcher.paused and w.target.text().endswith("p")
-    w.table.setFocus()
-    QTest.keyClick(w.table, Qt.Key_P)
-    assert c.watcher.paused and w.live_bar.pause.text() == "Resume"
-    paused_at = c.live_snap["cycles"]
-    QTest.qWait(200)
-    app.processEvents()
-    assert c.live_snap["cycles"] == paused_at
-    QTest.keyClick(w.table, Qt.Key_P)
-    assert not c.watcher.paused
-    assert _wait(app, lambda: c.live_snap["cycles"] > paused_at)
-
     c.stop()
     assert _wait(app, lambda: not c.watching() and c.current and c.current.get("session"))
     assert c.current["source"] == "watch" and w.live_bar.export.isVisible()
     entry = config.load_history()[0]
     assert entry["source"] == "watch" and entry["session"]["cycles"] == c.current["session"]["cycles"]
 
-    # Export and open again: format 3, the session survives the rebuild.
+    # Export and open again: format 4, the session survives the rebuild.
     from routemap.gui.app import write_export
     path = tmp_path / "s.json"
     write_export("json", str(path), c.current, settings=c.settings)
@@ -115,6 +100,44 @@ def test_a_session_runs_shows_pauses_stops_and_is_kept(app, network, tmp_path):
     write_export("pdf", str(pdf), c.current, settings=c.settings)
     assert pdf.stat().st_size > 10_000
     w.close()
+
+
+def _running_session(app):
+    w, c = _controller()
+    w.target.setText("example.net")
+    c.watch()
+    assert _wait(app, lambda: c.live_snap and c.live_snap["cycles"] >= 3)
+    return w, c
+
+
+def _stop(app, w, c):
+    c.stop()
+    assert _wait(app, lambda: not c.watching())
+    w.close()
+
+
+def test_p_on_the_table_pauses_and_resumes(app, network):
+    w, c = _running_session(app)
+    w.table.setFocus()
+    QTest.keyClick(w.table, Qt.Key_P)
+    assert c.watcher.paused and w.live_bar.pause.text() == "Resume"
+    paused_at = c.live_snap["cycles"]
+    QTest.qWait(200)
+    app.processEvents()
+    assert c.live_snap["cycles"] == paused_at
+    QTest.keyClick(w.table, Qt.Key_P)
+    assert not c.watcher.paused and w.live_bar.pause.text() == "Pause"
+    assert _wait(app, lambda: c.live_snap["cycles"] > paused_at)
+    _stop(app, w, c)
+
+
+def test_p_in_the_target_field_types_a_p(app, network):
+    w, c = _running_session(app)
+    w.target.setFocus()
+    before = w.target.text()
+    QTest.keyClick(w.target, Qt.Key_P)
+    assert w.target.text() == before + "p" and not c.watcher.paused
+    _stop(app, w, c)
 
 
 def test_a_stored_session_reopens_stopped(app, network):
