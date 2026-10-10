@@ -42,7 +42,14 @@ jobs:
         env:
           TARGET: ${{ inputs.target }}
         run: python packaging/diagnose.py "$TARGET" | tee diag.json
+      - name: Flow fields on the wire (Windows; pktmon needs the runner's administrator)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: python packaging/diagnose_flow.py | tee flow.json
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: diag-${{ matrix.os }}
-          path: diag.json
+          path: |
+            diag.json
+            flow.json
+          if-no-files-found: ignore
