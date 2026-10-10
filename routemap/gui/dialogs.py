@@ -50,6 +50,7 @@ class SettingsDialog(QDialog):
     pickRequested = Signal()
     clearCacheRequested = Signal()
     clearHistoryRequested = Signal()
+    withdrawReverseRequested = Signal()
     updateDataRequested = Signal()
     importDataRequested = Signal()
 
@@ -233,6 +234,29 @@ class SettingsDialog(QDialog):
         self.timeout.setValue(int(s.timeout_seconds))
         self.timeout.setSuffix(" s")
         form.addRow("Give up after", self.timeout)
+        self.ip_version = QComboBox()
+        for label, value in (("Automatic (system order)", "auto"), ("IPv4 only", "4"), ("IPv6 only", "6")):
+            self.ip_version.addItem(label, value)
+        self.ip_version.setCurrentIndex(max(0, self.ip_version.findData(s.ip_version)))
+        self.ip_version.setAccessibleName("IP version")
+        form.addRow("IP version", self.ip_version)
+        form.addRow("", _note("Automatic uses the address your system prefers. Pick IPv6 to trace a "
+                              "dual-stack host over IPv6. Applies to traces, Paths and Live."))
+        form.addRow(_rule())
+        from routemap_engine import multipath as _multipath
+        self.paths_budget = QSpinBox()
+        self.paths_budget.setRange(100, _multipath.MAX_PROBES)
+        self.paths_budget.setSingleStep(100)
+        self.paths_budget.setValue(int(s.paths_budget))
+        self.paths_budget.setSuffix(f" probes (at most {_multipath.MAX_RATE:g} a second)")
+        self.paths_budget.setAccessibleName("Paths probe budget")
+        form.addRow("Paths: probe budget", self.paths_budget)
+        paths_ok, paths_why = _multipath.available()
+        form.addRow("", _note(
+            "Paths sends many probes with different flow identifiers to find load-balanced routes. It "
+            f"never sends more than {_multipath.MAX_RATE:g} a second or more than the budget; the budget "
+            f"can be lowered, never raised past {_multipath.MAX_PROBES:,}."
+            + ("" if paths_ok else f" <b>Not available on this system yet:</b> {paths_why}.")))
         self._check_flags()
         return page
 
@@ -448,13 +472,41 @@ class SettingsDialog(QDialog):
             f"{TRACEROUTE_CREDITS} of your credits (a one-off measurement costs twice a "
             "periodic one)."))
         layout.addWidget(_rule())
+        reverse_title = QLabel("<b>Reverse traces</b>")
+        reverse_title.setTextFormat(Qt.RichText)
+        layout.addWidget(reverse_title)
+        row = QHBoxLayout()
+        self.reverse_state = QLabel()
+        self.reverse_state.setTextFormat(Qt.RichText)
+        self.reverse_withdraw = QPushButton("Withdraw consent")
+        self.reverse_withdraw.setAccessibleName("Withdraw consent to reverse traces")
+        self.reverse_withdraw.clicked.connect(self.withdrawReverseRequested)
+        row.addWidget(self.reverse_state)
+        row.addWidget(self.reverse_withdraw)
+        row.addStretch(1)
+        layout.addLayout(row)
+        layout.addWidget(_note(
+            "A reverse trace publishes your public IP address as the target of a public RIPE Atlas "
+            "measurement. Withdraw and no reverse trace runs until you agree again."))
+        self.set_reverse_consent(s.reverse_consent_at)
+        layout.addWidget(_rule())
         layout.addWidget(_note(
             "<b>Atlas measurements are public.</b> RIPE publishes every measurement, including "
             "the target, in its public database. You will be asked to confirm this before the "
             "first Atlas trace. Your origin coordinates are never sent: a probe is chosen by "
-            "your network and country."))
+            "your network and country, or for a reverse trace by the target's."))
         layout.addStretch(1)
         return page
+
+    def set_reverse_consent(self, when: str):
+        """Show whether reverse traces are allowed, and since when."""
+        if when:
+            import datetime as _dt
+            d = _dt.datetime.strptime(when, "%Y-%m-%dT%H:%M:%SZ")
+            self.reverse_state.setText(f"Allowed since {d.day} {d.strftime('%b %Y')}")
+        else:
+            self.reverse_state.setText("Not allowed. You will be asked before the first reverse trace.")
+        self.reverse_withdraw.setVisible(bool(when))
 
     # ---- privacy
     def _live_page(self) -> QWidget:
@@ -496,8 +548,8 @@ class SettingsDialog(QDialog):
             f"Stored sessions take at most <b>{mb} MB</b> together; past that the oldest sessions are "
             "dropped first. Single traces are not affected."))
         layout.addWidget(_note(
-            "Continuous mode uses the built-in ICMP prober only, IPv4 for now, with no administrator "
-            "rights. It never uses RIPE Atlas."))
+            "Continuous mode uses the built-in ICMP prober only, over IPv4 or IPv6 as Settings › Trace "
+            "chooses, with no administrator rights. It never uses RIPE Atlas."))
         layout.addStretch(1)
         return page
 
@@ -562,6 +614,8 @@ class SettingsDialog(QDialog):
             except ValueError:
                 problems.append(f"The {name} flags have unbalanced quotes; they were not changed.")
         settings.timeout_seconds = self.timeout.value()
+        settings.ip_version = self.ip_version.currentData() or "auto"
+        settings.paths_budget = int(self.paths_budget.value())
         settings.online_lookups = self.online.isChecked()
         settings.projection = self.projection.currentData() or "flat"
         settings.theme = self.theme.currentData() or "system"
@@ -737,6 +791,96 @@ class AtlasTraceDialog(QDialog):
 
 
 # ------------------------------------------------------------------- update ---
+
+class ReverseConsentDialog(QDialog):
+    """Before the first reverse trace (0.4.0): what a reverse trace publishes.
+
+    The text is routemap.reverse.consent_paragraphs, the one approved wording.
+    "Allow reverse traces" stays disabled until the box is ticked; "Not now"
+    is the default button, so Enter never agrees by accident."""
+
+    def __init__(self, parent=None, target: str = "", ip: str | None = None):
+        super().__init__(parent)
+        from routemap import reverse
+        self.setWindowTitle("Reverse trace via RIPE Atlas")
+        self.setMinimumWidth(540)
+        layout = QVBoxLayout(self)
+        layout.setSpacing(10)
+        title = QLabel(f"<b style='font-size:15px'>{html.escape(reverse.TITLE)}</b>")
+        title.setTextFormat(Qt.RichText)
+        layout.addWidget(title)
+        paragraphs = reverse.consent_paragraphs(target, ip)
+        for i, text in enumerate(paragraphs):
+            body = html.escape(text)
+            if ip:
+                body = body.replace(html.escape(ip), f"<b>{html.escape(ip)}</b>")
+            if i == 1:
+                body = body.replace("RIPE Atlas measurements are public.",
+                                    "<b>RIPE Atlas measurements are public.</b>")
+            label = QLabel(body)
+            label.setTextFormat(Qt.RichText)
+            label.setWordWrap(True)
+            if i == 2:
+                label.setFrameShape(QFrame.StyledPanel)
+                label.setMargin(8)
+            layout.addWidget(label)
+        self.agree = QCheckBox(reverse.AGREE)
+        layout.addWidget(self.agree)
+        buttons = QDialogButtonBox()
+        self.allow = buttons.addButton("Allow reverse traces", QDialogButtonBox.AcceptRole)
+        self.not_now = buttons.addButton("Not now", QDialogButtonBox.RejectRole)
+        self.not_now.setDefault(True)
+        self.allow.setEnabled(False)
+        self.agree.toggled.connect(self.allow.setEnabled)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+    def text(self) -> str:
+        """Everything the dialog says, for tests and screen readers."""
+        return "\n".join(w.text() for w in self.findChildren(QLabel)) + "\n" + self.agree.text()
+
+
+class ReverseConfirmDialog(QDialog):
+    """Before every reverse trace: the probe, the public IP that will be the
+    target (it changes between networks), the cost and the balance."""
+
+    def __init__(self, parent=None, target: str = "", plan=None, credit_view: dict | None = None):
+        super().__init__(parent)
+        from routemap import reverse
+        self.setWindowTitle(f"Reverse trace to {target}")
+        self.setMinimumWidth(460)
+        layout = QVBoxLayout(self)
+        layout.setSpacing(10)
+        probe = plan.probe if plan else {}
+        where = ", ".join(x for x in (f"AS{probe.get('asn')}" if probe.get("asn") else "",
+                                      probe.get("country") or "") if x)
+        dist = probe.get("distance_km")
+        head = QLabel(f"Probe <b>#{html.escape(str(probe.get('id')))}</b>"
+                      + (f", {html.escape(where)}" if where else "")
+                      + (f", {dist:,.0f} km from {html.escape(target)}'s located position" if dist is not None else ""))
+        head.setTextFormat(Qt.RichText)
+        head.setWordWrap(True)
+        layout.addWidget(head)
+        rows = dict((credit_view or {}).get("lines", []))
+        money = (f" · your balance {html.escape(rows['Your balance'])} → {html.escape(rows['After it'])}"
+                 if "Your balance" in rows and "After it" in rows else
+                 (f"<br>{html.escape(rows[''])}" if rows.get("") else ""))
+        box = QLabel(f"Target: your public IPv{plan.af if plan else 4} address "
+                     f"<b>{html.escape(plan.public_ip if plan else '')}</b> (public on RIPE Atlas)<br>"
+                     f"Cost: {reverse.CREDITS} credits{money}")
+        box.setTextFormat(Qt.RichText)
+        box.setWordWrap(True)
+        box.setFrameShape(QFrame.StyledPanel)
+        box.setMargin(8)
+        layout.addWidget(box)
+        buttons = QDialogButtonBox(QDialogButtonBox.Cancel)
+        self.go = buttons.addButton("Run reverse trace", QDialogButtonBox.AcceptRole)
+        self.go.setEnabled(bool((credit_view or {}).get("can_run", True)))
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
 
 class UpdateDialog(QDialog):
     """Offer, download and check an update, one visible step at a time.

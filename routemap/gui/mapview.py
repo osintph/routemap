@@ -714,6 +714,178 @@ class _Overlay(QFrame):
         self.setAttribute(Qt.WA_StyledBackground, True)
 
 
+def _arc_item(a: tuple[float, float], b: tuple[float, float], pen: QPen, z: float) -> QGraphicsPathItem:
+    """A great-circle arc from *a* to *b* (lat, lon), as draw_route draws one."""
+    line = arcs.great_circle(a[0], a[1], b[0], b[1])
+    path = QPainterPath(to_scene(line[0][1], line[0][0]))
+    for lat, lon in line[1:]:
+        path.lineTo(to_scene(lon, lat))
+    item = QGraphicsPathItem(path)
+    item.setPen(pen)
+    item.setZValue(z)
+    return item
+
+
+class _Chip(QGraphicsObject):
+    """A small letter or label at constant screen size: a path's name on its
+    branch, or a diamond where a reverse trace splits from or rejoins the
+    forward route."""
+
+    def __init__(self, text: str, color: QColor, palette: theme.Palette, *, diamond: bool = False,
+                 tooltip: str = ""):
+        super().__init__()
+        self.text, self.color, self.palette, self.diamond = text, color, palette, diamond
+        self.setFlag(QGraphicsItem.ItemIgnoresTransformations, True)
+        self.setZValue(12)
+        if tooltip:
+            self.setToolTip(tooltip)
+        self.font = QFont()
+        self.font.setPixelSize(10)
+        self.font.setBold(True)
+        self.w = 16.0 if diamond else max(16.0, QFontMetricsF(self.font).horizontalAdvance(text) + 8)
+
+    def boundingRect(self):
+        return QRectF(-self.w / 2 - 2, -10, self.w + 4, 20)
+
+    def paint(self, painter, option, widget=None):
+        painter.setRenderHint(QPainter.Antialiasing)
+        if self.diamond:
+            painter.setPen(QPen(self.color, 2))
+            painter.setBrush(self.palette.overlay_bg)
+            painter.drawPolygon([QPointF(0, -7), QPointF(7, 0), QPointF(0, 7), QPointF(-7, 0)])
+            return
+        painter.setPen(QPen(self.palette.marker_ring, 1.2))
+        painter.setBrush(self.color)
+        painter.drawRoundedRect(QRectF(-self.w / 2, -8, self.w, 16), 4, 4)
+        painter.setPen(self.palette.marker_text)
+        painter.setFont(self.font)
+        painter.drawText(QRectF(-self.w / 2, -8, self.w, 16), Qt.AlignCenter, self.text)
+
+
+def _point(hop: dict | None) -> tuple[float, float] | None:
+    if not hop or hop.get("lat") is None or hop.get("lon") is None:
+        return None
+    return (hop["lat"], hop["lon"])
+
+
+def path_segments(route: dict) -> list[dict]:
+    """The steps of a path discovery to draw over the route: for each path,
+    every step into or out of a hop where the paths do not all answer from
+    the same router. Each is {"index", "id", "flows", "a", "b", "first"} with
+    a and b as (lat, lon); "first" marks the path's first such step, which
+    carries its letter. Every path gets its branch, the one the route itself
+    follows included."""
+    paths = ((route.get("paths") or {}).get("paths")) or []
+    if len(paths) < 2:
+        return []
+    answers: dict = {}
+    for p in paths:
+        for h in p.get("located") or []:
+            answers.setdefault(h.get("hop"), set()).add(h.get("address"))
+    split = {ttl for ttl, addrs in answers.items() if len(addrs) > 1}
+    origin = route.get("origin") or {}
+    start = (origin["lat"], origin["lon"]) if origin.get("lat") is not None else None
+    out: list[dict] = []
+    for index, p in enumerate(paths):
+        located = {h.get("hop"): h for h in p.get("located") or []}
+        prev, prev_diverged, first = start, False, True
+        for ttl in sorted(located):
+            here = _point(located[ttl])
+            diverged = ttl in split and located[ttl].get("address") is not None
+            if here is None:
+                continue
+            if prev is not None and here != prev and (diverged or prev_diverged):
+                out.append({"index": index, "id": p.get("id") or "?", "flows": len(p.get("flows") or []),
+                            "a": prev, "b": here, "first": first})
+                first = False
+            prev, prev_diverged = here, diverged
+    return out
+
+
+def reverse_segments(reverse_route: dict) -> list[tuple[tuple[float, float], tuple[float, float]]]:
+    """A reverse trace's steps, probe to user, as ((lat, lon), (lat, lon))."""
+    origin = reverse_route.get("origin") or {}
+    prev = (origin["lat"], origin["lon"]) if origin.get("lat") is not None else None
+    out = []
+    for hop in reverse_route.get("hops") or []:
+        here = _point(hop)
+        if here is None:
+            continue
+        if prev is not None and here != prev:
+            out.append((prev, here))
+        prev = here
+    return out
+
+
+def split_points(comparison: dict | None) -> list[tuple[float, float]]:
+    """Where a reverse trace leaves and rejoins the forward route: the forward
+    hop at each edge between an agreeing and a differing row."""
+    rows = (comparison or {}).get("rows") or []
+    out = []
+    for i, row in enumerate(rows):
+        if not row["same"] or not row.get("forward"):
+            continue
+        before_diff = i + 1 < len(rows) and not rows[i + 1]["same"]
+        after_diff = i > 0 and not rows[i - 1]["same"]
+        for hop in ([row["forward"]["hops"][-1]] if before_diff else []) + \
+                   ([row["forward"]["hops"][0]] if after_diff else []):
+            here = _point(hop)
+            if here is not None and here not in out:
+                out.append(here)
+    return out
+
+
+def draw_paths(scene: QGraphicsScene, route: dict, palette: theme.Palette,
+               selected: str | None = None) -> list:
+    """The branches of a path discovery over the route, in each path's colour,
+    with its letter on its first branch. *selected* draws that path alone at
+    full strength and the others faint."""
+    items: list = []
+    for seg in path_segments(route):
+        color = theme.path_color(palette, seg["index"])
+        if selected and seg["id"] != selected:
+            color.setAlpha(60)
+        pen = QPen(color, 2.6 if seg["id"] == selected else 2.0)
+        pen.setCosmetic(True)
+        pen.setCapStyle(Qt.RoundCap)
+        arc = _arc_item(seg["a"], seg["b"], pen, 6)
+        arc.setToolTip(f"Path {seg['id']}")
+        scene.addItem(arc)
+        items.append(arc)
+        if seg["first"]:
+            mid = arcs.great_circle(seg["a"][0], seg["a"][1], seg["b"][0], seg["b"][1])
+            lat, lon = mid[len(mid) // 2]
+            chip = _Chip(seg["id"], theme.path_color(palette, seg["index"]), palette,
+                         tooltip=f"Path {seg['id']}: {seg['flows']} flows")
+            chip.setPos(to_scene(lon, lat))
+            scene.addItem(chip)
+            items.append(chip)
+    return items
+
+
+def draw_reverse(scene: QGraphicsScene, reverse_route: dict, comparison: dict | None,
+                 palette: theme.Palette) -> list:
+    """A reverse trace, dashed in its own colour, from the probe back to the
+    user, with a diamond where it splits from the forward route and where it
+    rejoins it."""
+    color = theme.reverse_color(palette)
+    pen = QPen(color, 2.4, Qt.DashLine)
+    pen.setCosmetic(True)
+    pen.setCapStyle(Qt.RoundCap)
+    items: list = []
+    for a, b in reverse_segments(reverse_route):
+        arc = _arc_item(a, b, pen, 7)
+        arc.setToolTip("Reverse trace (RIPE Atlas probe to you)")
+        scene.addItem(arc)
+        items.append(arc)
+    for lat, lon in split_points(comparison):
+        chip = _Chip("", color, palette, diamond=True, tooltip="Forward and reverse split or rejoin here")
+        chip.setPos(to_scene(lon, lat))
+        scene.addItem(chip)
+        items.append(chip)
+    return items
+
+
 class MapView(QGraphicsView):
     """The interactive map.
 
@@ -743,6 +915,9 @@ class MapView(QGraphicsView):
         self.quiet_ms, self.hot_ms = 15.0, 60.0
         self.ghost: dict | None = None        # an earlier run, drawn faint under the route
         self.marks: dict | None = None        # hop -> diff mark, for the route
+        self.selected_path: str | None = None  # a path discovery's path shown alone (0.4.0)
+        self.reverse_route: dict | None = None  # a reverse trace over the route, and its comparison
+        self.reverse_cmp: dict | None = None
         self.detail_items: list = []          # the 1:10m world, built on first zoom-in
         self.ghost_markers: list = []
         self.label_items: list = []
@@ -827,7 +1002,8 @@ class MapView(QGraphicsView):
         for widget in (self.controls, self.legend, self.card, self.attribution):
             widget.setStyleSheet(css)
 
-    def _fill_legend(self, sources: list[str], extra: list[str] | None = None, rtt: bool = False):
+    def _fill_legend(self, sources: list[str], extra: list[str] | None = None, rtt: bool = False,
+                     paths: list | None = None, reverse: bool = False):
         while self.legend_layout.count():
             item = self.legend_layout.takeAt(0)
             old = item.widget()
@@ -901,6 +1077,22 @@ class MapView(QGraphicsView):
             line.addWidget(plain("silent stretch or country only"))
             line.addStretch(1)
             self.legend_layout.addWidget(dash)
+        if paths and len(paths) > 1:
+            self.legend_layout.addWidget(markup(f"<b>At least {len(paths)} paths</b>"))
+            for index, p in enumerate(paths[:8]):
+                color = theme.path_color(self.palette_, index)
+                loss = p.get("loss_pct")
+                rtt = p.get("rtt_to_target_ms")
+                detail = " · ".join(x for x in (f"{rtt:.0f} ms" if rtt is not None else "",
+                                                f"{loss:g}% loss" if loss is not None else "") if x)
+                self.legend_layout.addWidget(self._swatch_row(color, f"Path {p.get('id')}"
+                                                              + (f": {detail}" if detail else "")))
+            if len(paths) > 8:
+                self.legend_layout.addWidget(plain(f"and {len(paths) - 8} more in the Paths list"))
+        if reverse:
+            self.legend_layout.addWidget(markup("<b>Reverse trace</b>"))
+            self.legend_layout.addWidget(self._swatch_row(theme.reverse_color(self.palette_),
+                                                          "RIPE Atlas probe to you", dashed=True))
         # Children added to a visible widget are only shown on the next event
         # loop pass, so size the legend after showing them now, or it measures
         # itself empty (found with a live trace redrawing it once per hop).
@@ -909,6 +1101,19 @@ class MapView(QGraphicsView):
             if widget is not None:
                 widget.show()
         self.legend.adjustSize()
+
+    def _swatch_row(self, color: QColor, text: str, dashed: bool = False) -> QWidget:
+        row = QWidget()
+        line = QHBoxLayout(row)
+        line.setContentsMargins(0, 0, 0, 0)
+        line.setSpacing(6)
+        swatch = plain()
+        swatch.setFixedSize(18, 4)
+        swatch.setStyleSheet(f"border-top: 3px {'dashed' if dashed else 'solid'} {color.name()};")
+        line.addWidget(swatch)
+        line.addWidget(plain(text))
+        line.addStretch(1)
+        return row
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -971,6 +1176,9 @@ class MapView(QGraphicsView):
             self.route_rect, self.items_ = draw_route(self.scene(), self.route, self.palette_,
                                                       self.destination, quiet_ms=self.quiet_ms,
                                                       hot_ms=self.hot_ms, marks=self.marks)
+            self.items_ += draw_paths(self.scene(), self.route, self.palette_, self.selected_path)
+            if self.reverse_route is not None:
+                self.items_ += draw_reverse(self.scene(), self.reverse_route, self.reverse_cmp, self.palette_)
             if self.ghost is not None:
                 self.route_rect = self.route_rect.united(ghost_rect) if not ghost_rect.isNull() \
                     else self.route_rect
@@ -987,7 +1195,9 @@ class MapView(QGraphicsView):
                 extra.append("country")
             if any(g["silent"] for g in route_groups(self.route)):
                 extra.append("silent")
-            self._fill_legend(used, extra, rtt=any(h.get("min_rtt_ms") is not None for h in hops))
+            self._fill_legend(used, extra, rtt=any(h.get("min_rtt_ms") is not None for h in hops),
+                              paths=((self.route.get("paths") or {}).get("paths") or []),
+                              reverse=self.reverse_route is not None)
             self.legend.show()
         else:
             self.legend.hide()
@@ -1058,6 +1268,17 @@ class MapView(QGraphicsView):
         if (quiet_ms, hot_ms) != (self.quiet_ms, self.hot_ms):
             self.quiet_ms, self.hot_ms = quiet_ms, hot_ms
             self._draw_route_layer()
+
+    def set_selected_path(self, path_id: str | None):
+        """Show one discovered path at full strength and the others faint; None shows all."""
+        if path_id != self.selected_path:
+            self.selected_path = path_id
+            self._draw_route_layer()
+
+    def set_reverse(self, reverse_route: dict | None, comparison: dict | None):
+        """Draw a reverse trace over the route; None removes it."""
+        self.reverse_route, self.reverse_cmp = reverse_route, comparison
+        self._draw_route_layer()
 
     def set_comparison(self, ghost: dict | None, marks: dict | None):
         """Draw *ghost* (an earlier run) faint under the route, and ring the

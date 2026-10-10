@@ -279,6 +279,18 @@ def add_history(entry: dict, settings: Settings) -> list[dict]:
     return entries
 
 
+def attach_to_history(when: float, key: str, value: dict) -> bool:
+    """Store *value* under *key* in the history entry made at *when* (a reverse
+    trace joins the trace it reverses). False when that entry is gone."""
+    entries = load_history()
+    for entry in entries:
+        if isinstance(entry, dict) and entry.get("when") == when:
+            entry[key] = value
+            _atomic_write(history_path(), json.dumps(entries, ensure_ascii=False))
+            return True
+    return False
+
+
 def clear_history() -> int:
     count = len(load_history())
     try:

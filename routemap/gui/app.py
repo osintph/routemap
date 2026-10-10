@@ -18,7 +18,7 @@ from PySide6.QtCore import QByteArray, QObject, Qt, QTimer, QUrl
 from PySide6.QtGui import QDesktopServices, QGuiApplication, QIcon
 from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox
 
-from routemap import bugreport, config, dbip, imported, insight, live, service, updater
+from routemap import bugreport, config, dbip, imported, insight, live, reverse, service, updater
 from routemap.__about__ import (DISPLAY_NAME, NAME, REPO_URL, engine_line, version_line,
                                 CONTACT_EMAIL, WINDOWS_SIGNED, SITE_LINKED, SITE_URL,
                                 VERSION)
@@ -30,7 +30,7 @@ from routemap_engine import diff as route_diff
 from routemap.gui.mainwindow import MainWindow
 from routemap.gui.workers import Task
 
-LOCAL, PASTE, FILE, ATLAS = "local", "paste", "file", "atlas"
+LOCAL, PASTE, FILE, ATLAS, PATHS = "local", "paste", "file", "atlas", "paths"
 
 
 class Controller(QObject):
@@ -67,6 +67,9 @@ class Controller(QObject):
         w.trace_button.clicked.connect(self.trace_or_stop)
         w.act_stop.triggered.connect(self.stop)
         w.watch_button.clicked.connect(self.watch)
+        w.paths_button.clicked.connect(self.find_paths)
+        w.reverse_button.clicked.connect(self.reverse_trace)
+        w.paths.pathSelected.connect(w.map.set_selected_path)
         w.act_watch.triggered.connect(self.watch)
         w.act_reset_live.triggered.connect(self.reset_watch)
         w.live_bar.pauseToggled.connect(self.toggle_pause)
@@ -492,6 +495,7 @@ class Controller(QObject):
         entry = config.history_entry(body, target=target, trace_text=result["text"],
                                      argv=result.get("argv"), source=source)
         entry["origin_how"] = self.current["origin_how"]
+        self.current["history_when"] = entry["when"]
         config.add_history(entry, self.settings)
         self.refresh_history()
 
@@ -559,6 +563,8 @@ class Controller(QObject):
             self.w.show_result(doc["route"], self.current["target"], self.current["argv"],
                                trace_text=self.current["trace_text"])
             self._after_result()
+            if doc.get("reverse"):
+                self._show_reverse(doc["reverse"])
             return
         self.analyse_text(text, os.path.basename(path), FILE)
 
@@ -636,6 +642,7 @@ class Controller(QObject):
         dialog.clearHistoryRequested.connect(lambda: self._clear_history(dialog))
         dialog.updateDataRequested.connect(lambda: self.update_databases(dialog))
         dialog.importDataRequested.connect(lambda: self.import_city_database(dialog))
+        dialog.withdrawReverseRequested.connect(lambda: self.withdraw_reverse_consent(dialog))
         if not dialog.exec():
             return
         problems = dialog.values_into(self.settings)
@@ -651,6 +658,7 @@ class Controller(QObject):
         self._refresh_origin_status()
         self._refresh_tool_status()
         self._refresh_atlas_action()
+        self._refresh_reverse_action()
         self._refresh_compare_actions()
         self.refresh_history()
         self.w.map.set_thresholds(self.settings.rtt_quiet_ms, self.settings.rtt_hot_ms)
@@ -733,15 +741,169 @@ class Controller(QObject):
             self.current["session"] = e["session"]
             self.show_session(self.current)
             return
+        self.current["history_when"] = e["when"]
         self.leave_live()
         self.w.show_result(e["route"], e["target"], e.get("argv"), trace_text=e.get("trace_text", ""))
         self._after_result()
+        if e.get("reverse"):
+            self._show_reverse(e["reverse"])
 
     def clear_history(self):
         answer = QMessageBox.question(self.w, "Clear history",
                                       f"Delete all {len(self.history)} saved traces?")
         if answer == QMessageBox.Yes:
             self._clear_history()
+
+    # --------------------------------------------------------------- Paths ---
+    def find_paths(self):
+        """Path discovery (0.4.0): every path a per-flow load balancer offers,
+        each with its own loss and latency, inside the engine's probe caps."""
+        if self.watching() or self.busy():
+            return
+        try:
+            target = validate_target(self.w.target.text())
+        except InvalidTarget as exc:
+            self.w.summary.setText(f"<span style='color:#c0392b'>{_html(str(exc))}.</span>")
+            self.w.target.setFocus()
+            return
+        from routemap_engine import multipath
+        ok, why = multipath.available()
+        if not ok:
+            self.error("Paths", f"Path discovery cannot run on this system yet: {why}.")
+            return
+        self.leave_live()
+        self._end_comparison_quietly()
+        settings, origin = self.settings, self.origin
+
+        def job(on_line, on_progress, cancel, **_):
+            from routemap_engine import analyse_paths
+            on_progress("trace", "started", "finding paths")
+
+            def progress(p):
+                on_progress("trace", "started", f"hop {p['ttl']} · {p['paths']} paths so far · "
+                                                f"{p['probes']} of at most {p['budget']:,} probes")
+            d = multipath.discover(target, family=settings.ip_version, cancel=cancel, on_progress=progress,
+                                   options=multipath.Options(budget=settings.paths_budget))
+            text = d.trace_text()
+            for line in text.splitlines():
+                on_line(line)
+            on_progress("trace", "done")
+            route = asyncio.run(analyse_paths(d, origin[:2] if origin else None,
+                                              sources=service.sources_for(settings),
+                                              progress=lambda a, b, c: on_progress(a, b, c)))
+            return {"route": route, "text": text, "stopped": d.stopped_by == "cancel",
+                    "argv": ["icmp-paris", f"{d.flows_used} flows", f"{d.probes_sent} probes", target]}
+
+        self.w.show_tracing(target, ["icmp-paris", target])
+        self.w.set_state(f"Finding the paths to <b>{_html(target)}</b> (at most "
+                         f"{settings.paths_budget:,} probes, {multipath.MAX_RATE:g} a second)")
+        if origin:
+            self.w.map.set_origin(*origin)
+        self._run(job, target=target, source=PATHS)
+
+    # ------------------------------------------------------- reverse trace ---
+    def _refresh_reverse_action(self):
+        ready = bool(self.current and not self.current.get("session") and reverse.destination(
+            self.current["route"]) is not None)
+        self.w.reverse_button.setVisible(ready)
+        self.w.act_reverse.setEnabled(ready)
+        why = reverse.ready(self.settings)[1]
+        self.w.reverse_button.setToolTip(why or "Trace from a RIPE Atlas probe near the target back to you, "
+                                               f"and compare the two directions ({reverse.CREDITS} credits)")
+
+    def withdraw_reverse_consent(self, dialog=None):
+        """At once, not on OK: from now on no reverse trace runs until the
+        user agrees again."""
+        reverse.withdraw_consent(self.settings)
+        if dialog is not None:
+            dialog.settings.reverse_consent_at = ""
+            dialog.set_reverse_consent("")
+        self.w.statusBar().showMessage("Consent to reverse traces withdrawn.", 6000)
+
+    def reverse_trace(self):
+        """Plan (no credits), consent once, confirm every time, then run."""
+        c = self.current
+        if not c or self.busy() or self.watching():
+            return
+        ok, why = reverse.ready(self.settings)
+        if not ok:
+            self.error("Reverse trace", why)
+            if not (self.settings.atlas_enabled and self.settings.atlas_key):
+                self.open_settings(tab=dialogs.SettingsDialog.ATLAS_TAB)
+            return
+        settings, route, target = self.settings, c["route"], c["target"]
+
+        def plan_job(on_line, on_progress, cancel, **_):
+            on_progress("trace", "started", "choosing a RIPE Atlas probe near the target")
+            return asyncio.run(reverse.plan(route, settings))
+
+        task = Task(plan_job, self)
+        task.progress.connect(lambda s_, st, d: self.w.sources.set_state(s_, st, d or None))
+        task.succeeded.connect(lambda p: self._reverse_planned(p, target))
+        task.failed.connect(lambda m: (self.w.set_running(False), self.w.set_state(""),
+                                       self.error("Reverse trace", m)))
+        self.task = task
+        self.w.set_running(True)
+        self.w.set_state(f"Preparing a reverse trace from near <b>{_html(target)}</b>")
+        task.start()
+
+    def _reverse_planned(self, plan, target: str):
+        self.w.set_running(False)
+        self.w.set_state("")
+        s = self.settings
+        if not reverse.consented(s):
+            dialog = dialogs.ReverseConsentDialog(self.w, target=target, ip=plan.public_ip)
+            if not dialog.exec():
+                return
+            reverse.give_consent(s, _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"))
+        view = service.atlas_credit_view(plan.balance, reverse.CREDITS) if plan.balance else None
+        confirm = dialogs.ReverseConfirmDialog(self.w, target=target, plan=plan, credit_view=view)
+        if not confirm.exec():
+            return
+
+        def run_job(on_line, on_progress, cancel, **_):
+            on_progress("trace", "started", "scheduling")
+            result = reverse.run_sync(plan, s, consent=True, on_wait=lambda t: on_progress(
+                "trace", "started", f"waiting {t:.0f}s"))
+            on_line(f"Reverse trace: RIPE Atlas measurement {result['measurement_id']}")
+            for line in result["trace_text"].splitlines():
+                on_line(line)
+            on_progress("trace", "done")
+            return result
+
+        task = Task(run_job, self)
+        task.line.connect(self.w.live.append)
+        task.progress.connect(lambda s_, st, d: self.w.sources.set_state(s_, st, d or None))
+        task.succeeded.connect(self._reverse_done)
+        task.failed.connect(lambda m: (self.w.set_running(False), self.w.set_state(""),
+                                       self.error("Reverse trace", m)))
+        self.task = task
+        self.w.set_running(True)
+        self.w.set_state(f"Reverse trace from probe #{plan.probe.get('id')} (usually 30 to 90 s)")
+        task.start()
+
+    def _reverse_done(self, result: dict):
+        self.w.set_running(False)
+        self.w.set_state("")
+        if not self.current:
+            return
+        block = dict(result)
+        block["route"] = reverse.enrich(result["route"].to_dict())
+        self.current["reverse"] = block
+        if self.current.get("history_when") is not None:
+            config.attach_to_history(self.current["history_when"], "reverse", block)
+            self.refresh_history()
+        self._show_reverse(block)
+
+    def _show_reverse(self, block: dict):
+        if not self.current:
+            return
+        self.current["reverse"] = block
+        cmp = reverse.compare(self.current["route"], reverse.enrich(block["route"]))
+        self.current["reverse_comparison"] = cmp
+        self.w.reverse.set_comparison(block, cmp)
+        self.w.reverse.expand(True)
+        self.w.map.set_reverse(block["route"], cmp)
 
     # --------------------------------------------------------------- Atlas ---
     def atlas_trace(self):
@@ -830,6 +992,9 @@ class Controller(QObject):
         c = self.current
         if c is None:
             return
+        c.pop("reverse", None)
+        c.pop("reverse_comparison", None)
+        self._refresh_reverse_action()
         self.generation += 1
         generation = self.generation
         settings = self.settings
@@ -883,7 +1048,8 @@ class Controller(QObject):
         ins = c.get("insight")
         details = ((ins or {}).get("online") or {}).get("hops") or {}
         marks = (self.comparison or {}).get("diff", {}).get("new_marks")
-        self.w.table.set_hops(c["route"].get("hops") or [], details, marks)
+        self.w.table.set_hops(c["route"].get("hops") or [], details, marks,
+                              ((c["route"].get("paths") or {}).get("paths")))
         cmp = self.comparison
         self.w.insight.show_summary(c["route"], ins, origin_cc=self._origin_cc(),
                                     diff=cmp["diff"] if cmp else None,
@@ -1420,7 +1586,7 @@ def write_export(fmt: str, path: str, current: dict, *, dark_png: bool = False,
         text = service.export_json(route, target=target, trace_text=current.get("trace_text", ""),
                                    argv=current.get("argv"), source=current.get("source", LOCAL),
                                    origin_how=current.get("origin_how"), insight=ins, comparison=cmp,
-                                   session=current.get("session"))
+                                   session=current.get("session"), reverse=current.get("reverse"))
         with open(path, "w", encoding="utf-8") as handle:
             handle.write(text)
     elif fmt == "png":
