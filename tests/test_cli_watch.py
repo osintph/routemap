@@ -14,8 +14,8 @@ def network(monkeypatch):
             return probe.Reply(None, None)
         return probe.Reply(f"192.0.2.{ttl}", 3.0 * ttl, ttl == 4)
     monkeypatch.setattr(probe, "_probe", fake_probe)
-    monkeypatch.setattr(probe, "available", lambda: (True, ""))
-    monkeypatch.setattr(watch.socket, "gethostbyname", lambda host: "192.0.2.4")
+    monkeypatch.setattr(probe, "available", lambda family=4: (True, ""))
+    monkeypatch.setattr(probe, "resolve", lambda target, family="auto": "192.0.2.4")
 
 
 def test_json_at_the_end_is_a_version_3_export(network, monkeypatch, capsys):
@@ -24,7 +24,7 @@ def test_json_at_the_end_is_a_version_3_export(network, monkeypatch, capsys):
     out, err = capsys.readouterr()
     assert code == 0
     doc = json.loads(out)
-    assert doc["format_version"] == 3 and doc["session"]["cycles"] == 6
+    assert doc["format_version"] == 4 and doc["session"]["cycles"] == 6
     assert doc["session"]["stopped_by"] == "count" and doc["trace"]["source"] == "watch"
     assert [h["hop"] for h in doc["session"]["hops"]] == [1, 2, 3, 4]
     assert "Loss%" in err            # the table goes to stderr when stdout is JSON
@@ -58,7 +58,7 @@ def test_watch_options_need_watch(capsys):
 
 
 def test_no_prober_says_why(monkeypatch, capsys):
-    monkeypatch.setattr(probe, "available", lambda: (False, "ping_group_range excludes this user"))
+    monkeypatch.setattr(probe, "available", lambda family=4: (False, "ping_group_range excludes this user"))
     assert cli.main(["--watch", "example.net"]) == 3
     assert "ping_group_range" in capsys.readouterr().err
 
@@ -72,9 +72,9 @@ def test_durations(text, seconds):
 def test_compare_with_a_newer_export_says_why(tmp_path):
     import pathlib
     newer = tmp_path / "newer.json"
-    newer.write_text(json.dumps({"format": "routemap/route-export", "format_version": 4, "route": {}}))
+    newer.write_text(json.dumps({"format": "routemap/route-export", "format_version": 5, "route": {}}))
     trace = pathlib.Path(__file__).parent / "fixtures" / "routemap" / "heise_traceroute.txt"
     with pytest.raises(SystemExit) as exc:
         cli.main(["parse", str(trace), "--offline", "--origin", "Manila, PH", "--compare", str(newer), "--json"])
-    assert "made by a newer Route Map. This Route Map opens format 3 and older." in str(exc.value)
+    assert "made by a newer Route Map. This Route Map opens format 4 and older." in str(exc.value)
     assert "is not a route export" not in str(exc.value)

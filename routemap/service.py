@@ -28,7 +28,11 @@ ORIGIN_HOW_IP = "ip"
 EXPORT_FORMAT = "routemap/route-export"
 # 2 (0.2.0): optional "insight" (AS path, countries, RIPE data) and "comparison".
 # Readers of version 1 files keep working: both are additions.
-EXPORT_FORMAT_VERSION = 3          # 3 adds the optional "session" of continuous mode
+# 3 (0.3.0) adds the optional "session" of continuous mode. 4 (0.4.0) adds
+# "paths" in the route (path discovery), the optional "reverse" (a reverse
+# trace via RIPE Atlas) and "af". Every 0.4.0 export is version 4, so a
+# 0.3.0 reader says "Made by a newer Route Map" rather than dropping paths.
+EXPORT_FORMAT_VERSION = 4
 
 
 def startup() -> None:
@@ -150,21 +154,28 @@ def parse_origin_text(text: str) -> tuple[float, float, str]:
     return best["lat"], best["lon"], best["display"]
 
 
+def family(settings: config.Settings) -> int | None:
+    """4 or 6 when the user chose an IP version, None for the system's order."""
+    return {"4": 4, "6": 6}.get(settings.ip_version)
+
+
 async def resolve_origin(settings: config.Settings) -> tuple[float, float, str, str]:
-    """(lat, lon, label, how): the chosen origin, else one public IP lookup."""
+    """(lat, lon, label, how): the chosen origin, else one public IP lookup,
+    over the IP version the user chose (a dual-stack machine's IPv6 address
+    can be registered elsewhere than its IPv4 one)."""
     chosen = settings.origin()
     if chosen is not None:
         return chosen[0], chosen[1], chosen[2], settings.origin_mode
     if not policy.RIPESTAT_ALLOWED:
         raise RuntimeError(policy.RIPESTAT_OFF_NOTE)
-    me = await whereami.locate_me(user_agent=user_agent(), sourceapp=SOURCEAPP)
+    me = await whereami.locate_me(user_agent=user_agent(), sourceapp=SOURCEAPP, family=family(settings))
     return me["lat"], me["lon"], me["label"], ORIGIN_HOW_IP
 
 
 def trace_options(settings: config.Settings, tool: str, *, cancel: threading.Event | None = None,
                   on_line: Callable[[str], None] | None = None) -> TraceOptions:
     return TraceOptions(tool=tool, flags=settings.flags_for(tool), timeout=settings.timeout_seconds,
-                        cancel=cancel, on_line=on_line)
+                        cancel=cancel, on_line=on_line, family=settings.ip_version)
 
 
 def run(target: str, settings: config.Settings, **kwargs):
@@ -184,7 +195,7 @@ def analyse_sync(text_or_hops, origin, settings: config.Settings, progress=None)
 def export_json(route: Route | dict, *, target: str | None, trace_text: str,
                 argv: list[str] | None, source: str, origin_how: str | None,
                 insight: dict | None = None, comparison: dict | None = None,
-                session: dict | None = None) -> str:
+                session: dict | None = None, reverse: dict | None = None) -> str:
     """The JSON export: the route model plus how the trace was made."""
     body = route.to_dict() if isinstance(route, Route) else dict(route)
     document = {
@@ -198,6 +209,7 @@ def export_json(route: Route | dict, *, target: str | None, trace_text: str,
                   "argv": [os.path.basename(argv[0])] + list(argv[1:]) if argv else None,
                   "text": trace_text},
         "route": body,
+        "af": _family_of(body),
         # Only loss that reaches the destination; rate-limited hops by number.
         "loss": geo_loss_verdict(body.get("hops") or []),
         "schema": "https://github.com/osintph/routemap-engine/blob/main/routemap_engine/route.schema.json",
@@ -210,7 +222,20 @@ def export_json(route: Route | dict, *, target: str | None, trace_text: str,
         document["comparison"] = comparison
     if session:
         document["session"] = session
+    if reverse:
+        document["reverse"] = {k: reverse[k] for k in ("measurement_id", "probe", "af", "trace_text")
+                               if k in reverse}
+        rev = reverse.get("route")
+        document["reverse"]["route"] = rev.to_dict() if isinstance(rev, Route) else dict(rev or {})
     return json.dumps(document, indent=2, ensure_ascii=False) + "\n"
+
+
+def _family_of(route: dict) -> int | None:
+    """4 or 6: the family of the route's answering addresses, None when no hop answered."""
+    for hop in reversed(route.get("hops") or []):
+        for addr in hop.get("addresses") or []:
+            return 6 if ":" in addr else 4
+    return None
 
 
 def export_stem(target: str | None, when: _dt.datetime) -> str:

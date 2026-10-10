@@ -212,7 +212,8 @@ class Controller(QObject):
             return
         from routemap_engine import watch as _watch
         s = self.settings
-        options = _watch.WatchOptions(interval=s.live_interval, duration=s.live_duration_min * 60)
+        options = _watch.WatchOptions(interval=s.live_interval, duration=s.live_duration_min * 60,
+                                      family=s.ip_version)
         self._end_comparison_quietly()
         self.live_snap, self.live_route, self.live_target = None, None, target
         self.watcher = None

@@ -28,7 +28,7 @@ from routemap_engine.parse import PARSER_LABELS
 # 8 MB: an 8-hour continuous session with its plot data is about 4 MB (RM-12).
 MAX_FILE_BYTES = 8_000_000
 MAX_TEXT = 300
-FORMAT_VERSION = 4            # the newest export this version reads (service.EXPORT_FORMAT_VERSION)
+FORMAT_VERSION = 3            # the newest export this version reads (service.EXPORT_FORMAT_VERSION)
 MAX_ITEMS = 512
 MAX_TRACE_TEXT = 256_000
 SOURCES = ("local", "paste", "file", "atlas", "watch")
@@ -177,7 +177,7 @@ def _coerce(value, node: dict, key: str = "", where: str = "route"):
     if isinstance(value, list) and "array" in types:
         item = node.get("items") or {}
         out = []
-        for i, v in enumerate(value[:min(MAX_ITEMS, node.get("maxItems", MAX_ITEMS))]):
+        for i, v in enumerate(value[:MAX_ITEMS]):
             c = _coerce(v, item, {"addresses": "address", "hostnames": "hostname"}.get(key, key), f"{where}[{i}]")
             if c is not _DROP:
                 out.append(c)
@@ -363,27 +363,6 @@ def session(data) -> dict | None:
                         "hops": samples}}
 
 
-def reverse(data) -> dict | None:
-    """A reverse trace (0.4.0) rebuilt from a file, or None when it is not one."""
-    if not isinstance(data, dict):
-        return None
-    try:
-        rebuilt = route(data.get("route"))
-    except ImportRejected:
-        return None
-    probe_in = data.get("probe") if isinstance(data.get("probe"), dict) else {}
-    country = probe_in.get("country")
-    probe = {"id": _int(probe_in.get("id"), 1, 10**9), "asn": _int(probe_in.get("asn"), 1, 2**32 - 1),
-             "country": country.upper() if isinstance(country, str) and re.fullmatch(r"[A-Za-z]{2}", country) else None,
-             "distance_km": _num(probe_in.get("distance_km"), 0, 25_000),
-             "lat": _num(probe_in.get("lat"), -90, 90), "lon": _num(probe_in.get("lon"), -180, 180)}
-    if probe["lat"] is None or probe["lon"] is None:
-        probe["lat"] = probe["lon"] = None
-    return {"route": rebuilt, "measurement_id": _int(data.get("measurement_id"), 1, 10**12), "probe": probe,
-            "af": data.get("af") if data.get("af") in (4, 6) else None,
-            "trace_text": text(data.get("trace_text"), MAX_TRACE_TEXT, newlines=True) or ""}
-
-
 def export(document) -> dict:
     """What the app shows from a route export: the rebuilt route, the target, the
     trace text and how it was made. The saved insight is not kept."""
@@ -404,7 +383,6 @@ def export(document) -> dict:
         "origin_how": document.get("origin_how") if document.get("origin_how") in ORIGIN_HOWS else None,
         "exported_at": when if isinstance(when, str) and _WHEN.fullmatch(when[:40]) else None,
         "session": session(document.get("session")) if "session" in document else None,
-        "reverse": reverse(document.get("reverse")) if "reverse" in document else None,
     }
 
 
@@ -429,5 +407,4 @@ def history_entry(entry) -> dict | None:
             "trace_text": text(entry.get("trace_text"), MAX_TRACE_TEXT, newlines=True) or "",
             "source": entry.get("source") if entry.get("source") in SOURCES else "local",
             "origin_how": entry.get("origin_how") if entry.get("origin_how") in ORIGIN_HOWS else None,
-            "session": session(entry.get("session")) if "session" in entry else None,
-            "reverse": reverse(entry.get("reverse")) if "reverse" in entry else None}
+            "session": session(entry.get("session")) if "session" in entry else None}
