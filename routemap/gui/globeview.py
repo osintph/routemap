@@ -355,11 +355,17 @@ class GlobeView(QWidget):
     def _draw_overlays(self, p: QPainter, proj: Ortho, pal: theme.Palette, size: float):
         """A path discovery's branches and a reverse trace, as the flat map draws them."""
         from routemap.gui.mapview import path_segments, reverse_segments, split_points
-        for seg in path_segments(self.route):
+        segments = path_segments(self.route)
+        sharing: dict = {}
+        for seg in segments:
+            sharing.setdefault((seg["a"], seg["b"]), []).append(seg["id"])
+        for seg in segments:
+            group = sharing[(seg["a"], seg["b"])]
+            under = len(group) - 1 - group.index(seg["id"])
             color = theme.path_color(pal, seg["index"])
             if self.selected_path and seg["id"] != self.selected_path:
                 color.setAlpha(60)
-            pen = QPen(color, (2.6 if seg["id"] == self.selected_path else 2.0) * size)
+            pen = QPen(color, ((2.6 if seg["id"] == self.selected_path else 2.0) + 2.4 * under) * size)
             pen.setCapStyle(Qt.RoundCap)
             self._arc(p, proj, seg["a"], seg["b"], pen)
         if self.reverse_route is None:

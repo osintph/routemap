@@ -732,9 +732,10 @@ class _Chip(QGraphicsObject):
     forward route."""
 
     def __init__(self, text: str, color: QColor, palette: theme.Palette, *, diamond: bool = False,
-                 tooltip: str = ""):
+                 tooltip: str = "", dx: float = 0.0):
         super().__init__()
         self.text, self.color, self.palette, self.diamond = text, color, palette, diamond
+        self.dx = dx          # screen pixels to the side, for letters that share a branch
         self.setFlag(QGraphicsItem.ItemIgnoresTransformations, True)
         self.setZValue(12)
         if tooltip:
@@ -745,10 +746,11 @@ class _Chip(QGraphicsObject):
         self.w = 16.0 if diamond else max(16.0, QFontMetricsF(self.font).horizontalAdvance(text) + 8)
 
     def boundingRect(self):
-        return QRectF(-self.w / 2 - 2, -10, self.w + 4, 20)
+        return QRectF(self.dx - self.w / 2 - 2, -10, self.w + 4, 20)
 
     def paint(self, painter, option, widget=None):
         painter.setRenderHint(QPainter.Antialiasing)
+        painter.translate(self.dx, 0)
         if self.diamond:
             painter.setPen(QPen(self.color, 2))
             painter.setBrush(self.palette.overlay_bg)
@@ -822,11 +824,13 @@ def split_points(comparison: dict | None) -> list[tuple[float, float]]:
     hop at each edge between an agreeing and a differing row."""
     rows = (comparison or {}).get("rows") or []
     out = []
+    def differs(r):
+        return not r["same"] and not r.get("end")
     for i, row in enumerate(rows):
         if not row["same"] or not row.get("forward"):
             continue
-        before_diff = i + 1 < len(rows) and not rows[i + 1]["same"]
-        after_diff = i > 0 and not rows[i - 1]["same"]
+        before_diff = i + 1 < len(rows) and differs(rows[i + 1])
+        after_diff = i > 0 and differs(rows[i - 1])
         for hop in ([row["forward"]["hops"][-1]] if before_diff else []) + \
                    ([row["forward"]["hops"][0]] if after_diff else []):
             here = _point(hop)
@@ -841,11 +845,20 @@ def draw_paths(scene: QGraphicsScene, route: dict, palette: theme.Palette,
     with its letter on its first branch. *selected* draws that path alone at
     full strength and the others faint."""
     items: list = []
-    for seg in path_segments(route):
+    segments = path_segments(route)
+    # Paths that take the same step (two routers in one city) would hide each
+    # other: the earlier ones are drawn wider underneath, so each shows as a
+    # band, and their letters sit side by side.
+    sharing: dict = {}
+    for seg in segments:
+        sharing.setdefault((seg["a"], seg["b"]), []).append(seg["id"])
+    for seg in segments:
+        group = sharing[(seg["a"], seg["b"])]
+        under = len(group) - 1 - group.index(seg["id"])
         color = theme.path_color(palette, seg["index"])
         if selected and seg["id"] != selected:
             color.setAlpha(60)
-        pen = QPen(color, 2.6 if seg["id"] == selected else 2.0)
+        pen = QPen(color, (2.6 if seg["id"] == selected else 2.0) + 2.4 * under)
         pen.setCosmetic(True)
         pen.setCapStyle(Qt.RoundCap)
         arc = _arc_item(seg["a"], seg["b"], pen, 6)
@@ -856,7 +869,8 @@ def draw_paths(scene: QGraphicsScene, route: dict, palette: theme.Palette,
             mid = arcs.great_circle(seg["a"][0], seg["a"][1], seg["b"][0], seg["b"][1])
             lat, lon = mid[len(mid) // 2]
             chip = _Chip(seg["id"], theme.path_color(palette, seg["index"]), palette,
-                         tooltip=f"Path {seg['id']}: {seg['flows']} flows")
+                         tooltip=f"Path {seg['id']}: {seg['flows']} flows",
+                         dx=19.0 * (group.index(seg["id"]) - (len(group) - 1) / 2))
             chip.setPos(to_scene(lon, lat))
             scene.addItem(chip)
             items.append(chip)

@@ -60,6 +60,9 @@ class SettingsDialog(QDialog):
         self.settings = settings or Settings()
         self.setWindowTitle(f"{DISPLAY_NAME} Settings")
         self.setMinimumWidth(620)
+        # The Trace tab (IP version and the Paths budget since 0.4.0) needs this
+        # much to show every note whole; shorter, Qt squeezes the wrapped notes.
+        self.setMinimumHeight(720)
         layout = QVBoxLayout(self)
         self.tabs = QTabWidget(self)
         self.tabs.addTab(self._origin_page(origin_label), "Origin")
@@ -829,6 +832,11 @@ class ReverseConsentDialog(QDialog):
         buttons = QDialogButtonBox()
         self.allow = buttons.addButton("Allow reverse traces", QDialogButtonBox.AcceptRole)
         self.not_now = buttons.addButton("Not now", QDialogButtonBox.RejectRole)
+        # "Not now" is the default and looks it; Allow never becomes the
+        # default, so Enter and the button's look never suggest agreeing.
+        self.allow.setAutoDefault(False)
+        self.allow.setDefault(False)
+        self.not_now.setAutoDefault(True)
         self.not_now.setDefault(True)
         self.allow.setEnabled(False)
         self.agree.toggled.connect(self.allow.setEnabled)

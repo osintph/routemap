@@ -112,10 +112,16 @@ class _Flow:
         widths = [self.mm(w) * scale for w in widths_mm]
         pad = self.mm(1.2)
 
+        def wrap(cell: str, w: float, m: QFontMetricsF) -> int:
+            """Word wrap, or anywhere for a cell with a word wider than the
+            column (a 39-character IPv6 address has nothing to break at)."""
+            if m.boundingRect(QRectF(0, 0, w - 2 * pad, 1e6), int(Qt.TextWordWrap), cell).width() > w - 2 * pad:
+                return int(Qt.TextWrapAnywhere)
+            return int(Qt.TextWordWrap)
+
         def row_height(cells, f):
             m = QFontMetricsF(f, self.writer)
-            return max(m.boundingRect(QRectF(0, 0, w - 2 * pad, 1e6),
-                                      int(Qt.TextWordWrap), c).height()
+            return max(m.boundingRect(QRectF(0, 0, w - 2 * pad, 1e6), wrap(c, w, m), c).height()
                        for c, w in zip(cells, widths)) + 2 * pad
 
         def draw(cells, f, fill=None, row=None):
@@ -129,9 +135,10 @@ class _Flow:
             x = 0.0
             self.p.setFont(f)
             self.p.setPen(INK)
+            m = QFontMetricsF(f, self.writer)
             for i, (c, w) in enumerate(zip(cells, widths)):
                 self.p.setPen(MUTED if (row, i) in muted else INK)
-                flags = int(Qt.TextWordWrap | (Qt.AlignRight if i in align_right else Qt.AlignLeft))
+                flags = wrap(c, w, m) | int(Qt.AlignRight if i in align_right else Qt.AlignLeft)
                 self.p.drawText(QRectF(x + pad, self.y + pad, w - 2 * pad, h - 2 * pad), flags, c)
                 x += w
             self.p.setPen(QPen(RULE, self.mm(0.15)))
@@ -359,18 +366,19 @@ def _reverse_section(flow: "_Flow", rev: dict, cmp: dict | None) -> None:
     if cmp:
         flow.text(cmp.get("summary") or "", 9, bold=True, gap=1.5)
 
-        def cell(seg):
+        def cell(seg, prefix=""):
             if not seg:
                 return "(no hop)"
-            hops = seg["hops"]
-            n = f"{hops[0]['hop']}" if len(hops) == 1 else f"{hops[0]['hop']}-{hops[-1]['hop']}"
-            return f"{n}  {seg.get('place') or hops[0].get('address') or ''}"
+            numbers = sorted(h["hop"] for h in seg["hops"])
+            n = f"{numbers[0]}" if len(numbers) == 1 else f"{numbers[0]}-{numbers[-1]}"
+            return f"{prefix}{n}  {seg.get('place') or seg['hops'][0].get('address') or ''}"
         rows, muted = [], set()
         for i, row in enumerate(cmp.get("rows") or []):
             seg = row["forward"] or row["reverse"]
             rows.append([cell(row["forward"]), f"AS{seg['asn']}" if seg and seg.get("asn") else "",
-                         cell(row["reverse"]), "same" if row["same"] else "differs"])
-            if row["same"]:
+                         cell(row["reverse"], "r"),
+                         "same" if row["same"] else ("end" if row.get("end") else "differs")])
+            if row["same"] or row.get("end"):
                 muted |= {(i, c) for c in range(4)}
         flow.table(["Forward (you to target)", "Network", "Reverse (read you to target)", ""], rows,
                    [60, 22, 60, 16], muted=muted)
