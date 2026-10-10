@@ -128,10 +128,12 @@ async def plan(route: dict, settings: config.Settings, *, transport=None) -> Pla
 
 
 async def run(p: Plan, settings: config.Settings, *, consent: bool, on_wait=None, transport=None,
-              sources=None) -> dict:
+              sources=None, agreed_for_this_run: bool = False) -> dict:
     """Create the measurement (only with *consent*), wait for it and place it.
-    Returns the reverse block an export carries."""
-    if consent is not True or not consented(settings):
+    Returns the reverse block an export carries. The window needs the stored
+    consent as well; the CLI never reads it and passes *agreed_for_this_run*
+    when the user gave --publish-my-ip on that command."""
+    if consent is not True or not (consented(settings) or agreed_for_this_run is True):
         raise ReverseUnavailable("A reverse trace publishes your public IP address. It needs your "
                                  "agreement first (Settings › RIPE Atlas).")
     extra = {"transport": transport} if transport is not None else {}
