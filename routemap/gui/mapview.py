@@ -1529,9 +1529,12 @@ class MapView(QGraphicsView):
 def render_png(route: dict, *, width: int = 1600, height: int = 900, dark: bool = False,
                title: str = "", provenance: str = "", destination: str | None = None,
                quiet_ms: float = 15.0, hot_ms: float = 60.0, ghost: dict | None = None,
-               marks: dict | None = None) -> QImage:
+               marks: dict | None = None, reverse: dict | None = None,
+               reverse_cmp: dict | None = None) -> QImage:
     """The full route extent rendered off-screen, with legend and provenance.
-    *ghost* and *marks* draw a comparison, as on screen."""
+    *ghost* and *marks* draw a comparison, as on screen; a path discovery's
+    branches are drawn when the route has them, and *reverse* draws a reverse
+    trace over it."""
     palette = theme.with_rtt(theme.DARK if dark else theme.LIGHT)
     scene = build_scene(palette)
     markers = []
@@ -1541,6 +1544,9 @@ def render_png(route: dict, *, width: int = 1600, height: int = 900, dark: bool 
                                        hot_ms=hot_ms, ghost=True)
     main_rect, items = draw_route(scene, route, palette, destination, size=1.35, quiet_ms=quiet_ms,
                                   hot_ms=hot_ms, marks=marks)
+    items += draw_paths(scene, route, palette)
+    if reverse is not None:
+        items += draw_reverse(scene, reverse, reverse_cmp, palette)
     rect = main_rect if rect.isNull() else rect.united(main_rect)
     markers = markers_of(items)
     source = padded(rect, width / height)
@@ -1556,7 +1562,8 @@ def render_png(route: dict, *, width: int = 1600, height: int = 900, dark: bool 
     scene.render(painter, QRectF(0, 0, width, height), source, Qt.KeepAspectRatio)
 
     from routemap.gui.globeview import paint_legend
-    paint_legend(painter, QPointF(24, height - 24), palette, route, quiet_ms, hot_ms, size=1.35)
+    paint_legend(painter, QPointF(24, height - 24), palette, route, quiet_ms, hot_ms, size=1.35,
+                 reverse=reverse is not None)
 
     # Title top left, provenance bottom right.
     if title:

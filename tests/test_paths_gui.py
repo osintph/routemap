@@ -221,3 +221,24 @@ def test_a_reverse_trace_joins_its_trace_in_history_and_in_the_export(app, fake_
     doc = imported.export(json.loads(out.read_text()))
     assert doc["reverse"]["probe"]["id"] == 6012 and doc["route"]["paths"]["paths"]
     _close(app, w, c)
+
+
+def test_paths_and_a_reverse_trace_reach_the_png_and_the_pdf(app, fake_paths, monkeypatch, tmp_path):
+    from routemap.gui import mapview, report
+    from routemap.gui.app import write_export
+    runs, seen = [], {}
+    w, c = _controller(atlas_enabled=True, atlas_key="k", online_lookups=True)
+    _paths(app, w, c)
+    _planned(monkeypatch, runs, consent_answer=True)
+    c.reverse_trace()
+    assert _wait(app, lambda: c.current.get("reverse"))
+    real_png, real_paths, real_rev = mapview.render_png, report._paths_section, report._reverse_section
+    monkeypatch.setattr(mapview, "render_png", lambda *a, **k: seen.setdefault("png", []).append(k) or real_png(*a, **k))
+    monkeypatch.setattr(report, "_paths_section", lambda flow, route: seen.update(paths=True) or real_paths(flow, route))
+    monkeypatch.setattr(report, "_reverse_section", lambda flow, rev, cmp: seen.update(rev=cmp) or real_rev(flow, rev, cmp))
+    for fmt in ("png", "pdf"):
+        write_export(fmt, str(tmp_path / f"x.{fmt}"), c.current)
+        assert (tmp_path / f"x.{fmt}").stat().st_size > 10_000
+    assert all(k.get("reverse") is not None for k in seen["png"])
+    assert seen["paths"] and seen["rev"]["rows"]
+    _close(app, w, c)
