@@ -388,8 +388,9 @@ shows both directions side by side.
   change networks) and the cost, 60 credits. **Settings > RIPE Atlas >
   Withdraw consent** stops reverse traces at once until you agree again.
 - It usually takes 1 to 3 minutes, and longer when routers on the way back
-  do not answer: RIPE Atlas waits 4 seconds for each of 3 probes at a silent
-  hop before going on.
+  do not answer: Route Map asks the probe to wait 2 seconds for each of 3
+  replies at a hop (RIPE's default is 4), so a silent hop costs 6 seconds. A
+  router that answers slower than 2 seconds counts as silent.
 - The result is drawn dashed in its own colour, with diamonds where the two
   directions split and rejoin, and listed under the table aligned by network,
   not by hop number, with the rows that differ tinted. Different routes each

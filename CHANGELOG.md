@@ -31,6 +31,15 @@ list.
   shown side by side, aligned by network, the differing rows tinted, and the
   reverse route is drawn dashed with diamonds where the directions split and
   rejoin. It costs 60 credits; nothing is scheduled when no probe is found.
+- Reverse traces ask the probe to wait 2 seconds for each reply (RIPE's
+  default is 4), so a path whose routers stay silent takes about half as
+  long; a router slower than 2 seconds counts as silent. A trace usually takes
+  1 to 3 minutes. The answer to Atlas's final TTL 255 probe is shown as the
+  next hop with the note "TTL 255 probe", and Atlas hops are checked against
+  the probe's own position (a few kilometres), not the 300 km allowed for an
+  origin found from a public IP.
+- OVHcloud's backbone is placed from OVH's own router names (engine 0.7.0),
+  where the IP database put it in the wrong cities.
 - **Consent for reverse traces.** A reverse trace publishes your public IP
   address as the target of a public RIPE Atlas measurement. Before the first
   one Route Map says so and asks you to agree; nothing runs without that.
