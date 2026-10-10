@@ -8,7 +8,7 @@ flow fields. This records what Windows actually puts on the wire:
 * IcmpSendEcho: the identifier, sequence number and checksum of each echo
   request (the API has no parameter for any of them).
 * A TCP connect with TCP_FAIL_CONNECT_ON_ICMP_ERROR (Windows 10 2004+): the
-  source port, TTL and sequence of each SYN, and what WSAGetIcmpErrorInfo
+  source port, TTL and sequence of each SYN, and what TCP_ICMP_ERROR_INFO
   reports when a router answers with time exceeded.
 
 Packets are captured with pktmon and read from its pcapng. Contacts only
@@ -63,14 +63,17 @@ class ICMP_ERROR_INFO(ctypes.Structure):
                 ("type", ctypes.c_ubyte), ("code", ctypes.c_ubyte)]
 
 
+# ws2ipdef.h; WSASetFailConnectOnIcmpError and WSAGetIcmpErrorInfo are inline
+# wrappers around these options, not exports of ws2_32.dll (run 38033956629).
+TCP_NOSYNRETRIES = 9
+TCP_FAIL_CONNECT_ON_ICMP_ERROR = 18
+TCP_ICMP_ERROR_INFO = 19
+
+
 def tcp_probes(out):
     ws2 = ctypes.WinDLL("ws2_32.dll", use_last_error=True)
-    have = {name: hasattr(ws2, name) for name in ("WSASetFailConnectOnIcmpError", "WSAGetIcmpErrorInfo")}
-    out["tcp_api"] = have
-    if not all(have.values()):
-        return
-    ws2.WSASetFailConnectOnIcmpError.argtypes = [ctypes.c_size_t, ctypes.c_ulong]
-    ws2.WSAGetIcmpErrorInfo.argtypes = [ctypes.c_size_t, ctypes.POINTER(ICMP_ERROR_INFO)]
+    ws2.getsockopt.argtypes = [ctypes.c_size_t, ctypes.c_int, ctypes.c_int, ctypes.c_void_p,
+                               ctypes.POINTER(ctypes.c_int)]
     results = []
     for port in (33001, 33001, 33002):
         for ttl in (1, 2, 3):
@@ -80,7 +83,12 @@ def tcp_probes(out):
                 s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
                 s.bind(("0.0.0.0", port))
                 s.setsockopt(socket.IPPROTO_IP, socket.IP_TTL, ttl)
-                row["set_fail"] = ws2.WSASetFailConnectOnIcmpError(s.fileno(), 1)
+                for name, opt in (("nosynretries", TCP_NOSYNRETRIES), ("fail_on_icmp", TCP_FAIL_CONNECT_ON_ICMP_ERROR)):
+                    try:
+                        s.setsockopt(socket.IPPROTO_TCP, opt, 1)
+                        row[name] = "set"
+                    except OSError as exc:
+                        row[name] = f"refused winerror={getattr(exc, 'winerror', None)}"
                 s.settimeout(3)
                 t = time.perf_counter()
                 try:
@@ -90,13 +98,16 @@ def tcp_probes(out):
                     row["connect"] = f"{type(exc).__name__} winerror={getattr(exc, 'winerror', None)}"
                 row["ms"] = round((time.perf_counter() - t) * 1000, 1)
                 info = ICMP_ERROR_INFO()
-                rc = ws2.WSAGetIcmpErrorInfo(s.fileno(), ctypes.byref(info))
-                row["info_rc"] = rc
+                size = ctypes.c_int(ctypes.sizeof(info))
+                rc = ws2.getsockopt(s.fileno(), socket.IPPROTO_TCP, TCP_ICMP_ERROR_INFO, ctypes.byref(info),
+                                    ctypes.byref(size))
+                row["info_rc"], row["info_len"] = rc, size.value
                 row["info_err"] = ctypes.get_last_error() if rc else 0
-                raw = bytes(info.srcaddress.raw)
-                fam = struct.unpack("<H", raw[:2])[0]
-                row["icmp"] = {"family": fam, "src": socket.inet_ntoa(raw[4:8]) if fam == 2 else raw.hex(),
-                               "protocol": info.protocol, "type": info.type, "code": info.code}
+                if rc == 0 and size.value:
+                    raw = bytes(info.srcaddress.raw)
+                    fam = struct.unpack("<H", raw[:2])[0]
+                    row["icmp"] = {"family": fam, "src": socket.inet_ntoa(raw[4:8]) if fam == 2 else raw.hex(),
+                                   "protocol": info.protocol, "type": info.type, "code": info.code}
             except OSError as exc:
                 row["error"] = repr(exc)
             finally:
