@@ -879,7 +879,8 @@ class Controller(QObject):
                                        self.error("Reverse trace", m)))
         self.task = task
         self.w.set_running(True)
-        self.w.set_state(f"Reverse trace from probe #{plan.probe.get('id')} (usually 30 to 90 s)")
+        self.w.set_state(f"Reverse trace from probe #{plan.probe.get('id')} (usually 1 to 3 minutes; longer "
+                         "when routers on the way back do not answer)")
         task.start()
 
     def _reverse_done(self, result: dict):
@@ -963,17 +964,20 @@ class Controller(QObject):
                 measurement = await client.create(target, int(probe["id"]))
                 on_line(f"Measurement {measurement} scheduled: "
                         f"https://atlas.ripe.net/measurements/{measurement}/")
-                text = await client.wait(measurement, on_wait=lambda t: on_progress(
+                result = await client.wait_result(measurement, on_wait=lambda t: on_progress(
                     "trace", "started", f"waiting {t:.0f}s"))
+                text = atlas.to_trace_text(result)
                 for line in text.splitlines():
                     on_line(line)
                 on_progress("trace", "done")
                 probe_origin = None
                 label = f"RIPE Atlas probe #{probe['id']}"
                 if probe.get("lat") is not None:
-                    probe_origin = (round(probe["lat"], 2), round(probe["lon"], 2))
+                    probe_origin = (probe["lat"], probe["lon"])
                 route = await analyse(text, probe_origin, sources=service.sources_for(s),
-                                      progress=lambda a, b, c: on_progress(a, b, c))
+                                      progress=lambda a, b, c: on_progress(a, b, c),
+                                      origin_slack_km=atlas.PROBE_SLACK_KM)
+                atlas.mark_final_probe(route, atlas.final_probe(result))
                 if probe_origin:
                     route.origin["label"] = f"{label} near {route.origin['label']}"
                 return {"route": route, "text": text,
@@ -982,7 +986,8 @@ class Controller(QObject):
             return asyncio.run(go())
 
         self.w.show_tracing(target, ["RIPE Atlas", "traceroute", target], [], "scheduling")
-        self.w.set_state(f"Tracing <b>{target}</b> from a RIPE Atlas probe (usually 30 to 90 s)")
+        self.w.set_state(f"Tracing <b>{target}</b> from a RIPE Atlas probe (usually 1 to 3 minutes; longer "
+                         "when routers on the way do not answer)")
         self._run(job, target=target, source=ATLAS)
 
     # ------------------------------------------------------------- insight ---

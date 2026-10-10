@@ -177,3 +177,38 @@ def test_each_directions_own_ends_are_not_differences():
         [("Paris, FR", "Mumbai, IN")]
     assert result["summary"] == ("The paths differ between Singapore, SG and Frankfurt, DE: forward goes via "
                                  "Paris, FR, reverse via Mumbai, IN.")
+
+
+def test_a_real_reverse_trace_is_numbered_marked_and_checked_from_the_probe(monkeypatch, tmp_path):
+    """RIPE Atlas measurement 221303797 (the 0.7.0 release check), its real
+    result with the measured host's address replaced: the TTL 255 answer is
+    hop 22 with its note, and the physics check runs from probe 7036's own
+    position with the probe's few kilometres of slack, so the IP database's
+    48 km for a 0.406 ms first hop is rejected."""
+    import pathlib
+    from routemap_engine import atlas
+    from routemap_engine.geo import Sources
+    monkeypatch.setattr(config, "config_dir", lambda: tmp_path)
+    data = json.loads((pathlib.Path(__file__).parent / "fixtures" / "atlas_221303797.json").read_text())
+
+    async def no_sleep(_s):
+        return None
+    monkeypatch.setattr(atlas.asyncio, "sleep", no_sleep)
+
+    def handler(request):
+        if request.method == "POST":
+            return httpx.Response(201, json={"measurements": [221303797]})
+        return httpx.Response(200, json=[data["result"]])
+
+    async def ip_db(addresses):
+        return {"82.98.65.251": {"lat": 50.5332, "lon": 8.6838, "city": "Leihgestern", "cc": "DE"}}
+    s = settings()
+    reverse.give_consent(s, "2026-10-11T00:00:00Z")
+    p = reverse.Plan(af=4, public_ip="62.115.7.7", probe={"id": 7036, "asn": 12306, "country": "DE",
+                                                         "lat": data["probe"]["lat"], "lon": data["probe"]["lon"]})
+    block = asyncio.run(reverse.run(p, s, consent=True, transport=httpx.MockTransport(handler),
+                                    sources=Sources(hoiho=None, ip_db=ip_db, ptr=None)))
+    hops = block["route"].to_dict()["hops"]
+    assert [h["hop"] for h in hops][-1] == 22 and "answered the final TTL 255 probe" in hops[-1]["annotations"]
+    assert hops[0]["lat"] is None and "location impossible for RTT" in (hops[0]["reason"] or "")
+    assert block["route"].origin["lat"] == data["probe"]["lat"]

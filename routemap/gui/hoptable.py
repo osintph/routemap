@@ -80,6 +80,7 @@ NOTE_SHORT = {
     "likely asymmetric return path": "asymmetric return",
     "ICMP rate limiting, not real loss": "ICMP rate limiting",
     "destination or path does not answer ICMP": "no ICMP reply",
+    "answered the final TTL 255 probe": "TTL 255 probe",
 }
 
 
