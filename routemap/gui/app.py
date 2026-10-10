@@ -1598,7 +1598,8 @@ def write_export(fmt: str, path: str, current: dict, *, dark_png: bool = False,
                        "GeoNames CC BY 4.0" + (" · IP Geolocation by DB-IP" if mapview.uses_dbip(route) else ""),
             quiet_ms=settings.rtt_quiet_ms, hot_ms=settings.rtt_hot_ms,
             ghost=(cmp or {}).get("old_route"),
-            marks={int(k): v for k, v in ((cmp or {}).get("new_marks") or {}).items()} or None)
+            marks={int(k): v for k, v in ((cmp or {}).get("new_marks") or {}).items()} or None,
+            reverse=(current.get("reverse") or {}).get("route"), reverse_cmp=_reverse_cmp(current))
         if not image.save(path, "PNG"):
             raise OSError(f"could not write {path}")
     elif fmt == "pdf":
@@ -1607,9 +1608,18 @@ def write_export(fmt: str, path: str, current: dict, *, dark_png: bool = False,
                          source=current.get("source", LOCAL), when=when, include_trace=include_trace,
                          insight=ins, comparison=cmp, quiet_ms=settings.rtt_quiet_ms,
                          hot_ms=settings.rtt_hot_ms, origin_cc=_origin_cc_of(route),
-                         session=current.get("session"))
+                         session=current.get("session"), reverse=current.get("reverse"),
+                         reverse_cmp=_reverse_cmp(current))
     else:
         raise ValueError(f"unknown export format {fmt!r}")
+
+
+def _reverse_cmp(current: dict) -> dict | None:
+    """The forward/reverse comparison for *current*, computed when it was not kept."""
+    rev = current.get("reverse")
+    if not rev:
+        return None
+    return current.get("reverse_comparison") or reverse.compare(current["route"], reverse.enrich(rev["route"]))
 
 
 def _origin_cc_of(route: dict) -> str | None:

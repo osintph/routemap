@@ -319,7 +319,7 @@ class GlobeView(QWidget):
         p.drawEllipse(QPointF(proj.cx, proj.cy), r, r)
         if self.route is not None:
             paint_legend(p, QPointF(rect.left() + 12, rect.bottom() - 12), pal, self.route,
-                         self.quiet_ms, self.hot_ms, size=size)
+                         self.quiet_ms, self.hot_ms, size=size, reverse=self.reverse_route is not None)
 
     @staticmethod
     def _ring(path: QPainterPath, proj: Ortho, ring) -> None:
@@ -654,7 +654,8 @@ class GlobeView(QWidget):
         return None
 
 
-def _legend_rows(route: dict, pal: theme.Palette, quiet_ms: float, hot_ms: float) -> list:
+def _legend_rows(route: dict, pal: theme.Palette, quiet_ms: float, hot_ms: float,
+                 reverse: bool = False) -> list:
     """The rows both legends show, in order: (kind, value)."""
     from routemap.gui.mapview import route_groups
     hops = route.get("hops") or []
@@ -672,6 +673,17 @@ def _legend_rows(route: dict, pal: theme.Palette, quiet_ms: float, hot_ms: float
                  ("line", (pal.route_hot, f"{hot_ms:.0f} ms or more"
                                           + (", dash-dot line" if pal.hot_dashed else ""))),
                  ("dash", (pal.route_gap, "silent stretch or country only"))]
+    paths = (route.get("paths") or {}).get("paths") or []
+    if len(paths) > 1:
+        rows.append(("title", f"At least {len(paths)} paths"))
+        for index, path in enumerate(paths[:8]):
+            rtt, loss = path.get("rtt_to_target_ms"), path.get("loss_pct")
+            detail = " · ".join(x for x in (f"{rtt:.0f} ms" if rtt is not None else "",
+                                            f"{loss:g}% loss" if loss is not None else "") if x)
+            rows.append(("line", (theme.path_color(pal, index), f"Path {path.get('id')}"
+                                  + (f": {detail}" if detail else ""))))
+    if reverse:
+        rows += [("title", "Reverse trace"), ("dash", (theme.reverse_color(pal), "RIPE Atlas probe to you"))]
     return rows
 
 
@@ -682,9 +694,10 @@ def legend_rows(route: dict, pal: theme.Palette, quiet_ms: float, hot_ms: float)
 
 
 def paint_legend(p: QPainter, bottom_left: QPointF, pal: theme.Palette, route: dict,
-                 quiet_ms: float, hot_ms: float, size: float = 1.0) -> QRectF:
-    """The flat map's legend, painted: sources used, then the RTT step colours."""
-    rows = _legend_rows(route, pal, quiet_ms, hot_ms)
+                 quiet_ms: float, hot_ms: float, size: float = 1.0, reverse: bool = False) -> QRectF:
+    """The flat map's legend, painted: sources used, the RTT step colours,
+    then any discovered paths and a reverse trace."""
+    rows = _legend_rows(route, pal, quiet_ms, hot_ms, reverse)
     font = QFont()
     font.setPixelSize(round(12 * size))
     bold = QFont(font)
