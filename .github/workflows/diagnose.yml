@@ -46,10 +46,15 @@ jobs:
         if: runner.os == 'Windows'
         shell: bash
         run: python packaging/diagnose_flow.py | tee flow.json
+      - name: The D3 TCP flow check script runs (Windows; the runner drops ICMP, so it reports FAIL here)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File packaging/flowcheck_tcp.ps1 heise.de 443 4 | Tee-Object flowcheck.txt
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: diag-${{ matrix.os }}
           path: |
             diag.json
             flow.json
+            flowcheck.txt
           if-no-files-found: ignore
