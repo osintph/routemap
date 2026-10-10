@@ -168,6 +168,20 @@ class MapPane(QWidget):
         self.flat.set_comparison(ghost, marks)
         self.globe.set_comparison(ghost, marks)
 
+    def clear_overlays(self):
+        """Forget a selected path and a reverse trace; the next drawing leaves them out."""
+        for view in (self.flat, self.globe):
+            view.selected_path = None
+            view.reverse_route = view.reverse_cmp = None
+
+    def set_selected_path(self, path_id):
+        self.flat.set_selected_path(path_id)
+        self.globe.set_selected_path(path_id)
+
+    def set_reverse(self, reverse_route, comparison):
+        self.flat.set_reverse(reverse_route, comparison)
+        self.globe.set_reverse(reverse_route, comparison)
+
     def show_card(self, title, body):
         self.flat.show_card(title, body)
         self.globe.show_card(title, body)

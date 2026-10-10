@@ -1,4 +1,5 @@
-"""Smaller pieces of the main window: unplaced hops, live output, history, progress."""
+"""Smaller pieces of the main window: unplaced hops, paths, the reverse trace, live
+output, history, progress."""
 from __future__ import annotations
 
 import html
@@ -75,6 +76,155 @@ class UnplacedPanel(QWidget):
 
     def expand(self, on: bool = True):
         self.toggle.setChecked(on)
+
+
+class _Collapsible(QWidget):
+    """A toggle that opens a tree below it, like the unplaced hops."""
+
+    def __init__(self, headers: list[str], widths: list[int], parent=None, height: int = 190):
+        super().__init__(parent)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        self.toggle = QToolButton(self)
+        self.toggle.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        self.toggle.setArrowType(Qt.RightArrow)
+        self.toggle.setCheckable(True)
+        self.toggle.setAutoRaise(True)
+        self.toggle.toggled.connect(self._expand)
+        self.note = QLabel(self)
+        self.note.setWordWrap(True)
+        self.note.setTextFormat(Qt.RichText)
+        self.list = QTreeWidget(self)
+        self.list.setColumnCount(len(headers))
+        self.list.setHeaderLabels(headers)
+        self.list.setRootIsDecorated(False)
+        self.list.setAlternatingRowColors(True)
+        self.list.setMaximumHeight(height)
+        self.list.header().setStretchLastSection(True)
+        for i, w in enumerate(widths):
+            self.list.setColumnWidth(i, w)
+        self.list.hide()
+        self.note.hide()
+        layout.addWidget(self.toggle)
+        layout.addWidget(self.note)
+        layout.addWidget(self.list)
+
+    def _expand(self, on: bool):
+        self.toggle.setArrowType(Qt.DownArrow if on else Qt.RightArrow)
+        self.list.setVisible(on)
+        self.note.setVisible(on and bool(self.note.text()))
+
+    def expand(self, on: bool = True):
+        self.toggle.setChecked(on)
+
+
+class PathsPanel(_Collapsible):
+    """The paths of a path discovery (0.4.0): one row each, with its share of
+    the flows, where it differs, and its own latency and loss to the target.
+    Choosing a row shows that path alone on the map."""
+
+    pathSelected = Signal(object)        # a path id, or None for all
+
+    def __init__(self, parent=None):
+        super().__init__(["Path", "Flows", "Differs at", "RTT to target", "Loss to target"],
+                         [52, 72, 220, 100], parent)
+        self.list.itemSelectionChanged.connect(self._selected)
+        self.setAccessibleName("Paths")
+        self.set_paths(None, [])
+
+    def _selected(self):
+        items = self.list.selectedItems()
+        self.pathSelected.emit(items[0].data(0, Qt.UserRole) if items else None)
+
+    def set_paths(self, discovery: dict | None, hops: list[dict]):
+        self.list.clear()
+        paths = (discovery or {}).get("paths") or []
+        self.setVisible(bool(discovery))
+        if not discovery:
+            return
+        main = {h.get("hop"): h.get("address") for h in hops}
+        total = sum(len(p.get("flows") or []) for p in paths) or 1
+        for index, p in enumerate(paths):
+            differs = []
+            for h in p.get("located") or []:
+                if h.get("address") and h.get("address") != main.get(h.get("hop")):
+                    differs.append(f"hop {h['hop']}: " + (h.get("place") or h.get("hostname") or h["address"]))
+            loss, sent, lost = p.get("loss_pct"), p.get("sent") or 0, p.get("lost") or 0
+            rtt = p.get("rtt_to_target_ms")
+            item = QTreeWidgetItem([
+                p.get("id") or "?", f"{len(p.get('flows') or [])} of {total}",
+                "; ".join(differs) or ("the route shown" if len(paths) > 1 else "one path"),
+                "" if rtt is None else f"{rtt:.1f} ms",
+                "" if loss is None else f"{loss:g}% ({lost} of {sent})"])
+            item.setData(0, Qt.UserRole, p.get("id"))
+            item.setForeground(0, theme.path_color(theme.current(), index))
+            for col in (1, 3, 4):
+                item.setTextAlignment(col, Qt.AlignRight | Qt.AlignVCenter)
+            self.list.addTopLevelItem(item)
+        word = "path" if len(paths) == 1 else "paths"
+        self.toggle.setText(f"Paths: at least {len(paths)} {word}")
+        notes = ["“At least”: some load balancers do not spread ICMP probes, so a path can stay hidden."]
+        if discovery.get("per_packet_hops"):
+            notes.append("Per-packet balancing at hop " + ", ".join(str(h) for h in discovery["per_packet_hops"])
+                         + ": every packet may take another router there, so it does not make paths.")
+        if discovery.get("stopped_by") == "budget":
+            notes.append(f"Stopped at the probe budget ({discovery.get('probes_sent')} probes); "
+                         "more paths may exist.")
+        self.note.setText("<span style='color:gray'>" + "<br>".join(html.escape(n) for n in notes) + "</span>")
+        self.toggle.setEnabled(True)
+
+
+class ReversePanel(_Collapsible):
+    """A reverse trace beside the forward one (0.4.0), aligned by network:
+    forward on the left, reverse on the right read from you to the target,
+    tinted where the two directions take different routers."""
+
+    def __init__(self, parent=None):
+        super().__init__(["Forward (you to target)", "Network", "Reverse (read you to target)"],
+                         [190, 90], parent, height=260)
+        self.setAccessibleName("Reverse trace")
+        self.set_comparison(None, None)
+
+    @staticmethod
+    def _cell(seg: dict | None) -> str:
+        if not seg:
+            return "(no hop)"
+        hops = seg["hops"]
+        n = (f"{hops[0]['hop']}" if len(hops) == 1 else f"{hops[0]['hop']}-{hops[-1]['hop']}")
+        return f"{n}  {seg.get('place') or hops[0].get('address') or ''}"
+
+    def set_comparison(self, reverse: dict | None, comparison: dict | None):
+        self.list.clear()
+        self.setVisible(bool(reverse))
+        if not reverse:
+            return
+        from PySide6.QtGui import QColor
+        tint = QColor(theme.diff_color(theme.current(), "moved"))     # a copy: the palette's own stays opaque
+        tint.setAlpha(45)
+        for row in (comparison or {}).get("rows") or []:
+            seg = row["forward"] or row["reverse"]
+            asn = seg.get("asn") if seg else None
+            item = QTreeWidgetItem([self._cell(row["forward"]), f"AS{asn}" if asn else "",
+                                    self._cell(row["reverse"])])
+            if not row["same"]:
+                for col in range(3):
+                    item.setBackground(col, tint)
+                item.setToolTip(0, "The two directions take different routers here.")
+            self.list.addTopLevelItem(item)
+        probe = reverse.get("probe") or {}
+        msm = reverse.get("measurement_id")
+        self.toggle.setText("Reverse trace: " + ("the same path both ways" if not (comparison or {}).get("differs")
+                                                 else "the directions differ"))
+        self.note.setText(
+            f"<span style='color:gray'>{html.escape((comparison or {}).get('summary') or '')}<br>"
+            f"RIPE Atlas probe #{html.escape(str(probe.get('id')))}"
+            + (f" in AS{html.escape(str(probe.get('asn')))}" if probe.get("asn") else "")
+            + (f", {html.escape(str(probe.get('country')))}" if probe.get("country") else "")
+            + (f" · <a href='https://atlas.ripe.net/measurements/{int(msm)}/'>measurement {int(msm)}</a>"
+               if msm else "")
+            + " · different routes each way are normal on the Internet.</span>")
+        self.note.setOpenExternalLinks(True)
 
 
 class LiveOutput(QWidget):

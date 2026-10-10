@@ -10,7 +10,7 @@ Help.
 
 The probe is chosen by routemap_engine.atlas.select_reverse_probe: a connected
 probe in the destination's AS, else its country, nearest the destination,
-never in the user's own AS. One reverse trace costs 60 credits (RIPE's
+never in the user's own AS. One reverse trace costs atlas.TRACEROUTE_CREDITS (RIPE's
 formula, checked in the engine's tests).
 """
 from __future__ import annotations

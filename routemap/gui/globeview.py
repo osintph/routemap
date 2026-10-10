@@ -90,6 +90,9 @@ class GlobeView(QWidget):
         self.destination: str | None = None
         self.origin_only: tuple | None = None
         self.ghost: dict | None = None
+        self.selected_path: str | None = None
+        self.reverse_route: dict | None = None
+        self.reverse_cmp: dict | None = None
         self.marks: dict | None = None
         self.selected_hops: set[int] = set()
         self.quiet_ms, self.hot_ms = 15.0, 60.0
@@ -303,6 +306,7 @@ class GlobeView(QWidget):
             self._draw_route(p, proj, self.ghost, pal, ghost=True, size=size)
         if self.route is not None:
             self._draw_route(p, proj, self.route, pal, size=size)
+            self._draw_overlays(p, proj, pal, size)
         elif self.origin_only is not None:
             lat, lon, label = self.origin_only
             x, y, vis = proj.project(lat, lon)
@@ -340,6 +344,46 @@ class GlobeView(QWidget):
             else:
                 path.moveTo(x, y)
                 drawing = True
+
+    def _arc(self, p: QPainter, proj: Ortho, a, b, pen: QPen):
+        path = QPainterPath()
+        self._line(path, proj, [(lon, lat) for lat, lon in arcs.great_circle(a[0], a[1], b[0], b[1])])
+        p.setPen(pen)
+        p.setBrush(Qt.NoBrush)
+        p.drawPath(path)
+
+    def _draw_overlays(self, p: QPainter, proj: Ortho, pal: theme.Palette, size: float):
+        """A path discovery's branches and a reverse trace, as the flat map draws them."""
+        from routemap.gui.mapview import path_segments, reverse_segments, split_points
+        for seg in path_segments(self.route):
+            color = theme.path_color(pal, seg["index"])
+            if self.selected_path and seg["id"] != self.selected_path:
+                color.setAlpha(60)
+            pen = QPen(color, (2.6 if seg["id"] == self.selected_path else 2.0) * size)
+            pen.setCapStyle(Qt.RoundCap)
+            self._arc(p, proj, seg["a"], seg["b"], pen)
+        if self.reverse_route is None:
+            return
+        color = theme.reverse_color(pal)
+        pen = QPen(color, 2.4 * size, Qt.DashLine)
+        pen.setCapStyle(Qt.RoundCap)
+        for a, b in reverse_segments(self.reverse_route):
+            self._arc(p, proj, a, b, pen)
+        for lat, lon in split_points(self.reverse_cmp):
+            x, y, vis = proj.project(lat, lon)
+            if vis:
+                p.setPen(QPen(color, 2 * size))
+                p.setBrush(pal.overlay_bg)
+                d = 7 * size
+                p.drawPolygon([QPointF(x, y - d), QPointF(x + d, y), QPointF(x, y + d), QPointF(x - d, y)])
+
+    def set_selected_path(self, path_id: str | None):
+        self.selected_path = path_id
+        self.update()
+
+    def set_reverse(self, reverse_route: dict | None, comparison: dict | None):
+        self.reverse_route, self.reverse_cmp = reverse_route, comparison
+        self.update()
 
     def _graticule(self, p: QPainter, proj: Ortho, pal: theme.Palette):
         pen = QPen(pal.coast, 0.5)
