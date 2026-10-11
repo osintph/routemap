@@ -1,6 +1,6 @@
 """The route summary for a path discovery: per path, never the merged table.
 
-A discovery's hop table merges every path's routers; the single-trace
+A discovery's hop table merges the routers of all its paths; the single-trace
 summaries (the loss sentence, one AS path, one country list) run on it would
 string paths together (AS12306 > AS1299 > AS12306) and lose the ones that
 differ (France for the Marseille paths). Here each is worked out per path and
