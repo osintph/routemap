@@ -494,9 +494,9 @@ class MainWindow(QMainWindow):
             detail += f" · Hoiho ruleset {html.escape(str(ruleset))}"
         if discovery:
             word = "path" if len(paths) == 1 else "paths"
-            detail = (f"{discovery.get('flows')} flows · {discovery.get('probes_sent')} probes in "
-                      f"{discovery.get('seconds', 0):.0f} s · Paris, {service.paths_method(discovery)} · "
-                      + detail)
+            from routemap.gui.hoptable import probes_text
+            detail = (f"{discovery.get('flows')} flows · {probes_text(discovery)} · "
+                      f"Paris, {service.paths_method(discovery)} · " + detail)
             head = f"<b>{len(hops)} hops, at least {len(paths)} {word}</b>"
         else:
             head = f"<b>{len(hops)} hops</b>, {placed} placed on the map"

@@ -337,9 +337,9 @@ def _paths_section(flow: "_Flow", route: dict) -> None:
                [12, 18, 90, 25, 28], align_right={1, 3})
     method = service.paths_method(disc)
     tcp = disc.get("method") == "tcp-paris"
-    notes = [f"{disc.get('flows')} flows ({'source ports' if tcp else 'flow identifiers'}), "
-             f"{disc.get('probes_sent')} {method} probes in "
-             f"{disc.get('seconds', 0):.0f} s, at most 20 a second. Paris traceroute keeps each flow on one "
+    from routemap.gui.hoptable import probes_text
+    notes = [f"{disc.get('flows')} flows ({'source ports' if tcp else 'flow identifiers'}), {method} probes: "
+             f"{probes_text(disc)}, at most 20 a second. Paris traceroute keeps each flow on one "
              "path; flows are added at each hop until the multipath detection algorithm's stopping rule is "
              "met at 95% confidence. Each path's latency comes from ten probes to the target on its flows."
              ] + path_notes(disc)

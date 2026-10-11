@@ -215,6 +215,36 @@ class InsightPanel(QScrollArea):
             self.sections["loss"][1].setAccessibleName("Loss: " + text)
             self._show("loss", True)
 
+    def _paths_summary(self, route: dict, discovery: dict, s: dict):
+        """A path discovery: AS paths and countries per path, the paths that
+        share one listed together, and the target per path; never the
+        single-trace sentences run on the merged table."""
+        from routemap import pathsummary
+        local = any(h.get("source") == "local" for h in route.get("hops") or [])
+        lines = []
+        for ids, steps in pathsummary.as_paths(route):
+            chain = " &gt; ".join(f"<b>AS{html.escape(str(st['asn']))}</b> "
+                                  f"{html.escape(str(st['org']).split()[0].rstrip(',') if st['org'] else '')}"
+                                  for st in steps)
+            lines.append(f"{html.escape(ids)}: " + (_muted("local hops") + " &gt; " if local else "") + chain)
+        self.sections["path"][1].setText("<br>".join(lines) or _muted("No AS numbers on any path."))
+        self._show("path", True)
+        lines = []
+        for ids, cs in pathsummary.countries(route):
+            parts = ([f"{html.escape(s['origin_cc'])} {_muted('(origin)')}"] if s.get("origin_cc") else [])
+            for c in cs:
+                item = html.escape(c["cc"]) + (" " + _muted("(country only)") if c["country_only"] else "")
+                if c["sensitive"]:
+                    item += " " + badge("sensitive", "sensitive")
+                parts.append(item)
+            lines.append(f"{html.escape(ids)}: " + " &gt; ".join(parts))
+        self.sections["countries"][1].setText("<br>".join(lines))
+        self._show("countries", bool(lines))
+        text = pathsummary.target_summary(discovery)
+        self.sections["loss"][1].setText(html.escape(text))
+        self.sections["loss"][1].setAccessibleName("To the target: " + text)
+        self._show("loss", True)
+
     def _show(self, key: str, on: bool):
         head, content = self.sections[key]
         head.setVisible(on and bool(head.text()))
@@ -231,8 +261,14 @@ class InsightPanel(QScrollArea):
     def show_summary(self, route: dict, ins: dict | None, *, origin_cc: str | None = None,
                      diff: dict | None = None, diff_label: str = ""):
         s = insight_mod.summary(route, ins, origin_cc)
+        discovery = route.get("paths") or {}
+        self.sections["loss"][0].setText(("To the target, per path" if discovery.get("paths") else "Loss").upper())
+        if discovery.get("paths"):
+            self._paths_summary(route, discovery, s)
         # AS path
-        if s["as_path"]:
+        if discovery.get("paths"):
+            pass
+        elif s["as_path"]:
             parts = []
             for step in s["as_path"]:
                 name = f"<b>AS{html.escape(str(step['asn']))}</b> {html.escape(str(step['short']))}"
@@ -248,7 +284,9 @@ class InsightPanel(QScrollArea):
                                                     "or the ASN database is missing."))
             self._show("path", True)
         # countries
-        if s["countries"]:
+        if discovery.get("paths"):
+            pass
+        elif s["countries"]:
             parts = []
             if s["origin_cc"]:
                 parts.append(f"{s['origin_cc']} {_muted('(origin)')}")
@@ -269,7 +307,9 @@ class InsightPanel(QScrollArea):
             self._show("anycast", False)
         # loss: the destination's, with the hops that only rate-limit named
         loss = s.get("loss") or {}
-        if loss.get("text"):
+        if discovery.get("paths"):
+            pass
+        elif loss.get("text"):
             self.sections["loss"][1].setText(html.escape(loss["text"]))
             self.sections["loss"][1].setAccessibleName("Loss: " + loss["text"])
             self._show("loss", True)
