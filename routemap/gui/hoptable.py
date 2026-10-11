@@ -42,6 +42,96 @@ PATH_WIDTHS = [40, 70, *WIDTHS[1:]]
 ALL_PATHS = "all"
 
 
+PATH_LETTERS = "ABCDEFGHIJKLMNOP"
+
+
+def letters(ids: list[str]) -> str:
+    """Path letters, runs of three or more as a range: "A-D F H-M"."""
+    order = sorted({i for i in ids if i in PATH_LETTERS}, key=PATH_LETTERS.index)
+    out, run = [], []
+    for i in order:
+        if run and PATH_LETTERS.index(i) == PATH_LETTERS.index(run[-1]) + 1:
+            run.append(i)
+            continue
+        if run:
+            out.append(f"{run[0]}-{run[-1]}" if len(run) >= 3 else " ".join(run))
+        run = [i]
+    if run:
+        out.append(f"{run[0]}-{run[-1]}" if len(run) >= 3 else " ".join(run))
+    return " ".join(out + sorted(i for i in ids if i not in PATH_LETTERS))
+
+
+def path_differences(paths: list[dict]) -> dict[str, list[dict]]:
+    """Where each path differs: the hops at which two paths got answers from
+    different addresses, with this path's answer there. A hop a path did not
+    answer is no difference."""
+    answers: dict[int, set] = {}
+    for p in paths:
+        for h in p.get("located") or []:
+            if h.get("address"):
+                answers.setdefault(h.get("hop"), set()).add(h["address"])
+    split = {hop for hop, addrs in answers.items() if len(addrs) > 1}
+    return {p.get("id"): [h for h in p.get("located") or [] if h.get("address") and h.get("hop") in split]
+            for p in paths}
+
+
+def differs_text(entries: list[dict], sep: str = "; ") -> str:
+    return sep.join(f"hop {h['hop']}: {h.get('place') or h.get('hostname') or h['address']}" for h in entries)
+
+
+def flows_cell(path: dict, discovery: dict) -> str:
+    """A path's flows out of every flow the discovery used."""
+    total = discovery.get("flows") or sum(len(p.get("flows") or []) for p in discovery.get("paths") or [])
+    return f"{len(path.get('flows') or [])} of {total}"
+
+
+def target_column(discovery: dict) -> str:
+    """Over ICMP the last column is loss to the target; over TCP it counts the
+    connection attempts the target answered, which a server can also refuse
+    to answer, so it is not presented as path loss."""
+    return "Target answered" if discovery.get("method") == "tcp-paris" else "Loss to target"
+
+
+def target_cell(path: dict, discovery: dict) -> str:
+    sent, lost = path.get("sent") or 0, path.get("lost") or 0
+    if not sent:
+        return ""
+    if discovery.get("method") == "tcp-paris":
+        return f"{sent - lost} of {sent}"
+    return f"{path.get('loss_pct') or 0:g}% ({lost} of {sent})"
+
+
+def unlisted_flows(discovery: dict) -> int:
+    """Flows in paths beyond the list's cap (the discovery found more paths)."""
+    listed = sum(len(p.get("flows") or []) for p in discovery.get("paths") or [])
+    return max(0, (discovery.get("flows") or 0) - listed) if discovery.get("paths_capped") else 0
+
+
+def path_notes(discovery: dict) -> list[str]:
+    """The notes every view of a discovery shows under its paths."""
+    from routemap import service
+    method = service.paths_method(discovery)
+    notes = [f"“At least”: some load balancers do not spread {method.split()[0]} probes, so a path can stay "
+             "hidden."]
+    if discovery.get("method") == "tcp-paris":
+        notes.append("Target answered: of ten connection attempts per path, spaced so no port is reused at "
+                     "once, how many the target answered. A server can ignore attempts, so a shortfall is not "
+                     "necessarily loss on the path.")
+    if discovery.get("per_packet_hops"):
+        notes.append("Per-packet balancing at hop " + ", ".join(str(h) for h in discovery["per_packet_hops"])
+                     + ": every packet may take another router there, so it does not make paths.")
+    hidden = unlisted_flows(discovery)
+    if discovery.get("paths_capped"):
+        notes.append(f"More paths were found than the {len(discovery.get('paths') or [])} listed"
+                     + (f"; {hidden} flows took them." if hidden else "."))
+    if discovery.get("stopped_by") == "budget":
+        notes.append(f"Stopped at the probe budget ({discovery.get('probes_sent')} probes); more paths may exist.")
+    if discovery.get("local_failures"):
+        notes.append(f"{discovery['local_failures']} probes could not be sent by this computer; they are not "
+                     "counted as loss.")
+    return notes
+
+
 def path_rows(hops: list[dict], paths: list[dict]) -> list[dict]:
     """The table's rows for a route with discovered *paths*: every hop, with
     the paths through it, and after a hop where the paths answered from more
@@ -59,13 +149,22 @@ def path_rows(hops: list[dict], paths: list[dict]) -> list[dict]:
                 located.setdefault(entry["address"], entry)
         ids_here = [i for ids in by_addr.values() for i in ids]
         main = dict(hop)
-        main["_paths"] = ALL_PATHS if len(by_addr) <= 1 and len(ids_here) == len(paths) else " ".join(sorted(ids_here))
+        main["_paths"] = ALL_PATHS if len(by_addr) <= 1 and len(ids_here) == len(paths) else letters(ids_here)
+        if len(by_addr) >= 2:
+            # The routers are the sub-rows; the hop's own row summarises them
+            # instead of repeating the first.
+            places = {located[a].get("place") for a in by_addr}
+            main["_summary"] = f"{len(by_addr)} routers"
+            main["place"] = places.pop() if len(places) == 1 else None
+            main["hostname"], main["hostnames"] = None, []
+            if main["place"] is None:
+                main["source"] = None
         rows.append(main)
         if len(by_addr) < 2:
             continue
         for n, (addr, ids) in enumerate(by_addr.items()):
             sub = {k: v for k, v in located[addr].items()}
-            sub.update({"hop": ttl, "_sub": "abcdefghijklmnop"[n % 16], "_paths": " ".join(ids),
+            sub.update({"hop": ttl, "_sub": "abcdefghijklmnop"[n % 16], "_paths": letters(ids),
                         "addresses": [addr], "hostnames": [located[addr]["hostname"]] if located[addr].get("hostname")
                         else [], "annotations": [], "loss_pct": None})
             rows.append(sub)
@@ -174,6 +273,8 @@ class HopModel(QAbstractTableModel):
             loss = hop.get("loss_pct")
             return "" if loss is None else f"{loss:.1f}%"
         if key == "address":
+            if hop.get("_summary"):
+                return hop["_summary"]
             extra = len(hop.get("addresses") or []) - 1
             return (hop.get("address") or "*") + (f" (+{extra})" if extra > 0 else "")
         if key == "hostname":

@@ -325,21 +325,14 @@ def _paths_section(flow: "_Flow", route: dict) -> None:
     disc = route.get("paths") or {}
     paths = disc.get("paths") or []
     flow.heading(f"Paths: at least {len(paths)} · {service.paths_method(disc)}")
-    answers: dict = {}
-    for p in paths:
-        for h in p.get("located") or []:
-            answers.setdefault(h.get("hop"), set()).add(h.get("address"))
-    total = sum(len(p.get("flows") or []) for p in paths) or 1
+    from routemap.gui.hoptable import differs_text, flows_cell, path_differences, path_notes, target_cell, target_column
+    differences = path_differences(paths)
     rows = []
     for p in paths:
-        differs = "; ".join(f"hop {h['hop']}: {h.get('place') or h.get('hostname') or h['address']}"
-                            for h in p.get("located") or []
-                            if h.get("address") and len(answers.get(h.get("hop"), ())) > 1)
-        loss = p.get("loss_pct")
-        rows.append([p.get("id") or "?", f"{len(p.get('flows') or [])} of {total}",
-                     differs or "the same as the others", _fmt(p.get("rtt_to_target_ms")),
-                     "" if loss is None else f"{loss:g}% ({p.get('lost')} of {p.get('sent')})"])
-    flow.table(["Path", "Flows", "Differs at", "RTT to target", "Loss to target"], rows,
+        rows.append([p.get("id") or "?", flows_cell(p, disc),
+                     differs_text(differences.get(p.get("id")) or []) or "the same as the others",
+                     _fmt(p.get("rtt_to_target_ms")), target_cell(p, disc)])
+    flow.table(["Path", "Flows", "Differs at", "RTT to target", target_column(disc)], rows,
                [12, 18, 90, 25, 28], align_right={1, 3})
     method = service.paths_method(disc)
     tcp = disc.get("method") == "tcp-paris"
@@ -347,14 +340,8 @@ def _paths_section(flow: "_Flow", route: dict) -> None:
              f"{disc.get('probes_sent')} {method} probes in "
              f"{disc.get('seconds', 0):.0f} s, at most 20 a second. Paris traceroute keeps each flow on one "
              "path; flows are added at each hop until the multipath detection algorithm's stopping rule is "
-             "met at 95% confidence. Each path's latency and loss come from ten probes to the target on one "
-             "of its flows.",
-             f"At least: some load balancers do not spread {method.split()[0]} probes, so a path can stay hidden."]
-    if disc.get("per_packet_hops"):
-        notes.append("Per-packet balancing at hop " + ", ".join(str(h) for h in disc["per_packet_hops"])
-                     + ": every packet may take another router there, so it does not make paths.")
-    if disc.get("stopped_by") == "budget":
-        notes.append("The discovery stopped at its probe budget; more paths may exist.")
+             "met at 95% confidence. Each path's latency comes from ten probes to the target on its flows."
+             ] + path_notes(disc)
     for note in notes:
         flow.text(note, 8.5, color=MUTED, gap=1)
 

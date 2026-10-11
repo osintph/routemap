@@ -31,7 +31,7 @@ def app():
 class Lab:
     """Two paths split at hop 3 (Paris or Marseille); Marseille loses a ping in two."""
     def __init__(self):
-        self.t, self.queue, self.n = 1000.0, [], 0
+        self.t, self.queue, self.n, self.marseille_pings = 1000.0, [], 0, 0
 
     def clock(self):
         return self.t
@@ -42,8 +42,10 @@ class Lab:
     def send(self, flow, ttl, seq):
         r = self.route(flow)
         self.n += 1
-        if ttl == multipath.PING_HOPS and flow % 2 == 0 and self.n % 2:
-            return
+        if ttl == multipath.PING_HOPS and flow % 2 == 0:
+            self.marseille_pings += 1
+            if self.marseille_pings % 2:
+                return
         rtt = (0.002, 0.040, 0.200, 0.230, 0.250)[min(ttl, 5) - 1]     # what the distances allow
         self.queue.append((self.t + rtt, FlowAnswer(seq, r[min(ttl, 5) - 1], ttl >= 5, self.t + rtt)))
 

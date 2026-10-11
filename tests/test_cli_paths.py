@@ -78,7 +78,7 @@ def test_cli_paths_prints_the_hops_and_the_paths(monkeypatch, capsys):
     out = capsys.readouterr().out
     rows = [line.split() for line in out.splitlines()]
     assert "at least 2 paths" in out and ["3a", "A"] in [r[:2] for r in rows] and ["3b", "B"] in [r[:2] for r in rows]
-    assert '"At least": some load balancers do not spread ICMP probes.' in out
+    assert '“At least”: some load balancers do not spread ICMP probes, so a path can stay hidden.' in out
     assert any(line.startswith("A ") for line in out.splitlines())
 
 
