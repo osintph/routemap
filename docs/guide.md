@@ -223,8 +223,11 @@ times with one of its own flows, for its own latency and loss to the target.
 What you see: the routes where the paths part ways drawn one colour per path,
 with the path's letter; a **Paths** column in the hop table and a sub-row for
 each router at a hop where the paths differ (3a, 3b); and the **Paths** list
-under the table with each path's share of the flows, where it differs, and its
-RTT and loss to the target. Choose a path in the list to show it alone on the
+under the table with each path's share of the flows, the hop where it splits from
+the path listed before it (hover for every hop where it differs; the PDF and the
+JSON have them all), and its RTT to the target. A path whose probes never got
+an answer from the target says **not reached** and names the last hop that
+answered. Choose a path in the list to show it alone on the
 map.
 
 "At least": some load balancers do not spread every kind of probe, so a path
@@ -234,7 +237,7 @@ way (per-packet balancing) is named, and does not make paths of its own.
 **Limits**, so it never floods a network: at most 20 probes a second (the
 default rate of CAIDA's scamper), at most 1,500 probes per discovery, the pings
 included (Settings > Trace can lower this), at most 64 flows, and it stops
-after 3 silent hops. A discovery takes one to two minutes: 1,500 probes at 20 a
+after 3 silent hops. A discovery takes one to three minutes: 1,500 probes at 20 a
 second is 75 seconds of sending, and each round of probes waits up to a second
 for the routers that do not answer. No
 administrator rights are needed anywhere.

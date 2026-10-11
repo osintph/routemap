@@ -144,16 +144,16 @@ class PathsPanel(_Collapsible):
         self.setVisible(bool(discovery))
         if not discovery:
             return
-        from routemap.gui.hoptable import differs_text, flows_cell, path_differences, target_cell, target_column
-        self.list.setHeaderLabels(["Path", "Flows", "Differs at", "RTT to target", target_column(discovery)])
+        from routemap.gui.hoptable import (differs_text, flows_cell, path_differences, rtt_cell, split_text,
+                                           target_cell, target_column)
+        self.list.setHeaderLabels(["Path", "Flows", "Splits from", "RTT to target", target_column(discovery)])
         differences = path_differences(paths)
         for index, p in enumerate(paths):
-            differs = differs_text(differences.get(p.get("id")) or [])
-            rtt = p.get("rtt_to_target_ms")
-            item = QTreeWidgetItem([
-                p.get("id") or "?", flows_cell(p, discovery),
-                differs or ("the same as the others" if len(paths) > 1 else "one path"),
-                "" if rtt is None else f"{rtt:.1f} ms", target_cell(p, discovery)])
+            item = QTreeWidgetItem([p.get("id") or "?", flows_cell(p, discovery), split_text(paths, index),
+                                    rtt_cell(p), target_cell(p, discovery)])
+            full = differs_text(differences.get(p.get("id")) or [], "<br>")
+            if full:
+                item.setToolTip(2, "<b>Differs at</b><br>" + full)
             item.setData(0, Qt.UserRole, p.get("id"))
             item.setForeground(0, theme.path_color(theme.current(), index))
             for col in (1, 3, 4):
