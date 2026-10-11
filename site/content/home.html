@@ -90,7 +90,7 @@
   computer that sleeps leaves a gap, not loss. It never probes faster than mtr's defaults and stops
   by itself after an hour; export the session as PDF or JSON and compare it like any trace.
   <a href="/docs/guide/#continuous-mode">How it works</a>.</p>
-  <p><strong>Paths</strong> finds every route a load balancer can send your packets along, with
+  <p><strong>Paths</strong> finds the paths a load balancer spreads your traffic over; some may stay hidden. It uses
   Paris traceroute and the multipath detection algorithm's stopping rule, and gives each path its
   own latency and loss: on the map one colour per path, in the table a row per router where they
   part ways. At most 20 probes a second and 1,500 in all. <strong>Reverse trace</strong> asks a

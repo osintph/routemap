@@ -206,7 +206,7 @@ answering is not reported as lost hops. The PDF includes the comparison.
 
 ## Paths
 
-**Paths** (next to Trace), **Trace > Find All Paths** (Ctrl+Shift+T) or
+**Paths** (next to Trace), **Trace > Find Paths** (Ctrl+Shift+T) or
 `routemap TARGET --paths` finds the paths a load balancer can send your packets
 along, each with its own loss and latency. Many networks spread traffic over
 several equal routes; an ordinary trace shows one of them, or a mix of them

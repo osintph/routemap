@@ -775,8 +775,8 @@ def path_segments(route: dict) -> list[dict]:
     every step into or out of a hop where the paths do not all answer from
     the same router. Each is {"index", "id", "flows", "a", "b", "first"} with
     a and b as (lat, lon); "first" marks the path's first such step, which
-    carries its letter. Every path gets its branch, the one the route itself
-    follows included."""
+    carries its letter. Each path found gets its branch, the one the route
+    itself follows included."""
     paths = ((route.get("paths") or {}).get("paths")) or []
     if len(paths) < 2:
         return []

@@ -756,8 +756,9 @@ class Controller(QObject):
 
     # --------------------------------------------------------------- Paths ---
     def find_paths(self):
-        """Path discovery (0.4.0): every path a per-flow load balancer offers,
-        each with its own loss and latency, inside the engine's probe caps."""
+        """Path discovery (0.4.0): the paths a per-flow load balancer spreads the
+        probes over (at least those; some may stay hidden), each with its own
+        loss and latency, inside the engine's probe caps."""
         if self.watching() or self.busy():
             return
         try:

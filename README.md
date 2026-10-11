@@ -22,7 +22,7 @@ RIPE's route collectors see for the destination, its recent BGP activity and a
 typical latency from RIPE Atlas. Flat map or globe, lines coloured by the RTT
 each step added, and a comparison with an earlier run.
 
-**Paths** finds every route a load balancer can send your packets along
+**Paths** finds the paths a load balancer spreads your traffic over; some may stay hidden
 (Paris traceroute and the multipath detection algorithm, at most 20 probes a
 second), each with its own loss and latency. **Reverse trace** asks a RIPE
 Atlas probe near the target to trace back to you and compares the two

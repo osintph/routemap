@@ -742,8 +742,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--duration", default=None,
                         help="with --watch: stop after this long, e.g. 90s, 10m, 2h (5 min to 8 h; default 1 h)")
     parser.add_argument("--paths", action="store_true",
-                        help="find every path a load balancer can send packets along (ICMP Paris, TCP port 443 on Windows; at most "
-                             "20 probes a second); prints the hops and the paths, or exports with --json etc.")
+                        help="find the paths a load balancer spreads your traffic over; some may stay hidden (ICMP Paris, TCP "
+                             "port 443 on Windows; at most 20 probes a second); prints the hops and the paths, or exports with --json etc.")
     parser.add_argument("--reverse", action="store_true",
                         help="also trace back from a RIPE Atlas probe near the target to your public IP "
                              "(public on RIPE Atlas; needs --publish-my-ip)")

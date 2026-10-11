@@ -6,12 +6,12 @@ uses [Semantic Versioning](https://semver.org/).
 
 ## [0.4.0-beta.1] - 2026-10-11
 
-"Paths": every path a load balancer offers, the route back via RIPE Atlas,
-and IPv6 end to end. The engine is routemap-engine 0.7.0, which has its own
+"Paths": the paths a load balancer spreads your traffic over, the route back
+via RIPE Atlas, and IPv6 end to end. The engine is routemap-engine 0.7.0, which has its own
 list.
 
 ### Added
-- **Paths** (a button next to Trace, Trace > Find All Paths, Ctrl+Shift+T,
+- **Paths** (a button next to Trace, Trace > Find Paths, Ctrl+Shift+T,
   `routemap TARGET --paths`): finds the paths a per-flow load balancer can
   send your packets along, with Paris traceroute and the multipath detection
   algorithm's stopping rule at 95% confidence, and gives each path its own
