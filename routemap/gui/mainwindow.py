@@ -73,8 +73,8 @@ class MainWindow(QMainWindow):
         self.trace_button.setMinimumWidth(96)
         self.trace_button.setMinimumHeight(30)
         self.paths_button = QPushButton("Paths", central)
-        self.paths_button.setToolTip("Find every path a load balancer can send your packets along, with "
-                                     "each path's own loss and latency (Ctrl+Shift+T)")
+        self.paths_button.setToolTip("Find the paths a load balancer spreads your traffic over; some may "
+                                     "stay hidden. Each path gets its own loss and latency (Ctrl+Shift+T)")
         self.paths_button.setMinimumHeight(30)
         self.watch_button = QPushButton("Watch", central)
         self.watch_button.setToolTip("Trace continuously: every hop probed once a cycle, mtr style "
@@ -234,7 +234,7 @@ class MainWindow(QMainWindow):
         self.act_trace = QAction("Trace", self)
         self.act_trace.triggered.connect(self.trace_button.click)
         self.act_stop = QAction("Stop", self, shortcut=QKeySequence("Ctrl+."))
-        self.act_paths = QAction("Find All Paths", self, shortcut=QKeySequence("Ctrl+Shift+T"))
+        self.act_paths = QAction("Find Paths", self, shortcut=QKeySequence("Ctrl+Shift+T"))
         self.act_paths.triggered.connect(self.paths_button.click)
         self.act_reverse = QAction("Reverse Trace via RIPE Atlas…", self)
         self.act_reverse.setEnabled(False)
