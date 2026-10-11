@@ -144,20 +144,16 @@ class PathsPanel(_Collapsible):
         self.setVisible(bool(discovery))
         if not discovery:
             return
-        main = {h.get("hop"): h.get("address") for h in hops}
-        total = sum(len(p.get("flows") or []) for p in paths) or 1
+        from routemap.gui.hoptable import differs_text, flows_cell, path_differences, target_cell, target_column
+        self.list.setHeaderLabels(["Path", "Flows", "Differs at", "RTT to target", target_column(discovery)])
+        differences = path_differences(paths)
         for index, p in enumerate(paths):
-            differs = []
-            for h in p.get("located") or []:
-                if h.get("address") and h.get("address") != main.get(h.get("hop")):
-                    differs.append(f"hop {h['hop']}: " + (h.get("place") or h.get("hostname") or h["address"]))
-            loss, sent, lost = p.get("loss_pct"), p.get("sent") or 0, p.get("lost") or 0
+            differs = differs_text(differences.get(p.get("id")) or [])
             rtt = p.get("rtt_to_target_ms")
             item = QTreeWidgetItem([
-                p.get("id") or "?", f"{len(p.get('flows') or [])} of {total}",
-                "; ".join(differs) or ("the route shown" if len(paths) > 1 else "one path"),
-                "" if rtt is None else f"{rtt:.1f} ms",
-                "" if loss is None else f"{loss:g}% ({lost} of {sent})"])
+                p.get("id") or "?", flows_cell(p, discovery),
+                differs or ("the same as the others" if len(paths) > 1 else "one path"),
+                "" if rtt is None else f"{rtt:.1f} ms", target_cell(p, discovery)])
             item.setData(0, Qt.UserRole, p.get("id"))
             item.setForeground(0, theme.path_color(theme.current(), index))
             for col in (1, 3, 4):
@@ -166,15 +162,8 @@ class PathsPanel(_Collapsible):
         word = "path" if len(paths) == 1 else "paths"
         method = service.paths_method(discovery)
         self.toggle.setText(f"Paths: at least {len(paths)} {word} · {method}")
-        kind = method.split()[0]
-        notes = [f"Probes: {method}.",
-                 f"“At least”: some load balancers do not spread {kind} probes, so a path can stay hidden."]
-        if discovery.get("per_packet_hops"):
-            notes.append("Per-packet balancing at hop " + ", ".join(str(h) for h in discovery["per_packet_hops"])
-                         + ": every packet may take another router there, so it does not make paths.")
-        if discovery.get("stopped_by") == "budget":
-            notes.append(f"Stopped at the probe budget ({discovery.get('probes_sent')} probes); "
-                         "more paths may exist.")
+        from routemap.gui.hoptable import path_notes
+        notes = [f"Probes: {method}."] + path_notes(discovery)
         self.note.setText("<span style='color:gray'>" + "<br>".join(html.escape(n) for n in notes) + "</span>")
         self.toggle.setEnabled(True)
 

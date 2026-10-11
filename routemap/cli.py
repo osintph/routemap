@@ -257,30 +257,35 @@ def _paths_text(route: dict) -> str:
     disc = route.get("paths") or {}
     paths = disc.get("paths") or []
     word = "path" if len(paths) == 1 else "paths"
+    from routemap.gui.hoptable import (differs_text, flows_cell, path_differences, path_notes, target_cell,
+                                       target_column)
     lines = [f"Built-in Paris, {service.paths_method(disc)} · at least {len(paths)} {word} · "
-             f"{disc.get('flows')} flows · {disc.get('probes_sent')} probes in {disc.get('seconds', 0):.0f} s",
-             f"{'#':>4}  {'Paths':<6} {'Location':<22} {'Address':<40} {'Avg ms':>8} {'Loss':>5}"]
+             f"{disc.get('flows')} flows · {disc.get('probes_sent')} probes in {disc.get('seconds', 0):.0f} s"]
+    table = []
     for row in path_rows(route.get("hops") or [], paths):
-        number = f"{row['hop']}{row.get('_sub', '')}"
-        place = (row.get("place") or ("local" if row.get("source") == "local" else ""))[:22]
-        avg = "" if row.get("avg_rtt_ms") is None else f"{row['avg_rtt_ms']:.1f}"
-        loss = "" if row.get("loss_pct") is None else f"{row['loss_pct']:.0f}%"
-        lines.append(f"{number:>4}  {row.get('_paths', ''):<6} {place:<22} {row.get('address') or '*':<40} "
-                     f"{avg:>8} {loss:>5}")
-    answers: dict = {}
-    for p in paths:
-        for h in p.get("located") or []:
-            answers.setdefault(h.get("hop"), set()).add(h.get("address"))
-    total = sum(len(p.get("flows") or []) for p in paths)
-    lines += ["", f"{'Path':<5} {'Flows':<7} {'Differs at':<28} {'RTT to target':<15} Loss to target"]
-    for p in paths:
-        differs = ", ".join(f"hop {h['hop']} {h.get('place') or h['address']}" for h in p.get("located") or []
-                            if h.get("address") and len(answers.get(h.get("hop"), ())) > 1)
-        rtt = "" if p.get("rtt_to_target_ms") is None else f"{p['rtt_to_target_ms']:.1f} ms"
-        loss = "" if p.get("loss_pct") is None else f"{p['loss_pct']:g}% ({p.get('lost')} of {p.get('sent')})"
-        flows = f"{len(p.get('flows') or [])}/{total}"
-        lines.append(f"{p.get('id'):<5} {flows:<7} {(differs or 'the same as the others')[:28]:<28} {rtt:<15} {loss}")
-    lines.append(f'"At least": some load balancers do not spread {service.paths_method(disc).split()[0]} probes.')
+        place = row.get("place") or ("local" if row.get("source") == "local" else "")
+        table.append((f"{row['hop']}{row.get('_sub', '')}", row.get("_paths", ""), place,
+                      row.get("_summary") or row.get("address") or "*",
+                      "" if row.get("avg_rtt_ms") is None else f"{row['avg_rtt_ms']:.1f}",
+                      "" if row.get("loss_pct") is None else f"{row['loss_pct']:.0f}%"))
+    head = ("#", "Paths", "Location", "Address", "Avg ms", "Loss")
+    width = [max(len(r[i]) for r in table + [head]) for i in range(6)]
+
+    def line(cells):
+        return (f"{cells[0]:>{width[0]}}  {cells[1]:<{width[1]}}  {cells[2]:<{width[2]}}  "
+                f"{cells[3]:<{width[3]}}  {cells[4]:>{width[4]}}  {cells[5]:>{width[5]}}").rstrip()
+    lines += [line(head)] + [line(r) for r in table]
+    differences = path_differences(paths)
+    summary = [(p.get("id") or "?", flows_cell(p, disc),
+                differs_text(differences.get(p.get("id")) or [], ", ") or "the same as the others",
+                "" if p.get("rtt_to_target_ms") is None else f"{p['rtt_to_target_ms']:.1f} ms",
+                target_cell(p, disc)) for p in paths]
+    head2 = ("Path", "Flows", "Differs at", "RTT to target", target_column(disc))
+    w2 = [max(len(r[i]) for r in summary + [head2]) for i in range(5)]
+    lines.append("")
+    for cells in [head2] + summary:
+        lines.append("  ".join(f"{c:<{w2[i]}}" for i, c in enumerate(cells)).rstrip())
+    lines += path_notes(disc)
     return "\n".join(lines) + "\n"
 
 

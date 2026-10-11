@@ -234,7 +234,9 @@ way (per-packet balancing) is named, and does not make paths of its own.
 **Limits**, so it never floods a network: at most 20 probes a second (the
 default rate of CAIDA's scamper), at most 1,500 probes per discovery, the pings
 included (Settings > Trace can lower this), at most 64 flows, and it stops
-after 3 silent hops. A typical discovery takes 20 to 60 seconds. No
+after 3 silent hops. A discovery takes one to two minutes: 1,500 probes at 20 a
+second is 75 seconds of sending, and each round of probes waits up to a second
+for the routers that do not answer. No
 administrator rights are needed anywhere.
 
 **Method.** On macOS and Linux, Paths sends ICMP probes (ICMPv6 over IPv6). On
@@ -246,7 +248,11 @@ one path; TCP can. A probe that reaches the target is a normal connection,
 closed at once. Load balancers spread TCP and ICMP by different fields, so the
 paths found can differ between the two; the method is shown in the Paths
 heading, the CLI output, the PDF, the PNG title and the JSON
-(`route.paths.method`: `icmp-paris` or `tcp-paris`, with `port`).
+(`route.paths.method`: `icmp-paris` or `tcp-paris`, with `port`). Over TCP the last
+column of the Paths list is **Target answered**: of ten connection attempts per
+path, how many the target answered. They are spaced so no port is reused at
+once (a server can ignore a quick repeat from the same port), and a server can
+still ignore some, so a shortfall there is not necessarily loss on the path.
 
 ## Continuous mode
 
