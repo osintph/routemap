@@ -74,9 +74,10 @@ def test_pdf_png_and_json_say_the_method(app, tmp_path, _paths_route, monkeypatc
     paths = json.loads((tmp_path / "m.json").read_text())["route"]["paths"]
     assert paths["method"] == "tcp-paris" and paths["port"] == 443
     gui_app.write_export("pdf", str(tmp_path / "m.pdf"), current, settings=settings)
-    import subprocess
-    text = subprocess.run(["pdftotext", str(tmp_path / "m.pdf"), "-"], capture_output=True, text=True).stdout
-    flat = text.replace("\n", " ")
+    from PySide6.QtPdf import QPdfDocument
+    doc = QPdfDocument()
+    doc.load(str(tmp_path / "m.pdf"))
+    flat = " ".join(doc.getAllText(i).text() for i in range(doc.pageCount())).replace("\n", " ")
     assert "Paths: at least 2 · TCP port 443" in flat and "do not spread TCP probes" in flat
     assert "ICMP" not in flat.split("Paths: at least")[1].split("How locations")[0]
     assert "built-in Paris prober (TCP port 443)" in flat
