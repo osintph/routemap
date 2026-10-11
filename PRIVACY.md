@@ -29,8 +29,11 @@ once for the hops of the first cycle and then only for a hop or router not
 seen before, never every cycle. It never uses RIPE Atlas.
 
 **Paths** sends ICMP echo probes to the target and the routers on the way, as a
-trace does, with different flow identifiers: at most 20 a second and at most
-1,500 per discovery. Its lookups are those of one trace, made once for every
+trace does, with different flow identifiers; on Windows it sends TCP connection
+attempts to the target's port 443 instead, each closed at once (one that
+reaches the target is an ordinary connection, so the target's operator sees
+your address, as when you visit it). At most 20 a second and at most 1,500 per
+discovery. Its lookups are those of one trace, made once for every
 router any path answered from.
 
 **Settings > Sources > Online lookups** switches every row above except the

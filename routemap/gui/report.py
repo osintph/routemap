@@ -13,6 +13,7 @@ import datetime as _dt
 from PySide6.QtCore import QMarginsF, QRectF, QSizeF, Qt
 from PySide6.QtGui import QColor, QFont, QFontDatabase, QFontMetricsF, QPageLayout, QPageSize, QPainter, QPdfWriter, QPen
 
+from routemap import service
 from routemap.__about__ import DISPLAY_NAME, VERSION
 from routemap.gui import geometry, mapview, theme
 from routemap.gui.hoptable import NOTE_SHORT, rate_limited
@@ -217,7 +218,8 @@ def write_pdf(path: str, route: dict, *, target: str, trace_text: str, tool_labe
                   "paste": f"pasted ({route.get('parser_label', '')})",
                   "file": f"opened from a file ({route.get('parser_label', '')})",
                   "watch": "continuous, built-in ICMP prober",
-                  "paths": f"path discovery, built-in ICMP Paris prober: {tool_label}"}.get(source, tool_label)
+                  "paths": f"path discovery, built-in Paris prober "
+                           f"({service.paths_method(route.get('paths'))}): {tool_label}"}.get(source, tool_label)
     facts = [
         ["Target", target],
         ["Origin", f"{origin.get('label') or 'unknown'}, {how}" if how else (origin.get("label") or "unknown")],
@@ -322,7 +324,7 @@ def _paths_section(flow: "_Flow", route: dict) -> None:
     own latency and loss to the target; then how the paths were found."""
     disc = route.get("paths") or {}
     paths = disc.get("paths") or []
-    flow.heading(f"Paths: at least {len(paths)}")
+    flow.heading(f"Paths: at least {len(paths)} · {service.paths_method(disc)}")
     answers: dict = {}
     for p in paths:
         for h in p.get("located") or []:
@@ -339,11 +341,15 @@ def _paths_section(flow: "_Flow", route: dict) -> None:
                      "" if loss is None else f"{loss:g}% ({p.get('lost')} of {p.get('sent')})"])
     flow.table(["Path", "Flows", "Differs at", "RTT to target", "Loss to target"], rows,
                [12, 18, 90, 25, 28], align_right={1, 3})
-    notes = [f"{disc.get('flows')} flow identifiers, {disc.get('probes_sent')} probes in "
+    method = service.paths_method(disc)
+    tcp = disc.get("method") == "tcp-paris"
+    notes = [f"{disc.get('flows')} flows ({'source ports' if tcp else 'flow identifiers'}), "
+             f"{disc.get('probes_sent')} {method} probes in "
              f"{disc.get('seconds', 0):.0f} s, at most 20 a second. Paris traceroute keeps each flow on one "
              "path; flows are added at each hop until the multipath detection algorithm's stopping rule is "
-             "met at 95% confidence. Each path's latency and loss come from ten pings of one of its flows.",
-             "At least: some load balancers do not spread ICMP probes, so a path can stay hidden."]
+             "met at 95% confidence. Each path's latency and loss come from ten probes to the target on one "
+             "of its flows.",
+             f"At least: some load balancers do not spread {method.split()[0]} probes, so a path can stay hidden."]
     if disc.get("per_packet_hops"):
         notes.append("Per-packet balancing at hop " + ", ".join(str(h) for h in disc["per_packet_hops"])
                      + ": every packet may take another router there, so it does not make paths.")

@@ -21,9 +21,11 @@ list.
   the Paths list under the table shows each path's flows, where it differs,
   and its RTT and loss; choosing one shows it alone. Per-packet balancing is
   named and does not make paths. The count is "at least": some balancers do
-  not spread ICMP. At most 20 probes a second and 1,500 per discovery (the
-  pings included; Settings > Trace can lower the budget), 64 flows, 3 silent
-  hops. macOS and Linux; Windows is not supported yet.
+  not spread every kind of probe. At most 20 probes a second and 1,500 per
+  discovery (the pings included; Settings > Trace can lower the budget), 64
+  flows, 3 silent hops. ICMP probes on macOS and Linux, TCP probes to port 443
+  on Windows (10 version 2004 or later), no administrator rights; the method
+  is shown in the window, the CLI, the PDF, the PNG and the JSON.
 - **Reverse trace via RIPE Atlas** (next to the summary, Trace > Reverse Trace
   via RIPE Atlas, `routemap TARGET --reverse --publish-my-ip`): a connected
   probe in the target's network, or its country, nearest the target and never

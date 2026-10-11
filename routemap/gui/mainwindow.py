@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (QDockWidget, QHBoxLayout, QLabel, QLineEdit, QMai
                                QProgressBar, QPushButton, QSplitter, QStatusBar, QVBoxLayout,
                                QWidget)
 
+from routemap import service
 from routemap.__about__ import DISPLAY_NAME
 from routemap.gui.hoptable import HopTable
 from routemap.gui.insightpanel import HopDetails, InsightPanel
@@ -494,7 +495,8 @@ class MainWindow(QMainWindow):
         if discovery:
             word = "path" if len(paths) == 1 else "paths"
             detail = (f"{discovery.get('flows')} flows · {discovery.get('probes_sent')} probes in "
-                      f"{discovery.get('seconds', 0):.0f} s · ICMP Paris · " + detail)
+                      f"{discovery.get('seconds', 0):.0f} s · Paris, {service.paths_method(discovery)} · "
+                      + detail)
             head = f"<b>{len(hops)} hops, at least {len(paths)} {word}</b>"
         else:
             head = f"<b>{len(hops)} hops</b>, {placed} placed on the map"
