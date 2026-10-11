@@ -257,9 +257,10 @@ def _paths_text(route: dict) -> str:
     disc = route.get("paths") or {}
     paths = disc.get("paths") or []
     word = "path" if len(paths) == 1 else "paths"
-    from routemap.gui.hoptable import flows_cell, path_notes, rtt_cell, split_text, target_cell, target_column
+    from routemap.gui.hoptable import (flows_cell, path_notes, probes_text, rtt_cell, split_text, target_cell,
+                                       target_column)
     lines = [f"Built-in Paris, {service.paths_method(disc)} · at least {len(paths)} {word} · "
-             f"{disc.get('flows')} flows · {disc.get('probes_sent')} probes in {disc.get('seconds', 0):.0f} s"]
+             f"{disc.get('flows')} flows · {probes_text(disc)}"]
     table = []
     for row in path_rows(route.get("hops") or [], paths):
         place = row.get("place") or ("local" if row.get("source") == "local" else "")

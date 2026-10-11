@@ -108,6 +108,30 @@ def rtt_cell(path: dict) -> str:
     return "" if rtt is None else f"{rtt:.1f} ms"
 
 
+def probes_text(discovery: dict) -> str:
+    """"1,427 probes in 152 s", or, when the budget ran out, "1,500 probes in
+    132 s, stopped at the 1,500-probe cap; more paths may exist"."""
+    sent = discovery.get("probes_sent") or 0
+    text = f"{sent:,} probes in {discovery.get('seconds', 0):.0f} s"
+    if discovery.get("stopped_by") == "budget":
+        text += f", stopped at the {sent:,}-probe cap; more paths may exist"
+    return text
+
+
+def legend_text(path: dict, discovery: dict) -> str:
+    """A path's line in a map legend, in the path list's words: "253 ms ·
+    10 of 10 answered" (TCP), "253 ms · 0% loss" (ICMP), or "not reached"."""
+    if not path.get("reached"):
+        return "not reached"
+    rtt = path.get("rtt_to_target_ms")
+    sent, lost = path.get("sent") or 0, path.get("lost") or 0
+    target = ""
+    if sent:
+        target = (f"{sent - lost} of {sent} answered" if discovery.get("method") == "tcp-paris"
+                  else f"{path.get('loss_pct') or 0:g}% loss")
+    return " · ".join(x for x in (f"{rtt:.0f} ms" if rtt is not None else "", target) if x)
+
+
 def flows_cell(path: dict, discovery: dict) -> str:
     """A path's flows out of every flow the discovery used."""
     total = discovery.get("flows") or sum(len(p.get("flows") or []) for p in discovery.get("paths") or [])
@@ -158,8 +182,6 @@ def path_notes(discovery: dict) -> list[str]:
     if discovery.get("paths_capped"):
         notes.append(f"More paths were found than the {len(discovery.get('paths') or [])} listed"
                      + (f"; {hidden} flows took them." if hidden else "."))
-    if discovery.get("stopped_by") == "budget":
-        notes.append(f"Stopped at the probe budget ({discovery.get('probes_sent')} probes); more paths may exist.")
     if discovery.get("local_failures"):
         notes.append(f"{discovery['local_failures']} probes could not be sent by this computer; they are not "
                      "counted as loss.")
@@ -188,7 +210,15 @@ def path_rows(hops: list[dict], paths: list[dict]) -> list[dict]:
             # The routers are the sub-rows; the hop's own row summarises them
             # instead of repeating the first.
             places = {located[a].get("place") for a in by_addr}
+            asns = {located[a].get("asn") for a in by_addr}
             main["_summary"] = f"{len(by_addr)} routers"
+            # One row for several routers: no RTT averaged across them, and
+            # their ASN only when they share it.
+            main["min_rtt_ms"] = main["avg_rtt_ms"] = None
+            main["asn"] = asns.pop() if len(asns) == 1 else None
+            main["as_org"] = located[next(iter(by_addr))].get("as_org") if main["asn"] else None
+            if main["asn"] is None and any(located[a].get("asn") for a in by_addr):
+                main["_asn_text"] = "mixed"
             main["place"] = places.pop() if len(places) == 1 else None
             main["hostname"], main["hostnames"] = None, []
             if main["place"] is None:
@@ -332,7 +362,7 @@ class HopModel(QAbstractTableModel):
                 notes.insert(0, theme.DIFF_LABELS.get(self.marks[hop["hop"]], ""))
             return ", ".join(n for n in notes if n)
         if key == "asn":
-            return f"AS{hop['asn']}" if hop.get("asn") else ""
+            return f"AS{hop['asn']}" if hop.get("asn") else (hop.get("_asn_text") or "")
         if key == "rpki":
             state = (self.details.get(str(hop["hop"])) or {}).get("rpki")
             return RPKI_SHORT.get(state, "") if state else ""
@@ -375,6 +405,14 @@ class HopModel(QAbstractTableModel):
             loss = hop.get("loss_pct")
             return -1.0 if loss is None else loss
         return self.text(hop, column).lower()
+
+    def full_text(self, hop: dict, column: int) -> str:
+        """The cell's text unshortened: a note's whole label, a long place or
+        source in full (the column may cut them)."""
+        key = self.keys[column]
+        if key == "notes":
+            return "; ".join(hop.get("annotations") or [])
+        return self.text(hop, column) or ""
 
     def tooltip(self, hop: dict) -> str:
         lines = [f"<b>Hop {html.escape(str(hop['hop']))}</b>"]
@@ -419,7 +457,9 @@ class HopModel(QAbstractTableModel):
                 return self.icons.get("country")
             return self.icons.get(hop.get("source"))
         if role == Qt.ToolTipRole:
-            return self.tooltip(hop)
+            full = self.full_text(hop, column)
+            head = (f"<b>{html.escape(self.columns[column])}:</b> {html.escape(full)}<br>" if full else "")
+            return head + self.tooltip(hop)
         if role == Qt.AccessibleTextRole:
             return self.spoken(hop) if column == 0 else f"{self.columns[column]}: {self.text(hop, column) or 'none'}"
         if role == Qt.TextAlignmentRole and self.keys[column] in self.numeric:
@@ -456,7 +496,7 @@ class HopTable(QTableView):
         self.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.setAlternatingRowColors(True)
         self.setWordWrap(False)
-        self.setTextElideMode(Qt.ElideMiddle)
+        self.setTextElideMode(Qt.ElideRight)   # "Frankfurt am Ma…", never "Frankfurt... Main"; full text on hover
         self.verticalHeader().hide()
         self.verticalHeader().setDefaultSectionSize(24)
         header = self.horizontalHeader()

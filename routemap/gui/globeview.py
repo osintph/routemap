@@ -682,10 +682,9 @@ def _legend_rows(route: dict, pal: theme.Palette, quiet_ms: float, hot_ms: float
     paths = (route.get("paths") or {}).get("paths") or []
     if len(paths) > 1:
         rows.append(("title", f"At least {len(paths)} paths"))
+        from routemap.gui.hoptable import legend_text
         for index, path in enumerate(paths[:8]):
-            rtt, loss = path.get("rtt_to_target_ms"), path.get("loss_pct")
-            detail = " · ".join(x for x in (f"{rtt:.0f} ms" if rtt is not None else "",
-                                            f"{loss:g}% loss" if loss is not None else "") if x)
+            detail = legend_text(path, route.get("paths") or {})
             rows.append(("line", (theme.path_color(pal, index), f"Path {path.get('id')}"
                                   + (f": {detail}" if detail else ""))))
     if reverse:

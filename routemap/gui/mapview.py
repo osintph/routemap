@@ -1093,12 +1093,11 @@ class MapView(QGraphicsView):
             self.legend_layout.addWidget(dash)
         if paths and len(paths) > 1:
             self.legend_layout.addWidget(markup(f"<b>At least {len(paths)} paths</b>"))
+            from routemap.gui.hoptable import legend_text
+            discovery = (self.route or {}).get("paths") or {}
             for index, p in enumerate(paths[:8]):
                 color = theme.path_color(self.palette_, index)
-                loss = p.get("loss_pct")
-                rtt = p.get("rtt_to_target_ms")
-                detail = " · ".join(x for x in (f"{rtt:.0f} ms" if rtt is not None else "",
-                                                f"{loss:g}% loss" if loss is not None else "") if x)
+                detail = legend_text(p, discovery)
                 self.legend_layout.addWidget(self._swatch_row(color, f"Path {p.get('id')}"
                                                               + (f": {detail}" if detail else "")))
             if len(paths) > 8:

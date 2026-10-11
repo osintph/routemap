@@ -72,6 +72,32 @@ list.
 - Addresses in special-purpose blocks follow the IANA registries row by row
   (engine 0.7.0), the same on every Python.
 
+### Fixed
+
+From the Windows checks on a real network (ODIN), before release:
+
+- A Trace hop the next hop rules out is not placed: a router answering
+  slowly between two Frankfurt hops is no longer drawn in Chicago, and the
+  countries no longer read DE > US > DE. One address has one placement in a
+  run, in Trace and in Paths.
+- The hop table shows a cut cell's full text on hover, and shortens at the
+  end ("Frankfurt am Ma…"), never in the middle.
+- Paths: the summary gives each AS path and country list with the letters of
+  the paths that take it, and the target per path ("10 of 10 answered: A C ·
+  not reached: D") instead of one trace's loss sentence over the merged
+  table. The map legend uses the same words, and a path that never reached
+  the target says so with the last hop that answered.
+- Paths: a hop several routers answered shows "N routers", their ASN only
+  when they share it ("mixed" otherwise), no RTT averaged across them, and
+  each router's own place and source.
+- Paths: a discovery stopped at its probe budget says so in its heading.
+
+### Not in this release
+- "Splits from" names the town where a path parts from the one listed
+  before it. It should show the router address where both routers are in
+  the same town, and compare against the most similar path rather than the
+  one listed before.
+
 ## [0.3.0-beta.1] - 2026-10-10
 
 "Live": continuous trace and ping plot. The engine is routemap-engine 0.6.0,
