@@ -792,9 +792,10 @@ class Controller(QObject):
                                               sources=service.sources_for(settings),
                                               progress=lambda a, b, c: on_progress(a, b, c)))
             return {"route": route, "text": text, "stopped": d.stopped_by == "cancel",
-                    "argv": ["icmp-paris", f"{d.flows_used} flows", f"{d.probes_sent} probes", target]}
+                    "argv": [d.method, f"{d.flows_used} flows", f"{d.probes_sent} probes", target]}
 
-        self.w.show_tracing(target, ["icmp-paris", target])
+        from routemap_engine import probe as _probe
+        self.w.show_tracing(target, [_probe.flow_method(), target])
         self.w.set_state(f"Finding the paths to <b>{_html(target)}</b> (at most "
                          f"{settings.paths_budget:,} probes, {multipath.MAX_RATE:g} a second)")
         if origin:
@@ -1597,7 +1598,9 @@ def write_export(fmt: str, path: str, current: dict, *, dark_png: bool = False,
     elif fmt == "png":
         from routemap.gui import geometry
         image = mapview.render_png(
-            route, dark=dark_png, title=f"{target} from {_city(route)}", destination=target,
+            route, dark=dark_png, destination=target,
+            title=f"{target} from {_city(route)}" + (
+                f" · paths by {service.paths_method(route.get('paths'))}" if route.get("paths") else ""),
             provenance=f"{DISPLAY_NAME} {VERSION} \u00b7 {report.stamp(when)} \u00b7 "
                        f"{label or current.get('source', '')} · {geometry.ATTRIBUTION} · "
                        "GeoNames CC BY 4.0" + (" · IP Geolocation by DB-IP" if mapview.uses_dbip(route) else ""),

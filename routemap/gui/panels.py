@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (QFrame, QHBoxLayout, QHeaderView, QLabel, QListWi
                                QListWidgetItem, QPlainTextEdit, QPushButton, QToolButton,
                                QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
 
+from routemap import service
 from routemap.gui import theme
 from routemap.gui.text import plain
 
@@ -163,8 +164,11 @@ class PathsPanel(_Collapsible):
                 item.setTextAlignment(col, Qt.AlignRight | Qt.AlignVCenter)
             self.list.addTopLevelItem(item)
         word = "path" if len(paths) == 1 else "paths"
-        self.toggle.setText(f"Paths: at least {len(paths)} {word}")
-        notes = ["“At least”: some load balancers do not spread ICMP probes, so a path can stay hidden."]
+        method = service.paths_method(discovery)
+        self.toggle.setText(f"Paths: at least {len(paths)} {word} · {method}")
+        kind = method.split()[0]
+        notes = [f"Probes: {method}.",
+                 f"“At least”: some load balancers do not spread {kind} probes, so a path can stay hidden."]
         if discovery.get("per_packet_hops"):
             notes.append("Per-packet balancing at hop " + ", ".join(str(h) for h in discovery["per_packet_hops"])
                          + ": every packet may take another router there, so it does not make paths.")

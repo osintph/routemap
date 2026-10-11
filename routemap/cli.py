@@ -252,11 +252,12 @@ def cmd_watch(args) -> int:
 def _paths_text(route: dict) -> str:
     """A path discovery as the terminal shows it: the hops with the paths
     through each, then one line per path."""
+    from routemap import service
     from routemap.gui.hoptable import path_rows
     disc = route.get("paths") or {}
     paths = disc.get("paths") or []
     word = "path" if len(paths) == 1 else "paths"
-    lines = [f"Built-in ICMP{'v6' if disc.get('af') == 6 else ''} Paris · at least {len(paths)} {word} · "
+    lines = [f"Built-in Paris, {service.paths_method(disc)} · at least {len(paths)} {word} · "
              f"{disc.get('flows')} flows · {disc.get('probes_sent')} probes in {disc.get('seconds', 0):.0f} s",
              f"{'#':>4}  {'Paths':<6} {'Location':<22} {'Address':<40} {'Avg ms':>8} {'Loss':>5}"]
     for row in path_rows(route.get("hops") or [], paths):
@@ -279,7 +280,7 @@ def _paths_text(route: dict) -> str:
         loss = "" if p.get("loss_pct") is None else f"{p['loss_pct']:g}% ({p.get('lost')} of {p.get('sent')})"
         flows = f"{len(p.get('flows') or [])}/{total}"
         lines.append(f"{p.get('id'):<5} {flows:<7} {(differs or 'the same as the others')[:28]:<28} {rtt:<15} {loss}")
-    lines.append('"At least": some load balancers do not spread ICMP probes.')
+    lines.append(f'"At least": some load balancers do not spread {service.paths_method(disc).split()[0]} probes.')
     return "\n".join(lines) + "\n"
 
 
@@ -297,7 +298,7 @@ def _discover(target: str, settings, origin, offline: bool):
                                                       f"{p['probes']} probes"))
     sources = service.offline_sources() if offline else service.sources_for(settings)
     route = asyncio.run(analyse_paths(d, origin[:2] if origin else None, sources=sources))
-    return route, d.trace_text(), ["icmp-paris", f"{d.flows_used} flows", f"{d.probes_sent} probes", target]
+    return route, d.trace_text(), [d.method, f"{d.flows_used} flows", f"{d.probes_sent} probes", target]
 
 
 def _reverse(args, current: dict, settings) -> None:
@@ -741,7 +742,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--duration", default=None,
                         help="with --watch: stop after this long, e.g. 90s, 10m, 2h (5 min to 8 h; default 1 h)")
     parser.add_argument("--paths", action="store_true",
-                        help="find every path a load balancer can send packets along (ICMP Paris, at most "
+                        help="find every path a load balancer can send packets along (ICMP Paris, TCP port 443 on Windows; at most "
                              "20 probes a second); prints the hops and the paths, or exports with --json etc.")
     parser.add_argument("--reverse", action="store_true",
                         help="also trace back from a RIPE Atlas probe near the target to your public IP "

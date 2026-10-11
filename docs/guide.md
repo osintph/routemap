@@ -227,17 +227,26 @@ under the table with each path's share of the flows, where it differs, and its
 RTT and loss to the target. Choose a path in the list to show it alone on the
 map.
 
-"At least": some load balancers do not spread ICMP probes, so a path can stay
-hidden; the count is a lower bound. A router that sends every packet another
+"At least": some load balancers do not spread every kind of probe, so a path
+can stay hidden; the count is a lower bound. A router that sends every packet another
 way (per-packet balancing) is named, and does not make paths of its own.
 
 **Limits**, so it never floods a network: at most 20 probes a second (the
 default rate of CAIDA's scamper), at most 1,500 probes per discovery, the pings
 included (Settings > Trace can lower this), at most 64 flows, and it stops
-after 3 silent hops. A typical discovery takes 20 to 60 seconds. Paths uses the
-built-in ICMP prober without administrator rights on macOS and Linux; Windows
-is not supported yet (Windows' own ICMP function picks each probe's identifier
-and sequence number itself, so it cannot keep a flow on one path).
+after 3 silent hops. A typical discovery takes 20 to 60 seconds. No
+administrator rights are needed anywhere.
+
+**Method.** On macOS and Linux, Paths sends ICMP probes (ICMPv6 over IPv6). On
+Windows it sends TCP probes to port 443 instead, one connection attempt per
+probe, with the source port as the flow, and a router's answer is read from
+Windows itself (Windows 10 version 2004 or later). Windows' own ICMP function
+picks each probe's identifier and sequence number, so it cannot keep a flow on
+one path; TCP can. A probe that reaches the target is a normal connection,
+closed at once. Load balancers spread TCP and ICMP by different fields, so the
+paths found can differ between the two; the method is shown in the Paths
+heading, the CLI output, the PDF, the PNG title and the JSON
+(`route.paths.method`: `icmp-paris` or `tcp-paris`, with `port`).
 
 ## Continuous mode
 

@@ -154,6 +154,16 @@ def parse_origin_text(text: str) -> tuple[float, float, str]:
     return best["lat"], best["lon"], best["display"]
 
 
+def paths_method(discovery: dict | None) -> str:
+    """How a path discovery probed, for every place that shows one: "TCP
+    port 443" on Windows, "ICMP" or "ICMPv6" elsewhere. Paths found over TCP
+    and over ICMP can differ (balancers spread each by its own fields)."""
+    disc = discovery or {}
+    if disc.get("method") == "tcp-paris":
+        return f"TCP port {disc.get('port') or 443}"
+    return "ICMPv6" if disc.get("af") == 6 else "ICMP"
+
+
 def family(settings: config.Settings) -> int | None:
     """4 or 6 when the user chose an IP version, None for the system's order."""
     return {"4": 4, "6": 6}.get(settings.ip_version)
