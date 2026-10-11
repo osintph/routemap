@@ -150,7 +150,9 @@ class PathsPanel(_Collapsible):
         differences = path_differences(paths)
         for index, p in enumerate(paths):
             item = QTreeWidgetItem([p.get("id") or "?", flows_cell(p, discovery), split_text(paths, index),
-                                    rtt_cell(p), target_cell(p, discovery)])
+                                    rtt_cell(p), target_cell(p, discovery, short=True)])
+            if not p.get("reached"):
+                item.setToolTip(4, html.escape(target_cell(p, discovery)))
             full = differs_text(differences.get(p.get("id")) or [], "<br>")
             if full:
                 item.setToolTip(2, "<b>Differs at</b><br>" + full)

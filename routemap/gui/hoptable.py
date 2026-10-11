@@ -145,7 +145,10 @@ def target_column(discovery: dict) -> str:
     return "Target answered" if discovery.get("method") == "tcp-paris" else "Loss to target"
 
 
-def target_cell(path: dict, discovery: dict) -> str:
+def target_cell(path: dict, discovery: dict, short: bool = False) -> str:
+    if not path.get("reached") and short:
+        last = last_answer(path)
+        return f"last answer: hop {last['hop']}" if last else ""
     if not path.get("reached"):
         last = last_answer(path)
         return ("not reached; last answer hop " + f"{last['hop']} ({last['address']}, {_place(last)})"
@@ -507,6 +510,20 @@ class HopTable(QTableView):
         self._syncing = False
         self.selectionModel().selectionChanged.connect(self._selection_changed)
 
+    FIT_KEYS = ("place", "source", "notes")
+    FIT_MAX = 300
+
+    def _fit_text_columns(self) -> None:
+        """Location, Source and Note wide enough for their text (up to a
+        cap), so "Frankfurt am Main, DE" and "ip-db (RIPEstat, online)" are
+        not cut; anything longer is shown in full on hover."""
+        for key in self.FIT_KEYS:
+            if key in self.model_.keys:
+                column = self.model_.keys.index(key)
+                want = max(self.sizeHintForColumn(column), self.horizontalHeader().sectionSizeHint(column))
+                if want > self.columnWidth(column):
+                    self.setColumnWidth(column, min(want, self.FIT_MAX))
+
     def _widths(self, widths) -> None:
         for column, width in enumerate(widths):
             self.setColumnWidth(column, width)
@@ -567,6 +584,7 @@ class HopTable(QTableView):
             self.model_.set_hops(hops, details, marks, paths)
             if self.model_.keys is not before:
                 self._widths(PATH_WIDTHS if self.model_.keys is PATH_KEYS else WIDTHS)
+            self._fit_text_columns()
             self.sortByColumn(self.horizontalHeader().sortIndicatorSection(),
                               self.horizontalHeader().sortIndicatorOrder())
         finally:
