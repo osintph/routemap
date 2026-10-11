@@ -4,7 +4,12 @@ All notable changes to this project are documented here. The format is based
 on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 uses [Semantic Versioning](https://semver.org/).
 
-## [0.4.0-beta.1] - 2026-10-11
+## [0.4.0-beta.2] - 2026-10-11
+
+0.4.0-beta.1 was tagged but not released: its check of Paths on a real
+Windows network failed (paths counted where only a silence differed, one
+address placed in two cities, the target repeated, 342 s for one run). This
+release has the fixes, with routemap-engine 0.7.1.
 
 "Paths": the paths a load balancer spreads your traffic over, the route back
 via RIPE Atlas, and IPv6 end to end. The engine is routemap-engine 0.7.0, which has its own
