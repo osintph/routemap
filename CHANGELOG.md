@@ -4,7 +4,7 @@ All notable changes to this project are documented here. The format is based
 on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 uses [Semantic Versioning](https://semver.org/).
 
-## [0.4.0-beta.1] - 2026-10-10
+## [0.4.0-beta.1] - 2026-10-11
 
 "Paths": every path a load balancer offers, the route back via RIPE Atlas,
 and IPv6 end to end. The engine is routemap-engine 0.7.0, which has its own
