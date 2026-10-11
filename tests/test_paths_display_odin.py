@@ -63,7 +63,7 @@ def test_1_a_hop_some_paths_did_not_answer_is_no_difference(route):
     for pid, entries in path_differences(paths).items():
         assert [h["hop"] for h in entries] == [3], (pid, entries)
     out = cli._paths_text(route)
-    assert "hop 1" not in out.split("Differs at")[1]
+    assert "hop 1" not in out.split("Splits from")[1]
 
 
 def test_4_a_split_hop_is_summarised_once_and_flows_count_against_all_used(route):
@@ -91,3 +91,34 @@ def test_7_columns_line_up_however_many_paths_pass_a_hop(route):
     for line in table[1:]:
         cell = line[start:].split()[0] if len(line) > start else ""
         assert line[start - 2:start] == "  " and cell, (line, start)
+
+
+def _beta2_like(route):
+    """As on ODIN with the 0.4.0-beta.2 test build: some paths ended at a
+    router and never reached the target (B, D, F, O, P there)."""
+    import copy
+    r = copy.deepcopy(route)
+    for p in r["paths"]["paths"][1:6:2]:
+        p["reached"], p["sent"], p["lost"], p["loss_pct"], p["rtt_to_target_ms"] = False, 0, 0, None, None
+        p["located"] = [h for h in p["located"] if h.get("address") != DST]
+    return r
+
+
+def test_b_a_path_that_never_reached_the_target_says_so_and_where_it_ended(route):
+    r = _beta2_like(route)
+    out = cli._paths_text(r)
+    for p in r["paths"]["paths"][1:6:2]:
+        line = next(line for line in out.splitlines() if line.startswith(p["id"] + " "))
+        assert "not reached" in line and "last answer hop 4 (198.18.4.1" in line, line
+    reached = next(line for line in out.splitlines() if line.startswith("A "))
+    assert "not reached" not in reached and "of 10" in reached
+
+
+def test_d_list_rows_name_one_split_and_stay_short(route):
+    """The beta.2 rows ran to about 300 characters, every differing hop
+    listed. The CLI and the window show where a path parts from the one
+    before it; the full list stays in the PDF and the JSON."""
+    out = cli._paths_text(route)
+    rows = [line for line in out.splitlines() if re.match(r"^[A-P] ", line)]
+    assert len(rows) == 16 and all(len(line) <= 110 for line in rows), max(map(len, rows))
+    assert "first path" in rows[0] and all("hop 3:" in line and "(from " in line for line in rows[1:])

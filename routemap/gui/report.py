@@ -325,13 +325,14 @@ def _paths_section(flow: "_Flow", route: dict) -> None:
     disc = route.get("paths") or {}
     paths = disc.get("paths") or []
     flow.heading(f"Paths: at least {len(paths)} · {service.paths_method(disc)}")
-    from routemap.gui.hoptable import differs_text, flows_cell, path_differences, path_notes, target_cell, target_column
+    from routemap.gui.hoptable import (differs_text, flows_cell, path_differences, path_notes, rtt_cell, target_cell,
+                                       target_column)
     differences = path_differences(paths)
     rows = []
     for p in paths:
         rows.append([p.get("id") or "?", flows_cell(p, disc),
                      differs_text(differences.get(p.get("id")) or []) or "the same as the others",
-                     _fmt(p.get("rtt_to_target_ms")), target_cell(p, disc)])
+                     rtt_cell(p), target_cell(p, disc)])
     flow.table(["Path", "Flows", "Differs at", "RTT to target", target_column(disc)], rows,
                [12, 18, 90, 25, 28], align_right={1, 3})
     method = service.paths_method(disc)

@@ -76,7 +76,36 @@ def path_differences(paths: list[dict]) -> dict[str, list[dict]]:
 
 
 def differs_text(entries: list[dict], sep: str = "; ") -> str:
-    return sep.join(f"hop {h['hop']}: {h.get('place') or h.get('hostname') or h['address']}" for h in entries)
+    return sep.join(f"hop {h['hop']}: {_place(h)}" for h in entries)
+
+
+def _place(h: dict) -> str:
+    return h.get("place") or h.get("hostname") or h["address"]
+
+
+def split_text(paths: list[dict], index: int) -> str:
+    """Where path *index* parts from the path listed before it: the first hop
+    where both answered from different addresses. Short enough for a list
+    row; the full list of differences is :func:`path_differences`."""
+    if index == 0:
+        return "first path" if len(paths) > 1 else "one path"
+    mine = {h.get("hop"): h for h in paths[index].get("located") or [] if h.get("address")}
+    prev = {h.get("hop"): h for h in paths[index - 1].get("located") or [] if h.get("address")}
+    for hop in sorted(mine):
+        if hop in prev and mine[hop]["address"] != prev[hop]["address"]:
+            return f"hop {hop}: {_place(mine[hop])} (from {paths[index - 1].get('id')})"
+    return f"same answers as {paths[index - 1].get('id')}"
+
+
+def last_answer(path: dict) -> dict | None:
+    return next((h for h in reversed(path.get("located") or []) if h.get("address")), None)
+
+
+def rtt_cell(path: dict) -> str:
+    if not path.get("reached"):
+        return "not reached"
+    rtt = path.get("rtt_to_target_ms")
+    return "" if rtt is None else f"{rtt:.1f} ms"
 
 
 def flows_cell(path: dict, discovery: dict) -> str:
@@ -93,6 +122,11 @@ def target_column(discovery: dict) -> str:
 
 
 def target_cell(path: dict, discovery: dict) -> str:
+    if not path.get("reached"):
+        last = last_answer(path)
+        return ("not reached; last answer hop " + f"{last['hop']} ({last['address']}, {_place(last)})"
+                if last and _place(last) != last["address"] else
+                (f"not reached; last answer hop {last['hop']} ({last['address']})" if last else "not reached"))
     sent, lost = path.get("sent") or 0, path.get("lost") or 0
     if not sent:
         return ""

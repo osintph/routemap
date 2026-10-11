@@ -257,8 +257,7 @@ def _paths_text(route: dict) -> str:
     disc = route.get("paths") or {}
     paths = disc.get("paths") or []
     word = "path" if len(paths) == 1 else "paths"
-    from routemap.gui.hoptable import (differs_text, flows_cell, path_differences, path_notes, target_cell,
-                                       target_column)
+    from routemap.gui.hoptable import flows_cell, path_notes, rtt_cell, split_text, target_cell, target_column
     lines = [f"Built-in Paris, {service.paths_method(disc)} · at least {len(paths)} {word} · "
              f"{disc.get('flows')} flows · {disc.get('probes_sent')} probes in {disc.get('seconds', 0):.0f} s"]
     table = []
@@ -275,12 +274,9 @@ def _paths_text(route: dict) -> str:
         return (f"{cells[0]:>{width[0]}}  {cells[1]:<{width[1]}}  {cells[2]:<{width[2]}}  "
                 f"{cells[3]:<{width[3]}}  {cells[4]:>{width[4]}}  {cells[5]:>{width[5]}}").rstrip()
     lines += [line(head)] + [line(r) for r in table]
-    differences = path_differences(paths)
-    summary = [(p.get("id") or "?", flows_cell(p, disc),
-                differs_text(differences.get(p.get("id")) or [], ", ") or "the same as the others",
-                "" if p.get("rtt_to_target_ms") is None else f"{p['rtt_to_target_ms']:.1f} ms",
-                target_cell(p, disc)) for p in paths]
-    head2 = ("Path", "Flows", "Differs at", "RTT to target", target_column(disc))
+    summary = [(p.get("id") or "?", flows_cell(p, disc), split_text(paths, i), rtt_cell(p), target_cell(p, disc))
+               for i, p in enumerate(paths)]
+    head2 = ("Path", "Flows", "Splits from", "RTT to target", target_column(disc))
     w2 = [max(len(r[i]) for r in summary + [head2]) for i in range(5)]
     lines.append("")
     for cells in [head2] + summary:
