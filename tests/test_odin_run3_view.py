@@ -112,3 +112,25 @@ def _expand(ids):
         else:
             out.append(tok)
     return out
+
+
+def test_10_the_windows_path_list_rows_are_short_and_say_where_unreached_paths_ended(app):
+    from routemap.gui.panels import PathsPanel
+    panel = PathsPanel()
+    panel.set_paths(ROUTE["paths"], ROUTE["hops"])
+    for i in range(panel.list.topLevelItemCount()):
+        item = panel.list.topLevelItem(i)
+        p = PATHS[i]
+        assert all(len(item.text(c)) <= 48 for c in range(5)), [item.text(c) for c in range(5)]
+        if not p["reached"]:
+            assert item.text(3) == "not reached" and item.text(4).startswith("last answer: hop ")
+            assert "not reached; last answer hop" in item.toolTip(4)
+        if i:
+            assert "Differs at" in item.toolTip(2)
+
+
+def test_2_text_columns_fit_their_text(app):
+    t, m = _table(app)
+    for key in ("place", "source"):
+        col = m.keys.index(key)
+        assert t.columnWidth(col) >= min(t.sizeHintForColumn(col), HopTable.FIT_MAX)
