@@ -1,5 +1,5 @@
 {
- "_fixture": "ODIN run 3 (12 Oct 2026) replayed through engine 0.7.1.dev with the names and places it showed; hops 1 to 6 are documentation addresses; stopped at the probe cap as the app's run was.",
+ "_fixture": "ODIN run 3 (12 Oct 2026) replayed through engine 0.7.1.dev with the names and places it showed (no AS numbers: the app adds them); hops 1 to 6 are documentation addresses; stopped at the probe cap as the app's run was.",
  "route": {
   "parser": "icmp",
   "parser_label": "Built-in TCP prober (port 443)",
@@ -120,9 +120,7 @@
      "local / ISP internal"
     ],
     "reason": "private, CGNAT or reserved address, not geolocated",
-    "candidates": [],
-    "asn": 9299,
-    "as_org": "Philippine Long Distance Telephone Company"
+    "candidates": []
    },
    {
     "hop": 5,
@@ -152,9 +150,7 @@
      "local / ISP internal"
     ],
     "reason": "private, CGNAT or reserved address, not geolocated",
-    "candidates": [],
-    "asn": 9299,
-    "as_org": "Philippine Long Distance Telephone Company"
+    "candidates": []
    },
    {
     "hop": 6,
@@ -212,9 +208,7 @@
     "source_ref": "arelion-lg",
     "annotation_details": [
      "ICMP rate limiting, not real loss: 20% loss here but only 0% at a later hop, so the packets were getting through"
-    ],
-    "asn": 1299,
-    "as_org": "Arelion Sweden AB"
+    ]
    },
    {
     "hop": 7,
@@ -277,9 +271,7 @@
     "source_ref": "arelion-lg",
     "annotation_details": [
      "ICMP rate limiting, not real loss: 33% loss here but only 0% at a later hop, so the packets were getting through"
-    ],
-    "asn": 1299,
-    "as_org": "Arelion Sweden AB"
+    ]
    },
    {
     "hop": 8,
@@ -358,9 +350,7 @@
     "source_ref": "arelion-lg",
     "annotation_details": [
      "ICMP rate limiting, not real loss: 20% loss here but only 0% at a later hop, so the packets were getting through"
-    ],
-    "asn": 1299,
-    "as_org": "Arelion Sweden AB"
+    ]
    },
    {
     "hop": 9,
@@ -414,9 +404,7 @@
     "carrier": "Arelion (AS1299, Twelve99)",
     "site_code": "ffm",
     "source_ref": "arelion-lg",
-    "ip_provider": "dbip",
-    "asn": 201011,
-    "as_org": "Core-Backbone GmbH"
+    "ip_provider": "dbip"
    },
    {
     "hop": 10,
@@ -477,9 +465,7 @@
     "carrier": "Arelion (AS1299, Twelve99)",
     "site_code": "ffm",
     "source_ref": "arelion-lg",
-    "ip_provider": "dbip",
-    "asn": 12306,
-    "as_org": "Plus.line AG"
+    "ip_provider": "dbip"
    },
    {
     "hop": 11,
@@ -544,9 +530,7 @@
     "source_ref": "arelion-lg",
     "annotation_details": [
      "ICMP rate limiting, not real loss: 25% loss here but only 0% at a later hop, so the packets were getting through"
-    ],
-    "asn": 1299,
-    "as_org": "Arelion Sweden AB"
+    ]
    },
    {
     "hop": 12,
@@ -598,9 +582,7 @@
     "ip_provider": "dbip",
     "annotation_details": [
      "ICMP rate limiting, not real loss: 33% loss here but only 0% at a later hop, so the packets were getting through"
-    ],
-    "asn": 12306,
-    "as_org": "Plus.line AG"
+    ]
    },
    {
     "hop": 13,
@@ -655,9 +637,7 @@
       "provider": "dbip"
      }
     ],
-    "ip_provider": "dbip",
-    "asn": 12306,
-    "as_org": "Plus.line AG"
+    "ip_provider": "dbip"
    },
    {
     "hop": 14,
@@ -704,9 +684,7 @@
       "provider": "dbip"
      }
     ],
-    "ip_provider": "dbip",
-    "asn": 12306,
-    "as_org": "Plus.line AG"
+    "ip_provider": "dbip"
    }
   ],
   "paths": {
@@ -816,9 +794,7 @@
        "source": "local",
        "min_rtt_ms": 5.8,
        "avg_rtt_ms": 5.8,
-       "reason": "private, CGNAT or reserved address, not geolocated",
-       "asn": 9299,
-       "as_org": "Philippine Long Distance Telephone Company"
+       "reason": "private, CGNAT or reserved address, not geolocated"
       },
       {
        "hop": 5,
@@ -831,9 +807,7 @@
        "source": "local",
        "min_rtt_ms": 5.9,
        "avg_rtt_ms": 5.9,
-       "reason": "private, CGNAT or reserved address, not geolocated",
-       "asn": 9299,
-       "as_org": "Philippine Long Distance Telephone Company"
+       "reason": "private, CGNAT or reserved address, not geolocated"
       },
       {
        "hop": 6,
@@ -846,9 +820,7 @@
        "source": "local",
        "min_rtt_ms": 45.2,
        "avg_rtt_ms": 45.2,
-       "reason": "private, CGNAT or reserved address, not geolocated",
-       "asn": 9299,
-       "as_org": "Philippine Long Distance Telephone Company"
+       "reason": "private, CGNAT or reserved address, not geolocated"
       },
       {
        "hop": 7,
@@ -861,9 +833,7 @@
        "source": "site-code",
        "min_rtt_ms": 58.3,
        "avg_rtt_ms": 58.3,
-       "reason": null,
-       "asn": 1299,
-       "as_org": "Arelion Sweden AB"
+       "reason": null
       },
       {
        "hop": 8,
@@ -890,9 +860,7 @@
        "ip_provider": "dbip",
        "min_rtt_ms": 252.6,
        "avg_rtt_ms": 252.6,
-       "reason": null,
-       "asn": 201011,
-       "as_org": "Core-Backbone GmbH"
+       "reason": null
       },
       {
        "hop": 10,
@@ -906,9 +874,7 @@
        "ip_provider": "dbip",
        "min_rtt_ms": 249.5,
        "avg_rtt_ms": 249.5,
-       "reason": null,
-       "asn": 12306,
-       "as_org": "Plus.line AG"
+       "reason": null
       },
       {
        "hop": 11,
@@ -921,9 +887,7 @@
        "source": "site-code",
        "min_rtt_ms": 200.8,
        "avg_rtt_ms": 200.8,
-       "reason": null,
-       "asn": 1299,
-       "as_org": "Arelion Sweden AB"
+       "reason": null
       },
       {
        "hop": 12,
@@ -950,9 +914,7 @@
        "ip_provider": "dbip",
        "min_rtt_ms": 250.0,
        "avg_rtt_ms": 250.0,
-       "reason": null,
-       "asn": 12306,
-       "as_org": "Plus.line AG"
+       "reason": null
       }
      ]
     },
@@ -1053,9 +1015,7 @@
        "source": "local",
        "min_rtt_ms": 5.8,
        "avg_rtt_ms": 5.8,
-       "reason": "private, CGNAT or reserved address, not geolocated",
-       "asn": 9299,
-       "as_org": "Philippine Long Distance Telephone Company"
+       "reason": "private, CGNAT or reserved address, not geolocated"
       },
       {
        "hop": 5,
@@ -1068,9 +1028,7 @@
        "source": "local",
        "min_rtt_ms": 5.9,
        "avg_rtt_ms": 5.9,
-       "reason": "private, CGNAT or reserved address, not geolocated",
-       "asn": 9299,
-       "as_org": "Philippine Long Distance Telephone Company"
+       "reason": "private, CGNAT or reserved address, not geolocated"
       },
       {
        "hop": 6,
@@ -1109,9 +1067,7 @@
        "source": "site-code",
        "min_rtt_ms": 193.8,
        "avg_rtt_ms": 193.8,
-       "reason": null,
-       "asn": 1299,
-       "as_org": "Arelion Sweden AB"
+       "reason": null
       },
       {
        "hop": 9,
@@ -1124,9 +1080,7 @@
        "source": "site-code",
        "min_rtt_ms": 234.3,
        "avg_rtt_ms": 234.3,
-       "reason": null,
-       "asn": 1299,
-       "as_org": "Arelion Sweden AB"
+       "reason": null
       },
       {
        "hop": 10,
@@ -1139,9 +1093,7 @@
        "source": "site-code",
        "min_rtt_ms": 206.5,
        "avg_rtt_ms": 206.5,
-       "reason": null,
-       "asn": 1299,
-       "as_org": "Arelion Sweden AB"
+       "reason": null
       },
       {
        "hop": 11,
@@ -1154,9 +1106,7 @@
        "source": "unresolved",
        "min_rtt_ms": 254.8,
        "avg_rtt_ms": 254.8,
-       "reason": "location impossible for RTT: 6,964 km from hop 10 (Frankfurt, DE) and back again by hop 13, which needs 70 ms more RTT; it rose 48 ms",
-       "asn": 1299,
-       "as_org": "Arelion Sweden AB"
+       "reason": "location impossible for RTT: 6,964 km from hop 10 (Frankfurt, DE) and back again by hop 13, which needs 70 ms more RTT; it rose 48 ms"
       },
       {
        "hop": 12,
@@ -1183,9 +1133,7 @@
        "ip_provider": "dbip",
        "min_rtt_ms": 254.1,
        "avg_rtt_ms": 254.1,
-       "reason": null,
-       "asn": 12306,
-       "as_org": "Plus.line AG"
+       "reason": null
       }
      ]
     },
@@ -1285,9 +1233,7 @@
        "source": "local",
        "min_rtt_ms": 5.3,
        "avg_rtt_ms": 5.3,
-       "reason": "private, CGNAT or reserved address, not geolocated",
-       "asn": 9299,
-       "as_org": "Philippine Long Distance Telephone Company"
+       "reason": "private, CGNAT or reserved address, not geolocated"
       },
       {
        "hop": 5,
@@ -1300,9 +1246,7 @@
        "source": "local",
        "min_rtt_ms": 6.0,
        "avg_rtt_ms": 6.0,
-       "reason": "private, CGNAT or reserved address, not geolocated",
-       "asn": 9299,
-       "as_org": "Philippine Long Distance Telephone Company"
+       "reason": "private, CGNAT or reserved address, not geolocated"
       },
       {
        "hop": 6,
@@ -1315,9 +1259,7 @@
        "source": "local",
        "min_rtt_ms": 27.8,
        "avg_rtt_ms": 27.8,
-       "reason": "private, CGNAT or reserved address, not geolocated",
-       "asn": 9299,
-       "as_org": "Philippine Long Distance Telephone Company"
+       "reason": "private, CGNAT or reserved address, not geolocated"
       },
       {
        "hop": 7,
@@ -1330,9 +1272,7 @@
        "source": "site-code",
        "min_rtt_ms": 58.3,
        "avg_rtt_ms": 58.3,
-       "reason": null,
-       "asn": 1299,
-       "as_org": "Arelion Sweden AB"
+       "reason": null
       },
       {
        "hop": 8,
@@ -1359,9 +1299,7 @@
        "ip_provider": "dbip",
        "min_rtt_ms": 252.6,
        "avg_rtt_ms": 252.6,
-       "reason": null,
-       "asn": 201011,
-       "as_org": "Core-Backbone GmbH"
+       "reason": null
       },
       {
        "hop": 10,
@@ -1375,9 +1313,7 @@
        "ip_provider": "dbip",
        "min_rtt_ms": 249.5,
        "avg_rtt_ms": 249.5,
-       "reason": null,
-       "asn": 12306,
-       "as_org": "Plus.line AG"
+       "reason": null
       },
       {
        "hop": 11,
@@ -1417,9 +1353,7 @@
        "ip_provider": "dbip",
        "min_rtt_ms": 254.1,
        "avg_rtt_ms": 254.1,
-       "reason": null,
-       "asn": 12306,
-       "as_org": "Plus.line AG"
+       "reason": null
       }
      ]
     },
@@ -1521,9 +1455,7 @@
        "source": "local",
        "min_rtt_ms": 5.8,
        "avg_rtt_ms": 5.8,
-       "reason": "private, CGNAT or reserved address, not geolocated",
-       "asn": 9299,
-       "as_org": "Philippine Long Distance Telephone Company"
+       "reason": "private, CGNAT or reserved address, not geolocated"
       },
       {
        "hop": 5,
@@ -1536,9 +1468,7 @@
        "source": "local",
        "min_rtt_ms": 5.9,
        "avg_rtt_ms": 5.9,
-       "reason": "private, CGNAT or reserved address, not geolocated",
-       "asn": 9299,
-       "as_org": "Philippine Long Distance Telephone Company"
+       "reason": "private, CGNAT or reserved address, not geolocated"
       },
       {
        "hop": 6,
@@ -1551,9 +1481,7 @@
        "source": "site-code",
        "min_rtt_ms": 59.6,
        "avg_rtt_ms": 59.6,
-       "reason": null,
-       "asn": 1299,
-       "as_org": "Arelion Sweden AB"
+       "reason": null
       },
       {
        "hop": 7,
@@ -1566,9 +1494,7 @@
        "source": "site-code",
        "min_rtt_ms": 58.3,
        "avg_rtt_ms": 58.3,
-       "reason": null,
-       "asn": 1299,
-       "as_org": "Arelion Sweden AB"
+       "reason": null
       },
       {
        "hop": 8,
@@ -1595,9 +1521,7 @@
        "ip_provider": "dbip",
        "min_rtt_ms": 252.6,
        "avg_rtt_ms": 252.6,
-       "reason": null,
-       "asn": 201011,
-       "as_org": "Core-Backbone GmbH"
+       "reason": null
       },
       {
        "hop": 10,
@@ -1611,9 +1535,7 @@
        "ip_provider": "dbip",
        "min_rtt_ms": 249.5,
        "avg_rtt_ms": 249.5,
-       "reason": null,
-       "asn": 12306,
-       "as_org": "Plus.line AG"
+       "reason": null
       },
       {
        "hop": 11,
@@ -1653,9 +1575,7 @@
        "ip_provider": "dbip",
        "min_rtt_ms": 254.1,
        "avg_rtt_ms": 254.1,
-       "reason": null,
-       "asn": 12306,
-       "as_org": "Plus.line AG"
+       "reason": null
       },
       {
        "hop": 14,
@@ -1669,9 +1589,7 @@
        "ip_provider": "dbip",
        "min_rtt_ms": 250.0,
        "avg_rtt_ms": 250.0,
-       "reason": null,
-       "asn": 12306,
-       "as_org": "Plus.line AG"
+       "reason": null
       }
      ]
     },
@@ -1769,9 +1687,7 @@
        "source": "local",
        "min_rtt_ms": 5.8,
        "avg_rtt_ms": 5.8,
-       "reason": "private, CGNAT or reserved address, not geolocated",
-       "asn": 9299,
-       "as_org": "Philippine Long Distance Telephone Company"
+       "reason": "private, CGNAT or reserved address, not geolocated"
       },
       {
        "hop": 5,
@@ -1784,9 +1700,7 @@
        "source": "local",
        "min_rtt_ms": 5.9,
        "avg_rtt_ms": 5.9,
-       "reason": "private, CGNAT or reserved address, not geolocated",
-       "asn": 9299,
-       "as_org": "Philippine Long Distance Telephone Company"
+       "reason": "private, CGNAT or reserved address, not geolocated"
       },
       {
        "hop": 6,
@@ -1799,9 +1713,7 @@
        "source": "local",
        "min_rtt_ms": 45.2,
        "avg_rtt_ms": 45.2,
-       "reason": "private, CGNAT or reserved address, not geolocated",
-       "asn": 9299,
-       "as_org": "Philippine Long Distance Telephone Company"
+       "reason": "private, CGNAT or reserved address, not geolocated"
       },
       {
        "hop": 7,
@@ -1840,9 +1752,7 @@
        "source": "site-code",
        "min_rtt_ms": 234.3,
        "avg_rtt_ms": 234.3,
-       "reason": null,
-       "asn": 1299,
-       "as_org": "Arelion Sweden AB"
+       "reason": null
       },
       {
        "hop": 10,
@@ -1855,9 +1765,7 @@
        "source": "site-code",
        "min_rtt_ms": 206.5,
        "avg_rtt_ms": 206.5,
-       "reason": null,
-       "asn": 1299,
-       "as_org": "Arelion Sweden AB"
+       "reason": null
       },
       {
        "hop": 11,
@@ -1897,9 +1805,7 @@
        "ip_provider": "dbip",
        "min_rtt_ms": 246.3,
        "avg_rtt_ms": 246.3,
-       "reason": null,
-       "asn": 12306,
-       "as_org": "Plus.line AG"
+       "reason": null
       }
      ]
     },
@@ -1999,9 +1905,7 @@
        "source": "local",
        "min_rtt_ms": 5.8,
        "avg_rtt_ms": 5.8,
-       "reason": "private, CGNAT or reserved address, not geolocated",
-       "asn": 9299,
-       "as_org": "Philippine Long Distance Telephone Company"
+       "reason": "private, CGNAT or reserved address, not geolocated"
       },
       {
        "hop": 5,
@@ -2014,9 +1918,7 @@
        "source": "local",
        "min_rtt_ms": 5.9,
        "avg_rtt_ms": 5.9,
-       "reason": "private, CGNAT or reserved address, not geolocated",
-       "asn": 9299,
-       "as_org": "Philippine Long Distance Telephone Company"
+       "reason": "private, CGNAT or reserved address, not geolocated"
       },
       {
        "hop": 6,
@@ -2029,9 +1931,7 @@
        "source": "local",
        "min_rtt_ms": 51.0,
        "avg_rtt_ms": 51.0,
-       "reason": "private, CGNAT or reserved address, not geolocated",
-       "asn": 9299,
-       "as_org": "Philippine Long Distance Telephone Company"
+       "reason": "private, CGNAT or reserved address, not geolocated"
       },
       {
        "hop": 7,
@@ -2057,9 +1957,7 @@
        "source": "site-code",
        "min_rtt_ms": 193.7,
        "avg_rtt_ms": 193.7,
-       "reason": null,
-       "asn": 1299,
-       "as_org": "Arelion Sweden AB"
+       "reason": null
       },
       {
        "hop": 9,
@@ -2073,9 +1971,7 @@
        "ip_provider": "dbip",
        "min_rtt_ms": 224.7,
        "avg_rtt_ms": 224.7,
-       "reason": null,
-       "asn": 1299,
-       "as_org": "Arelion Sweden AB"
+       "reason": null
       },
       {
        "hop": 10,
@@ -2089,9 +1985,7 @@
        "ip_provider": "dbip",
        "min_rtt_ms": 207.6,
        "avg_rtt_ms": 207.6,
-       "reason": null,
-       "asn": 1299,
-       "as_org": "Arelion Sweden AB"
+       "reason": null
       },
       {
        "hop": 11,
@@ -2131,9 +2025,7 @@
        "ip_provider": "dbip",
        "min_rtt_ms": 254.1,
        "avg_rtt_ms": 254.1,
-       "reason": null,
-       "asn": 12306,
-       "as_org": "Plus.line AG"
+       "reason": null
       },
       {
        "hop": 14,
@@ -2147,9 +2039,7 @@
        "ip_provider": "dbip",
        "min_rtt_ms": 249.5,
        "avg_rtt_ms": 249.5,
-       "reason": null,
-       "asn": 12306,
-       "as_org": "Plus.line AG"
+       "reason": null
       }
      ]
     },
@@ -2247,9 +2137,7 @@
        "source": "local",
        "min_rtt_ms": 5.8,
        "avg_rtt_ms": 5.8,
-       "reason": "private, CGNAT or reserved address, not geolocated",
-       "asn": 9299,
-       "as_org": "Philippine Long Distance Telephone Company"
+       "reason": "private, CGNAT or reserved address, not geolocated"
       },
       {
        "hop": 5,
@@ -2262,9 +2150,7 @@
        "source": "local",
        "min_rtt_ms": 5.9,
        "avg_rtt_ms": 5.9,
-       "reason": "private, CGNAT or reserved address, not geolocated",
-       "asn": 9299,
-       "as_org": "Philippine Long Distance Telephone Company"
+       "reason": "private, CGNAT or reserved address, not geolocated"
       },
       {
        "hop": 6,
@@ -2277,9 +2163,7 @@
        "source": "local",
        "min_rtt_ms": 45.2,
        "avg_rtt_ms": 45.2,
-       "reason": "private, CGNAT or reserved address, not geolocated",
-       "asn": 9299,
-       "as_org": "Philippine Long Distance Telephone Company"
+       "reason": "private, CGNAT or reserved address, not geolocated"
       },
       {
        "hop": 7,
@@ -2319,9 +2203,7 @@
        "ip_provider": "dbip",
        "min_rtt_ms": 213.2,
        "avg_rtt_ms": 213.2,
-       "reason": null,
-       "asn": 1299,
-       "as_org": "Arelion Sweden AB"
+       "reason": null
       },
       {
        "hop": 10,
@@ -2334,9 +2216,7 @@
        "source": "site-code",
        "min_rtt_ms": 243.3,
        "avg_rtt_ms": 243.3,
-       "reason": null,
-       "asn": 1299,
-       "as_org": "Arelion Sweden AB"
+       "reason": null
       },
       {
        "hop": 11,
@@ -2349,9 +2229,7 @@
        "source": "unresolved",
        "min_rtt_ms": 254.8,
        "avg_rtt_ms": 254.8,
-       "reason": "location impossible for RTT: 6,964 km from hop 10 (Frankfurt, DE) and back again by hop 13, which needs 70 ms more RTT; it rose 48 ms",
-       "asn": 1299,
-       "as_org": "Arelion Sweden AB"
+       "reason": "location impossible for RTT: 6,964 km from hop 10 (Frankfurt, DE) and back again by hop 13, which needs 70 ms more RTT; it rose 48 ms"
       },
       {
        "hop": 12,
@@ -2378,9 +2256,7 @@
        "ip_provider": "dbip",
        "min_rtt_ms": 250.0,
        "avg_rtt_ms": 250.0,
-       "reason": null,
-       "asn": 12306,
-       "as_org": "Plus.line AG"
+       "reason": null
       }
      ]
     },
@@ -2480,9 +2356,7 @@
        "source": "local",
        "min_rtt_ms": 5.3,
        "avg_rtt_ms": 5.3,
-       "reason": "private, CGNAT or reserved address, not geolocated",
-       "asn": 9299,
-       "as_org": "Philippine Long Distance Telephone Company"
+       "reason": "private, CGNAT or reserved address, not geolocated"
       },
       {
        "hop": 5,
@@ -2495,9 +2369,7 @@
        "source": "local",
        "min_rtt_ms": 7.2,
        "avg_rtt_ms": 7.2,
-       "reason": "private, CGNAT or reserved address, not geolocated",
-       "asn": 9299,
-       "as_org": "Philippine Long Distance Telephone Company"
+       "reason": "private, CGNAT or reserved address, not geolocated"
       },
       {
        "hop": 6,
@@ -2510,9 +2382,7 @@
        "source": "local",
        "min_rtt_ms": 27.8,
        "avg_rtt_ms": 27.8,
-       "reason": "private, CGNAT or reserved address, not geolocated",
-       "asn": 9299,
-       "as_org": "Philippine Long Distance Telephone Company"
+       "reason": "private, CGNAT or reserved address, not geolocated"
       },
       {
        "hop": 7,
@@ -2525,9 +2395,7 @@
        "source": "site-code",
        "min_rtt_ms": 203.4,
        "avg_rtt_ms": 203.4,
-       "reason": null,
-       "asn": 1299,
-       "as_org": "Arelion Sweden AB"
+       "reason": null
       },
       {
        "hop": 8,
@@ -2554,9 +2422,7 @@
        "ip_provider": "dbip",
        "min_rtt_ms": 252.6,
        "avg_rtt_ms": 252.6,
-       "reason": null,
-       "asn": 201011,
-       "as_org": "Core-Backbone GmbH"
+       "reason": null
       },
       {
        "hop": 10,
@@ -2570,9 +2436,7 @@
        "ip_provider": "dbip",
        "min_rtt_ms": 249.5,
        "avg_rtt_ms": 249.5,
-       "reason": null,
-       "asn": 12306,
-       "as_org": "Plus.line AG"
+       "reason": null
       },
       {
        "hop": 11,
@@ -2612,9 +2476,7 @@
        "ip_provider": "dbip",
        "min_rtt_ms": 254.1,
        "avg_rtt_ms": 254.1,
-       "reason": null,
-       "asn": 12306,
-       "as_org": "Plus.line AG"
+       "reason": null
       },
       {
        "hop": 14,
@@ -2628,9 +2490,7 @@
        "ip_provider": "dbip",
        "min_rtt_ms": 250.0,
        "avg_rtt_ms": 250.0,
-       "reason": null,
-       "asn": 12306,
-       "as_org": "Plus.line AG"
+       "reason": null
       }
      ]
     },
@@ -2728,9 +2588,7 @@
        "source": "local",
        "min_rtt_ms": 5.8,
        "avg_rtt_ms": 5.8,
-       "reason": "private, CGNAT or reserved address, not geolocated",
-       "asn": 9299,
-       "as_org": "Philippine Long Distance Telephone Company"
+       "reason": "private, CGNAT or reserved address, not geolocated"
       },
       {
        "hop": 5,
@@ -2743,9 +2601,7 @@
        "source": "local",
        "min_rtt_ms": 5.9,
        "avg_rtt_ms": 5.9,
-       "reason": "private, CGNAT or reserved address, not geolocated",
-       "asn": 9299,
-       "as_org": "Philippine Long Distance Telephone Company"
+       "reason": "private, CGNAT or reserved address, not geolocated"
       },
       {
        "hop": 6,
@@ -2758,9 +2614,7 @@
        "source": "local",
        "min_rtt_ms": 27.8,
        "avg_rtt_ms": 27.8,
-       "reason": "private, CGNAT or reserved address, not geolocated",
-       "asn": 9299,
-       "as_org": "Philippine Long Distance Telephone Company"
+       "reason": "private, CGNAT or reserved address, not geolocated"
       },
       {
        "hop": 7,
@@ -2799,9 +2653,7 @@
        "source": "site-code",
        "min_rtt_ms": 234.3,
        "avg_rtt_ms": 234.3,
-       "reason": null,
-       "asn": 1299,
-       "as_org": "Arelion Sweden AB"
+       "reason": null
       },
       {
        "hop": 10,
@@ -2814,9 +2666,7 @@
        "source": "site-code",
        "min_rtt_ms": 206.5,
        "avg_rtt_ms": 206.5,
-       "reason": null,
-       "asn": 1299,
-       "as_org": "Arelion Sweden AB"
+       "reason": null
       },
       {
        "hop": 11,
@@ -2829,9 +2679,7 @@
        "source": "unresolved",
        "min_rtt_ms": 254.8,
        "avg_rtt_ms": 254.8,
-       "reason": "location impossible for RTT: 6,964 km from hop 10 (Frankfurt, DE) and back again by hop 13, which needs 70 ms more RTT; it rose 48 ms",
-       "asn": 1299,
-       "as_org": "Arelion Sweden AB"
+       "reason": "location impossible for RTT: 6,964 km from hop 10 (Frankfurt, DE) and back again by hop 13, which needs 70 ms more RTT; it rose 48 ms"
       },
       {
        "hop": 12,
@@ -2844,9 +2692,7 @@
        "source": "unresolved",
        "min_rtt_ms": 250.1,
        "avg_rtt_ms": 250.1,
-       "reason": "location impossible for RTT: 6,964 km from hop 10 (Frankfurt, DE) and back again by hop 13, which needs 70 ms more RTT; it rose 48 ms",
-       "asn": 1299,
-       "as_org": "Arelion Sweden AB"
+       "reason": "location impossible for RTT: 6,964 km from hop 10 (Frankfurt, DE) and back again by hop 13, which needs 70 ms more RTT; it rose 48 ms"
       },
       {
        "hop": 13,
@@ -2860,9 +2706,7 @@
        "ip_provider": "dbip",
        "min_rtt_ms": 250.0,
        "avg_rtt_ms": 250.0,
-       "reason": null,
-       "asn": 12306,
-       "as_org": "Plus.line AG"
+       "reason": null
       }
      ]
     },
@@ -2960,9 +2804,7 @@
        "source": "local",
        "min_rtt_ms": 5.8,
        "avg_rtt_ms": 5.8,
-       "reason": "private, CGNAT or reserved address, not geolocated",
-       "asn": 9299,
-       "as_org": "Philippine Long Distance Telephone Company"
+       "reason": "private, CGNAT or reserved address, not geolocated"
       },
       {
        "hop": 5,
@@ -2975,9 +2817,7 @@
        "source": "local",
        "min_rtt_ms": 5.9,
        "avg_rtt_ms": 5.9,
-       "reason": "private, CGNAT or reserved address, not geolocated",
-       "asn": 9299,
-       "as_org": "Philippine Long Distance Telephone Company"
+       "reason": "private, CGNAT or reserved address, not geolocated"
       },
       {
        "hop": 6,
@@ -2990,9 +2830,7 @@
        "source": "site-code",
        "min_rtt_ms": 59.6,
        "avg_rtt_ms": 59.6,
-       "reason": null,
-       "asn": 1299,
-       "as_org": "Arelion Sweden AB"
+       "reason": null
       },
       {
        "hop": 7,
@@ -3005,9 +2843,7 @@
        "source": "site-code",
        "min_rtt_ms": 58.3,
        "avg_rtt_ms": 58.3,
-       "reason": null,
-       "asn": 1299,
-       "as_org": "Arelion Sweden AB"
+       "reason": null
       },
       {
        "hop": 8,
@@ -3020,9 +2856,7 @@
        "source": "site-code",
        "min_rtt_ms": 193.7,
        "avg_rtt_ms": 193.7,
-       "reason": null,
-       "asn": 1299,
-       "as_org": "Arelion Sweden AB"
+       "reason": null
       },
       {
        "hop": 9,
@@ -3035,9 +2869,7 @@
        "source": "site-code",
        "min_rtt_ms": 234.3,
        "avg_rtt_ms": 234.3,
-       "reason": null,
-       "asn": 1299,
-       "as_org": "Arelion Sweden AB"
+       "reason": null
       },
       {
        "hop": 10,
@@ -3050,9 +2882,7 @@
        "source": "site-code",
        "min_rtt_ms": 206.5,
        "avg_rtt_ms": 206.5,
-       "reason": null,
-       "asn": 1299,
-       "as_org": "Arelion Sweden AB"
+       "reason": null
       },
       {
        "hop": 11,
@@ -3065,9 +2895,7 @@
        "source": "unresolved",
        "min_rtt_ms": 254.8,
        "avg_rtt_ms": 254.8,
-       "reason": "location impossible for RTT: 6,964 km from hop 10 (Frankfurt, DE) and back again by hop 13, which needs 70 ms more RTT; it rose 48 ms",
-       "asn": 1299,
-       "as_org": "Arelion Sweden AB"
+       "reason": "location impossible for RTT: 6,964 km from hop 10 (Frankfurt, DE) and back again by hop 13, which needs 70 ms more RTT; it rose 48 ms"
       },
       {
        "hop": 12,
@@ -3081,9 +2909,7 @@
        "ip_provider": "dbip",
        "min_rtt_ms": 253.1,
        "avg_rtt_ms": 253.1,
-       "reason": null,
-       "asn": 12306,
-       "as_org": "Plus.line AG"
+       "reason": null
       },
       {
        "hop": 13,
@@ -3097,9 +2923,7 @@
        "ip_provider": "dbip",
        "min_rtt_ms": 250.0,
        "avg_rtt_ms": 250.0,
-       "reason": null,
-       "asn": 12306,
-       "as_org": "Plus.line AG"
+       "reason": null
       }
      ]
     },
@@ -3196,9 +3020,7 @@
        "source": "local",
        "min_rtt_ms": 5.3,
        "avg_rtt_ms": 5.3,
-       "reason": "private, CGNAT or reserved address, not geolocated",
-       "asn": 9299,
-       "as_org": "Philippine Long Distance Telephone Company"
+       "reason": "private, CGNAT or reserved address, not geolocated"
       },
       {
        "hop": 5,
@@ -3211,9 +3033,7 @@
        "source": "local",
        "min_rtt_ms": 6.0,
        "avg_rtt_ms": 6.0,
-       "reason": "private, CGNAT or reserved address, not geolocated",
-       "asn": 9299,
-       "as_org": "Philippine Long Distance Telephone Company"
+       "reason": "private, CGNAT or reserved address, not geolocated"
       },
       {
        "hop": 6,
@@ -3226,9 +3046,7 @@
        "source": "site-code",
        "min_rtt_ms": 59.6,
        "avg_rtt_ms": 59.6,
-       "reason": null,
-       "asn": 1299,
-       "as_org": "Arelion Sweden AB"
+       "reason": null
       },
       {
        "hop": 7,
@@ -3241,9 +3059,7 @@
        "source": "site-code",
        "min_rtt_ms": 203.4,
        "avg_rtt_ms": 203.4,
-       "reason": null,
-       "asn": 1299,
-       "as_org": "Arelion Sweden AB"
+       "reason": null
       },
       {
        "hop": 8,
@@ -3270,9 +3086,7 @@
        "ip_provider": "dbip",
        "min_rtt_ms": 252.6,
        "avg_rtt_ms": 252.6,
-       "reason": null,
-       "asn": 201011,
-       "as_org": "Core-Backbone GmbH"
+       "reason": null
       },
       {
        "hop": 10,
@@ -3286,9 +3100,7 @@
        "ip_provider": "dbip",
        "min_rtt_ms": 249.5,
        "avg_rtt_ms": 249.5,
-       "reason": null,
-       "asn": 12306,
-       "as_org": "Plus.line AG"
+       "reason": null
       },
       {
        "hop": 11,
@@ -3301,9 +3113,7 @@
        "source": "unresolved",
        "min_rtt_ms": 254.8,
        "avg_rtt_ms": 254.8,
-       "reason": "location impossible for RTT: 6,964 km from hop 10 (Frankfurt, DE) and back again by hop 13, which needs 70 ms more RTT; it rose 48 ms",
-       "asn": 1299,
-       "as_org": "Arelion Sweden AB"
+       "reason": "location impossible for RTT: 6,964 km from hop 10 (Frankfurt, DE) and back again by hop 13, which needs 70 ms more RTT; it rose 48 ms"
       },
       {
        "hop": 12,
@@ -3330,9 +3140,7 @@
        "ip_provider": "dbip",
        "min_rtt_ms": 250.0,
        "avg_rtt_ms": 250.0,
-       "reason": null,
-       "asn": 12306,
-       "as_org": "Plus.line AG"
+       "reason": null
       }
      ]
     },
@@ -3431,9 +3239,7 @@
        "source": "local",
        "min_rtt_ms": 5.8,
        "avg_rtt_ms": 5.8,
-       "reason": "private, CGNAT or reserved address, not geolocated",
-       "asn": 9299,
-       "as_org": "Philippine Long Distance Telephone Company"
+       "reason": "private, CGNAT or reserved address, not geolocated"
       },
       {
        "hop": 5,
@@ -3446,9 +3252,7 @@
        "source": "local",
        "min_rtt_ms": 5.9,
        "avg_rtt_ms": 5.9,
-       "reason": "private, CGNAT or reserved address, not geolocated",
-       "asn": 9299,
-       "as_org": "Philippine Long Distance Telephone Company"
+       "reason": "private, CGNAT or reserved address, not geolocated"
       },
       {
        "hop": 6,
@@ -3488,9 +3292,7 @@
        "ip_provider": "dbip",
        "min_rtt_ms": 191.6,
        "avg_rtt_ms": 191.6,
-       "reason": null,
-       "asn": 1299,
-       "as_org": "Arelion Sweden AB"
+       "reason": null
       },
       {
        "hop": 9,
@@ -3504,9 +3306,7 @@
        "ip_provider": "dbip",
        "min_rtt_ms": 224.7,
        "avg_rtt_ms": 224.7,
-       "reason": null,
-       "asn": 1299,
-       "as_org": "Arelion Sweden AB"
+       "reason": null
       },
       {
        "hop": 10,
@@ -3520,9 +3320,7 @@
        "ip_provider": "dbip",
        "min_rtt_ms": 207.6,
        "avg_rtt_ms": 207.6,
-       "reason": null,
-       "asn": 1299,
-       "as_org": "Arelion Sweden AB"
+       "reason": null
       },
       {
        "hop": 11,
@@ -3536,9 +3334,7 @@
        "ip_provider": "dbip",
        "min_rtt_ms": 203.6,
        "avg_rtt_ms": 203.6,
-       "reason": null,
-       "asn": 1299,
-       "as_org": "Arelion Sweden AB"
+       "reason": null
       },
       {
        "hop": 12,
@@ -3565,9 +3361,7 @@
        "ip_provider": "dbip",
        "min_rtt_ms": 254.1,
        "avg_rtt_ms": 254.1,
-       "reason": null,
-       "asn": 12306,
-       "as_org": "Plus.line AG"
+       "reason": null
       },
       {
        "hop": 14,
@@ -3581,9 +3375,7 @@
        "ip_provider": "dbip",
        "min_rtt_ms": 249.5,
        "avg_rtt_ms": 249.5,
-       "reason": null,
-       "asn": 12306,
-       "as_org": "Plus.line AG"
+       "reason": null
       }
      ]
     },
@@ -3678,9 +3470,7 @@
        "source": "local",
        "min_rtt_ms": 5.3,
        "avg_rtt_ms": 5.3,
-       "reason": "private, CGNAT or reserved address, not geolocated",
-       "asn": 9299,
-       "as_org": "Philippine Long Distance Telephone Company"
+       "reason": "private, CGNAT or reserved address, not geolocated"
       },
       {
        "hop": 5,
@@ -3693,9 +3483,7 @@
        "source": "local",
        "min_rtt_ms": 6.0,
        "avg_rtt_ms": 6.0,
-       "reason": "private, CGNAT or reserved address, not geolocated",
-       "asn": 9299,
-       "as_org": "Philippine Long Distance Telephone Company"
+       "reason": "private, CGNAT or reserved address, not geolocated"
       },
       {
        "hop": 6,
@@ -3708,9 +3496,7 @@
        "source": "site-code",
        "min_rtt_ms": 59.6,
        "avg_rtt_ms": 59.6,
-       "reason": null,
-       "asn": 1299,
-       "as_org": "Arelion Sweden AB"
+       "reason": null
       },
       {
        "hop": 7,
@@ -3723,9 +3509,7 @@
        "source": "site-code",
        "min_rtt_ms": 58.3,
        "avg_rtt_ms": 58.3,
-       "reason": null,
-       "asn": 1299,
-       "as_org": "Arelion Sweden AB"
+       "reason": null
       },
       {
        "hop": 8,
@@ -3738,9 +3522,7 @@
        "source": "site-code",
        "min_rtt_ms": 54.0,
        "avg_rtt_ms": 54.0,
-       "reason": null,
-       "asn": 1299,
-       "as_org": "Arelion Sweden AB"
+       "reason": null
       },
       {
        "hop": 9,
@@ -3753,9 +3535,7 @@
        "source": "site-code",
        "min_rtt_ms": 234.3,
        "avg_rtt_ms": 234.3,
-       "reason": null,
-       "asn": 1299,
-       "as_org": "Arelion Sweden AB"
+       "reason": null
       },
       {
        "hop": 10,
@@ -3768,9 +3548,7 @@
        "source": "site-code",
        "min_rtt_ms": 206.5,
        "avg_rtt_ms": 206.5,
-       "reason": null,
-       "asn": 1299,
-       "as_org": "Arelion Sweden AB"
+       "reason": null
       },
       {
        "hop": 11,
@@ -3783,9 +3561,7 @@
        "source": "unresolved",
        "min_rtt_ms": 254.8,
        "avg_rtt_ms": 254.8,
-       "reason": "location impossible for RTT: 6,964 km from hop 10 (Frankfurt, DE) and back again by hop 13, which needs 70 ms more RTT; it rose 48 ms",
-       "asn": 1299,
-       "as_org": "Arelion Sweden AB"
+       "reason": "location impossible for RTT: 6,964 km from hop 10 (Frankfurt, DE) and back again by hop 13, which needs 70 ms more RTT; it rose 48 ms"
       },
       {
        "hop": 12,
@@ -3799,9 +3575,7 @@
        "ip_provider": "dbip",
        "min_rtt_ms": 253.1,
        "avg_rtt_ms": 253.1,
-       "reason": null,
-       "asn": 12306,
-       "as_org": "Plus.line AG"
+       "reason": null
       },
       {
        "hop": 13,
@@ -3815,9 +3589,7 @@
        "ip_provider": "dbip",
        "min_rtt_ms": 254.1,
        "avg_rtt_ms": 254.1,
-       "reason": null,
-       "asn": 12306,
-       "as_org": "Plus.line AG"
+       "reason": null
       }
      ]
     },
@@ -3914,9 +3686,7 @@
        "source": "local",
        "min_rtt_ms": 5.8,
        "avg_rtt_ms": 5.8,
-       "reason": "private, CGNAT or reserved address, not geolocated",
-       "asn": 9299,
-       "as_org": "Philippine Long Distance Telephone Company"
+       "reason": "private, CGNAT or reserved address, not geolocated"
       },
       {
        "hop": 5,
@@ -3929,9 +3699,7 @@
        "source": "local",
        "min_rtt_ms": 5.9,
        "avg_rtt_ms": 5.9,
-       "reason": "private, CGNAT or reserved address, not geolocated",
-       "asn": 9299,
-       "as_org": "Philippine Long Distance Telephone Company"
+       "reason": "private, CGNAT or reserved address, not geolocated"
       },
       {
        "hop": 6,
@@ -3957,9 +3725,7 @@
        "source": "site-code",
        "min_rtt_ms": 58.3,
        "avg_rtt_ms": 58.3,
-       "reason": null,
-       "asn": 1299,
-       "as_org": "Arelion Sweden AB"
+       "reason": null
       },
       {
        "hop": 8,
@@ -3972,9 +3738,7 @@
        "source": "site-code",
        "min_rtt_ms": 193.7,
        "avg_rtt_ms": 193.7,
-       "reason": null,
-       "asn": 1299,
-       "as_org": "Arelion Sweden AB"
+       "reason": null
       },
       {
        "hop": 9,
@@ -3987,9 +3751,7 @@
        "source": "site-code",
        "min_rtt_ms": 234.3,
        "avg_rtt_ms": 234.3,
-       "reason": null,
-       "asn": 1299,
-       "as_org": "Arelion Sweden AB"
+       "reason": null
       },
       {
        "hop": 10,
@@ -4002,9 +3764,7 @@
        "source": "site-code",
        "min_rtt_ms": 206.5,
        "avg_rtt_ms": 206.5,
-       "reason": null,
-       "asn": 1299,
-       "as_org": "Arelion Sweden AB"
+       "reason": null
       },
       {
        "hop": 11,
@@ -4017,9 +3777,7 @@
        "source": "unresolved",
        "min_rtt_ms": 254.8,
        "avg_rtt_ms": 254.8,
-       "reason": "location impossible for RTT: 6,964 km from hop 10 (Frankfurt, DE) and back again by hop 13, which needs 70 ms more RTT; it rose 48 ms",
-       "asn": 1299,
-       "as_org": "Arelion Sweden AB"
+       "reason": "location impossible for RTT: 6,964 km from hop 10 (Frankfurt, DE) and back again by hop 13, which needs 70 ms more RTT; it rose 48 ms"
       },
       {
        "hop": 12,
@@ -4046,9 +3804,7 @@
        "ip_provider": "dbip",
        "min_rtt_ms": 254.1,
        "avg_rtt_ms": 254.1,
-       "reason": null,
-       "asn": 12306,
-       "as_org": "Plus.line AG"
+       "reason": null
       },
       {
        "hop": 14,
@@ -4062,9 +3818,7 @@
        "ip_provider": "dbip",
        "min_rtt_ms": 250.0,
        "avg_rtt_ms": 250.0,
-       "reason": null,
-       "asn": 12306,
-       "as_org": "Plus.line AG"
+       "reason": null
       }
      ]
     },
@@ -4159,9 +3913,7 @@
        "source": "local",
        "min_rtt_ms": 5.3,
        "avg_rtt_ms": 5.3,
-       "reason": "private, CGNAT or reserved address, not geolocated",
-       "asn": 9299,
-       "as_org": "Philippine Long Distance Telephone Company"
+       "reason": "private, CGNAT or reserved address, not geolocated"
       },
       {
        "hop": 5,
@@ -4174,9 +3926,7 @@
        "source": "local",
        "min_rtt_ms": 6.0,
        "avg_rtt_ms": 6.0,
-       "reason": "private, CGNAT or reserved address, not geolocated",
-       "asn": 9299,
-       "as_org": "Philippine Long Distance Telephone Company"
+       "reason": "private, CGNAT or reserved address, not geolocated"
       },
       {
        "hop": 6,
@@ -4189,9 +3939,7 @@
        "source": "site-code",
        "min_rtt_ms": 59.6,
        "avg_rtt_ms": 59.6,
-       "reason": null,
-       "asn": 1299,
-       "as_org": "Arelion Sweden AB"
+       "reason": null
       },
       {
        "hop": 7,
@@ -4204,9 +3952,7 @@
        "source": "site-code",
        "min_rtt_ms": 58.3,
        "avg_rtt_ms": 58.3,
-       "reason": null,
-       "asn": 1299,
-       "as_org": "Arelion Sweden AB"
+       "reason": null
       },
       {
        "hop": 8,
@@ -4220,9 +3966,7 @@
        "ip_provider": "dbip",
        "min_rtt_ms": 191.6,
        "avg_rtt_ms": 191.6,
-       "reason": null,
-       "asn": 1299,
-       "as_org": "Arelion Sweden AB"
+       "reason": null
       },
       {
        "hop": 9,
@@ -4236,9 +3980,7 @@
        "ip_provider": "dbip",
        "min_rtt_ms": 252.6,
        "avg_rtt_ms": 252.6,
-       "reason": null,
-       "asn": 201011,
-       "as_org": "Core-Backbone GmbH"
+       "reason": null
       },
       {
        "hop": 10,
@@ -4252,9 +3994,7 @@
        "ip_provider": "dbip",
        "min_rtt_ms": 249.5,
        "avg_rtt_ms": 249.5,
-       "reason": null,
-       "asn": 12306,
-       "as_org": "Plus.line AG"
+       "reason": null
       },
       {
        "hop": 11,
@@ -4267,9 +4007,7 @@
        "source": "unresolved",
        "min_rtt_ms": 254.8,
        "avg_rtt_ms": 254.8,
-       "reason": "location impossible for RTT: 6,964 km from hop 10 (Frankfurt, DE) and back again by hop 13, which needs 70 ms more RTT; it rose 48 ms",
-       "asn": 1299,
-       "as_org": "Arelion Sweden AB"
+       "reason": "location impossible for RTT: 6,964 km from hop 10 (Frankfurt, DE) and back again by hop 13, which needs 70 ms more RTT; it rose 48 ms"
       },
       {
        "hop": 12,
@@ -4283,9 +4021,7 @@
        "ip_provider": "dbip",
        "min_rtt_ms": 253.1,
        "avg_rtt_ms": 253.1,
-       "reason": null,
-       "asn": 12306,
-       "as_org": "Plus.line AG"
+       "reason": null
       },
       {
        "hop": 13,
@@ -4299,9 +4035,7 @@
        "ip_provider": "dbip",
        "min_rtt_ms": 250.0,
        "avg_rtt_ms": 250.0,
-       "reason": null,
-       "asn": 12306,
-       "as_org": "Plus.line AG"
+       "reason": null
       }
      ]
     },
@@ -4396,9 +4130,7 @@
        "source": "local",
        "min_rtt_ms": 5.3,
        "avg_rtt_ms": 5.3,
-       "reason": "private, CGNAT or reserved address, not geolocated",
-       "asn": 9299,
-       "as_org": "Philippine Long Distance Telephone Company"
+       "reason": "private, CGNAT or reserved address, not geolocated"
       },
       {
        "hop": 5,
@@ -4411,9 +4143,7 @@
        "source": "local",
        "min_rtt_ms": 6.0,
        "avg_rtt_ms": 6.0,
-       "reason": "private, CGNAT or reserved address, not geolocated",
-       "asn": 9299,
-       "as_org": "Philippine Long Distance Telephone Company"
+       "reason": "private, CGNAT or reserved address, not geolocated"
       },
       {
        "hop": 6,
@@ -4426,9 +4156,7 @@
        "source": "local",
        "min_rtt_ms": 27.8,
        "avg_rtt_ms": 27.8,
-       "reason": "private, CGNAT or reserved address, not geolocated",
-       "asn": 9299,
-       "as_org": "Philippine Long Distance Telephone Company"
+       "reason": "private, CGNAT or reserved address, not geolocated"
       },
       {
        "hop": 7,
@@ -4441,9 +4169,7 @@
        "source": "site-code",
        "min_rtt_ms": 203.4,
        "avg_rtt_ms": 203.4,
-       "reason": null,
-       "asn": 1299,
-       "as_org": "Arelion Sweden AB"
+       "reason": null
       },
       {
        "hop": 8,
@@ -4470,9 +4196,7 @@
        "ip_provider": "dbip",
        "min_rtt_ms": 252.6,
        "avg_rtt_ms": 252.6,
-       "reason": null,
-       "asn": 201011,
-       "as_org": "Core-Backbone GmbH"
+       "reason": null
       },
       {
        "hop": 10,
@@ -4486,9 +4210,7 @@
        "ip_provider": "dbip",
        "min_rtt_ms": 249.5,
        "avg_rtt_ms": 249.5,
-       "reason": null,
-       "asn": 12306,
-       "as_org": "Plus.line AG"
+       "reason": null
       },
       {
        "hop": 11,
@@ -4501,9 +4223,7 @@
        "source": "unresolved",
        "min_rtt_ms": 254.8,
        "avg_rtt_ms": 254.8,
-       "reason": "location impossible for RTT: 6,964 km from hop 10 (Frankfurt, DE) and back again by hop 13, which needs 70 ms more RTT; it rose 48 ms",
-       "asn": 1299,
-       "as_org": "Arelion Sweden AB"
+       "reason": "location impossible for RTT: 6,964 km from hop 10 (Frankfurt, DE) and back again by hop 13, which needs 70 ms more RTT; it rose 48 ms"
       },
       {
        "hop": 12,
@@ -4530,9 +4250,7 @@
        "ip_provider": "dbip",
        "min_rtt_ms": 250.0,
        "avg_rtt_ms": 250.0,
-       "reason": null,
-       "asn": 12306,
-       "as_org": "Plus.line AG"
+       "reason": null
       }
      ]
     }

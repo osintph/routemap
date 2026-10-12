@@ -13,9 +13,43 @@ from PySide6.QtWidgets import QApplication
 from routemap import cli, pathsummary
 from routemap.gui.hoptable import HopTable, legend_text, path_rows
 
-ROUTE = json.loads((pathlib.Path(__file__).parent / "fixtures" / "routemap" / "odin_paths_run3_route.json")
-                   .read_text())["route"]
+HERE = pathlib.Path(__file__).parent / "fixtures" / "routemap"
+
+
+class _AsnDb:
+    """The offline ASN database's answers for the networks on these paths."""
+    def lookup(self, addr):
+        from types import SimpleNamespace
+        if addr in ("198.51.100.1", "198.51.100.2"):          # the home routers
+            return None
+        rows = (("198.51.100.", 9299), ("203.0.113.", 9299), ("62.115.", 1299),
+                ("5.56.18.114", 201011), ("82.98.", 12306), ("193.99.", 12306), ("212.19.", 12306))
+        for prefix, asn in rows:
+            if addr.startswith(prefix):
+                return SimpleNamespace(asn=asn, org={9299: "Philippine Long Distance Telephone Company",
+                                                     1299: "Arelion Sweden AB", 201011: "Core-Backbone GmbH",
+                                                     12306: "Plus.line AG"}[asn], network="") if asn else None
+        return None
+
+
+def _load(name):
+    """A fixture route with its AS numbers added the way the app adds them
+    (insight.offline): the fixtures carry none, so a lookup that misses a
+    path's hops shows here (ODIN test build 4: "No AS numbers on any path")."""
+    from routemap import config, insight
+    route = json.loads((HERE / name).read_text())["route"]
+    real = insight._asn_reader
+    insight._asn_reader = lambda: _AsnDb()
+    try:
+        insight.offline(route, config.Settings(online_lookups=False))
+    finally:
+        insight._asn_reader = real
+    return route
+
+
+ROUTE = _load("odin_paths_run3_route.json")
 PATHS = ROUTE["paths"]["paths"]
+RUN4 = _load("odin_paths_run4_route.json")
 
 
 @pytest.fixture(scope="module")
@@ -63,8 +97,8 @@ def test_4_each_as_path_is_one_paths_with_its_letters():
 
 def test_5_countries_per_path_keep_france():
     groups = pathsummary.countries(ROUTE)
-    assert any("FR" in [c["cc"] for c in cs] for _, cs in groups)
-    assert not any("US" in [c["cc"] for c in cs] for _, cs in groups)
+    assert any("FR" in [c.get("cc") for c in cs] for _, cs in groups)
+    assert not any("US" in [c.get("cc") for c in cs] for _, cs in groups)
 
 
 def test_6_the_legend_speaks_as_the_path_list():
@@ -134,3 +168,43 @@ def test_2_text_columns_fit_their_text(app):
     for key in ("place", "source"):
         col = m.keys.index(key)
         assert t.columnWidth(col) >= min(t.sizeHintForColumn(col), HopTable.FIT_MAX)
+
+
+def test_a_every_router_on_a_path_has_its_asn_and_the_summary_lists_the_as_paths():
+    rows = path_rows(RUN4["hops"], RUN4["paths"]["paths"])
+    subs = [r for r in rows if r.get("_sub")]
+    assert subs and all(r.get("asn") for r in subs if r.get("address") not in ("198.51.100.1", "198.51.100.2")), \
+        [(r["hop"], r.get("_sub"), r.get("address"), r.get("asn")) for r in subs if not r.get("asn")]
+    for row in rows:
+        if row.get("_summary"):
+            assert row.get("asn") or row.get("_asn_text") == "mixed", row["hop"]
+    groups = pathsummary.as_paths(RUN4)
+    assert groups and all(steps for _, steps in groups)
+    assert {s["asn"] for _, steps in groups for s in steps} >= {1299, 12306}
+
+
+def test_b_the_note_states_how_many_attempts_each_path_got():
+    from routemap.gui.hoptable import path_notes
+    disc = json.loads(json.dumps(RUN4["paths"]))
+    note = next(n for n in path_notes(disc) if n.startswith("Target answered"))
+    assert "of ten connection attempts" in note
+    for p in disc["paths"]:
+        if p["reached"]:
+            p["sent"] = 7
+    note = next(n for n in path_notes(disc) if n.startswith("Target answered"))
+    assert "of 7 connection attempts" in note and "budget ran out" in note
+
+
+def test_c_countries_never_skip_hops_without_saying_so():
+    """Paths B, I, N and P read "PH (origin) > PH > DE" in the app: nothing
+    between Asia and Europe had a place on those paths."""
+    for ids, items in pathsummary.countries(RUN4, origin_cc="PH"):
+        members = [p for p in RUN4["paths"]["paths"] if p["id"] in _expand(ids)]
+        for p in members:
+            placed = [h for h in sorted(p["located"], key=lambda h: h["hop"])
+                      if h.get("lat") is not None and h.get("source") != "local"]
+            for a, b in zip(placed, placed[1:]):
+                between = [h for h in p["located"] if a["hop"] < h["hop"] < b["hop"]]
+                if a.get("cc") != b.get("cc") and between:
+                    i_a = next(i for i, c in enumerate(items) if c.get("cc") == a["cc"])
+                    assert "gap" in items[i_a + 1], (p["id"], items)

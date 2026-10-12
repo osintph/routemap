@@ -33,12 +33,55 @@ def as_paths(route: dict) -> list[tuple[str, list[dict]]]:
     return sorted(out, key=lambda g: -len(g[0].split()))
 
 
-def countries(route: dict, sensitive: set[str] | frozenset = frozenset()) -> list[tuple[str, list[dict]]]:
-    """[(path letters, countries transited)] for each distinct country list."""
+def _chain(located: list[dict], sensitive: set[str], origin_cc: str | None = None) -> list[dict]:
+    """A path's countries in order, with the hops between two different
+    placed countries that have no place (no answer on this path, or nothing
+    places the router) counted where they are: {"gap": n}. Without them
+    "PH > DE" would read as one hop across the world."""
+    out: list[dict] = []
+    gap = 0
+    for h in sorted(located, key=lambda h: h.get("hop") or 0):
+        if h.get("source") == "local":
+            continue
+        cc = (h.get("cc") or "").upper() if h.get("lat") is not None else ""
+        if not cc:
+            gap += 1
+            continue
+        country_only = h.get("precision") == "country"
+        if out and out[-1].get("cc") == cc:
+            # Still in the same country: hops without a place in between hide
+            # no crossing, so they are not shown.
+            out[-1]["country_only"] = out[-1]["country_only"] and country_only
+            gap = 0
+            continue
+        if gap and (out or (origin_cc and cc != origin_cc.upper())):
+            out.append({"gap": gap})
+        gap = 0
+        out.append({"cc": cc, "country_only": country_only, "sensitive": cc in sensitive})
+    return out
+
+
+def countries(route: dict, sensitive: set[str] | frozenset = frozenset(),
+              origin_cc: str | None = None) -> list[tuple[str, list[dict]]]:
+    """[(path letters, countries transited)] for each distinct country list;
+    an item is {"cc", "country_only", "sensitive"} or {"gap": hops without a
+    place between two countries}."""
+    sens = {c.upper() for c in sensitive}
     paths = (route.get("paths") or {}).get("paths") or []
-    lists = {p.get("id"): osint.jurisdictions({"hops": p.get("located") or []}, sensitive) for p in paths}
-    grouped = _groups(paths, lambda p: tuple((c["cc"], c["country_only"], c["sensitive"]) for c in lists[p.get("id")]))
-    return [(ids, [{"cc": c, "country_only": o, "sensitive": s} for c, o, s in key]) for ids, key in grouped if key]
+    lists = {p.get("id"): _chain(p.get("located") or [], sens, origin_cc) for p in paths}
+    grouped = _groups(paths, lambda p: tuple(tuple(sorted(c.items())) for c in lists[p.get("id")]))
+    return [(ids, [dict(c) for c in key]) for ids, key in grouped if key]
+
+
+def country_text(items: list[dict], origin_cc: str | None = None) -> str:
+    """Plain text: "PH (origin) > PH > ... 4 hops without a place ... > DE"."""
+    parts = [f"{origin_cc} (origin)"] if origin_cc else []
+    for c in items:
+        if "gap" in c:
+            parts.append(f"... {c['gap']} hop{'s' if c['gap'] != 1 else ''} without a place ...")
+        else:
+            parts.append(c["cc"] + (" (country only)" if c["country_only"] else ""))
+    return " > ".join(parts)
 
 
 def target_summary(discovery: dict) -> str:
