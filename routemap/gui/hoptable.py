@@ -175,9 +175,16 @@ def path_notes(discovery: dict) -> list[str]:
     notes = [f"“At least”: some load balancers do not spread {method.split()[0]} probes, so a path can stay "
              "hidden."]
     if discovery.get("method") == "tcp-paris":
-        notes.append("Target answered: of ten connection attempts per path, spaced so no port is reused at "
-                     "once, how many the target answered. A server can ignore attempts, so a shortfall is not "
-                     "necessarily loss on the path.")
+        sent = sorted({p.get("sent") or 0 for p in discovery.get("paths") or [] if p.get("reached")})
+        if not sent or sent == [10]:
+            count = "ten connection attempts per path"
+        elif len(sent) == 1:
+            count = f"{sent[0]} connection attempts per path (the probe budget ran out before ten)"
+        else:
+            count = (f"{sent[0]} to {sent[-1]} connection attempts per path (the probe budget ran out "
+                     "before ten on some)")
+        notes.append(f"Target answered: of {count}, spaced so no port is reused at once, how many the target "
+                     "answered. A server can ignore attempts, so a shortfall is not necessarily loss on the path.")
     if discovery.get("per_packet_hops"):
         notes.append("Per-packet balancing at hop " + ", ".join(str(h) for h in discovery["per_packet_hops"])
                      + ": every packet may take another router there, so it does not make paths.")

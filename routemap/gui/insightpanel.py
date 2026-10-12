@@ -230,9 +230,12 @@ class InsightPanel(QScrollArea):
         self.sections["path"][1].setText("<br>".join(lines) or _muted("No AS numbers on any path."))
         self._show("path", True)
         lines = []
-        for ids, cs in pathsummary.countries(route):
+        for ids, cs in pathsummary.countries(route, origin_cc=s.get("origin_cc")):
             parts = ([f"{html.escape(s['origin_cc'])} {_muted('(origin)')}"] if s.get("origin_cc") else [])
             for c in cs:
+                if "gap" in c:
+                    parts.append(_muted(f"... {c['gap']} hop{'s' if c['gap'] != 1 else ''} without a place ..."))
+                    continue
                 item = html.escape(c["cc"]) + (" " + _muted("(country only)") if c["country_only"] else "")
                 if c["sensitive"]:
                     item += " " + badge("sensitive", "sensitive")
