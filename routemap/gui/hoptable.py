@@ -109,12 +109,21 @@ def rtt_cell(path: dict) -> str:
 
 
 def probes_text(discovery: dict) -> str:
-    """"1,427 probes in 152 s", or, when the budget ran out, "1,500 probes in
-    132 s, stopped at the 1,500-probe cap; more paths may exist"."""
+    """The probes sent, all of them (discovery and target attempts): "1,427
+    probes in 152 s". When the discovery stopped at its share of the budget:
+    "1,480 probes in 152 s; discovery stopped at 1,340 probes to leave room
+    for target attempts within the 1,500 cap; more paths may exist". The same
+    words in the window, the CLI and the PDF."""
     sent = discovery.get("probes_sent") or 0
     text = f"{sent:,} probes in {discovery.get('seconds', 0):.0f} s"
     if discovery.get("stopped_by") == "budget":
-        text += f", stopped at the {sent:,}-probe cap; more paths may exist"
+        found = discovery.get("discovery_probes")
+        cap = discovery.get("budget")
+        if found is not None and cap:
+            text += (f"; discovery stopped at {found:,} probes to leave room for target attempts "
+                     f"within the {cap:,} cap; more paths may exist")
+        else:                                    # an export from before the share was recorded
+            text += "; stopped at the probe cap; more paths may exist"
     return text
 
 

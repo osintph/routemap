@@ -1,5 +1,5 @@
 {
- "_fixture": "ODIN run 3 (12 Oct 2026) replayed through engine 0.7.1.dev with the names and places it showed (no AS numbers: the app adds them); hops 1 to 6 are documentation addresses; stopped at the probe cap as the app's run was.",
+ "_fixture": "ODIN run 3 (12 Oct 2026) replayed through engine 0.7.1.dev with the names and places it showed (no AS numbers: the app adds them); hops 1 to 6 are documentation addresses; replayed under a probe cap of 1300 so it stops at the cap, as the ODIN runs did at 1,500 (the replay network is quieter).",
  "route": {
   "parser": "icmp",
   "parser_label": "Built-in TCP prober (port 443)",
@@ -4256,12 +4256,14 @@
     }
    ],
    "per_packet_hops": [],
-   "probes_sent": 1500,
+   "probes_sent": 1240,
    "flows": 64,
    "paths_capped": false,
    "local_failures": 0,
+   "budget": 1300,
+   "discovery_probes": 1140,
    "stopped_by": "budget",
-   "seconds": 129.9
+   "seconds": 121.0
   }
  }
 }
