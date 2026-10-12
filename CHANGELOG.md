@@ -4,7 +4,7 @@ All notable changes to this project are documented here. The format is based
 on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 uses [Semantic Versioning](https://semver.org/).
 
-## [0.4.0-beta.2] - 2026-10-11
+## [0.4.0-beta.2] - 2026-10-12
 
 0.4.0-beta.1 was tagged but not released: its check of Paths on a real
 Windows network failed (paths counted where only a silence differed, one
