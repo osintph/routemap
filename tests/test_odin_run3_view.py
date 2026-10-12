@@ -131,9 +131,24 @@ def test_8_a_sub_row_names_its_source_as_its_row_does(app):
     assert labels and all(len(v) == 1 for v in labels.values()), labels
 
 
-def test_9_a_run_stopped_at_the_cap_says_so():
-    out = cli._paths_text(ROUTE)
-    assert "1,500 probes" in out and "stopped at the 1,500-probe cap; more paths may exist" in out.splitlines()[0]
+def test_9_a_run_stopped_at_the_cap_says_so_and_reports_the_total():
+    """ODIN test build 5: "stopped at the 1,450-probe cap" under a cap of
+    1,500. The total is reported as such; the cap is named as the cap."""
+    disc = RUN4["paths"]
+    head = cli._paths_text(RUN4).splitlines()[0]
+    assert f"{disc['probes_sent']:,} probes in" in head
+    assert (f"discovery stopped at {disc['discovery_probes']:,} probes to leave room for target attempts "
+            f"within the {disc['budget']:,} cap; more paths may exist") in head
+    assert "-probe cap" not in head
+
+
+def test_9_the_window_heading_uses_the_same_words(app):
+    from routemap.gui.mainwindow import MainWindow
+    w = MainWindow()
+    w.show_result(RUN4, "heise.de", ["tcp-paris", "heise.de"])
+    text = w.summary.text().replace("&nbsp;", " ")
+    assert f"discovery stopped at {RUN4['paths']['discovery_probes']:,} probes to leave room" in text
+    w.close()
 
 
 def _expand(ids):
@@ -208,3 +223,17 @@ def test_c_countries_never_skip_hops_without_saying_so():
                 if a.get("cc") != b.get("cc") and between:
                     i_a = next(i for i, c in enumerate(items) if c.get("cc") == a["cc"])
                     assert "gap" in items[i_a + 1], (p["id"], items)
+
+
+def test_9_the_pdf_uses_the_same_words(app, tmp_path):
+    from PySide6.QtPdf import QPdfDocument
+    from routemap import config
+    from routemap.gui.app import write_export
+    write_export("pdf", str(tmp_path / "r.pdf"), {"route": RUN4, "target": "heise.de", "source": "paths",
+                                                  "trace_text": "", "argv": ["tcp-paris"]},
+                 settings=config.Settings(online_lookups=False))
+    doc = QPdfDocument()
+    doc.load(str(tmp_path / "r.pdf"))
+    text = " ".join(doc.getAllText(i).text() for i in range(doc.pageCount())).replace("\n", " ")
+    assert (f"discovery stopped at {RUN4['paths']['discovery_probes']:,} probes to leave room for target "
+            f"attempts within the {RUN4['paths']['budget']:,} cap") in " ".join(text.split())
