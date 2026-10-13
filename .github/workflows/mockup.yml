@@ -54,3 +54,4 @@ jobs:
         with:
           name: mockup-${{ runner.os }}
           path: shots-*/
+          retention-days: 3

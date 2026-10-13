@@ -58,3 +58,4 @@ jobs:
             flow.json
             flowcheck.txt
           if-no-files-found: ignore
+          retention-days: 3

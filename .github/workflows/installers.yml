@@ -94,6 +94,7 @@ jobs:
         with:
           name: routemap-windows-x86_64-setup
           path: out/*
+          retention-days: 3
       - name: The earlier release's installer, for the upgrade check (SHA-256 pinned)
         shell: pwsh
         run: |
@@ -147,6 +148,7 @@ jobs:
         with:
           name: routemap-linux-x86_64-packages
           path: out/*
+          retention-days: 3
 
   linux-install:
     name: Install on ${{ matrix.image }}
