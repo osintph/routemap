@@ -89,7 +89,7 @@ jobs:
       - name: Checksum
         shell: bash
         run: cd out && sha256sum *-setup.exe | tee SHA256SUMS-windows.txt
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         # Uploaded before the install tests, so it is there even when one fails.
         with:
           name: routemap-windows-x86_64-setup
@@ -144,7 +144,7 @@ jobs:
           tar -xzf "$tgz"
           sh packaging/linux/build_packages.sh "routemap-$v-linux-x86_64/routemap" "$v" "$RUN" out
           cd out && sha256sum *.deb *.rpm | tee SHA256SUMS-linux.txt
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: routemap-linux-x86_64-packages
           path: out/*
