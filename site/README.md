@@ -60,3 +60,9 @@ The Open Graph previews in `assets/og/` (1200 x 630) are drawn from the site's
 own type and colours by `og/make_og.py`, which renders them with Chrome; rerun it
 after changing their wording or the fonts. The images are committed, so a site
 build needs neither Chrome nor the script.
+
+Both Chrome renders (`og/make_og.py` and the figure check, `check/figures.py`)
+start headless Chrome with `--password-store=basic` and `--use-mock-keychain`:
+a render needs no stored passwords, and on macOS a fresh profile otherwise asks
+the keychain for a "Chrome Safe Storage" key, which in a non-interactive run
+shows a "Keychain Not Found" dialog on every page.
