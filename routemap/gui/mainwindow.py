@@ -15,7 +15,7 @@ import os
 
 from PySide6.QtCore import QSize, Qt, Signal
 from PySide6.QtGui import QAction, QGuiApplication, QKeySequence, QShortcut
-from PySide6.QtWidgets import (QDockWidget, QHBoxLayout, QLabel, QLineEdit, QMainWindow,
+from PySide6.QtWidgets import (QComboBox, QDockWidget, QHBoxLayout, QLabel, QLineEdit, QMainWindow,
                                QProgressBar, QPushButton, QSplitter, QStatusBar, QVBoxLayout,
                                QWidget)
 
@@ -25,8 +25,8 @@ from routemap.gui.hoptable import HopTable
 from routemap.gui.insightpanel import HopDetails, InsightPanel
 from routemap.gui.livepanel import ChangeList, LiveBar, PingPlot
 from routemap.gui.mappane import MapPane
-from routemap.gui.panels import (HistoryPanel, LiveOutput, PathsPanel, ReversePanel, SourceStatus,
-                                 UnplacedPanel)
+from routemap.gui.panels import (DnsPanel, HistoryPanel, LiveOutput, PathsPanel, PortsPanel, ReversePanel,
+                                 SourceStatus, UnplacedPanel)
 from routemap.gui.text import esc
 
 ORIGIN_APPROX = "approximate; wrong on a VPN or exit node"
@@ -76,6 +76,17 @@ class MainWindow(QMainWindow):
         self.paths_button.setToolTip("Find the paths a load balancer spreads your traffic over; some may "
                                      "stay hidden. Each path gets its own loss and latency (Ctrl+Shift+T)")
         self.paths_button.setMinimumHeight(30)
+        self.ports_button = QPushButton("Ports", central)
+        self.ports_button.setToolTip("Test the ports in Settings › Probes on the target: one connection "
+                                     "attempt each, open, closed or filtered. A reachability check, not a "
+                                     "port scanner")
+        self.ports_button.setMinimumHeight(30)
+        # Where the trace runs from (0.5.0-beta.1): this computer, or a remote agent.
+        self.origin_picker = QComboBox(central)
+        self.origin_picker.setAccessibleName("Trace from")
+        self.origin_picker.setToolTip("Where the trace runs from: this computer, or a server you reach "
+                                      "with ssh (Settings › Agents)")
+        self.origin_picker.setMinimumHeight(30)
         self.watch_button = QPushButton("Watch", central)
         self.watch_button.setToolTip("Trace continuously: every hop probed once a cycle, mtr style "
                                      "(Ctrl+Shift+W)")
@@ -83,8 +94,10 @@ class MainWindow(QMainWindow):
         self.target.returnPressed.connect(self.trace_button.click)
         bar.addWidget(self.target, 1)
         bar.addWidget(self.busy, 0, Qt.AlignVCenter)
+        bar.addWidget(self.origin_picker)
         bar.addWidget(self.trace_button)
         bar.addWidget(self.paths_button)
+        bar.addWidget(self.ports_button)
         bar.addWidget(self.watch_button)
         outer.addLayout(bar)
 
@@ -131,6 +144,8 @@ class MainWindow(QMainWindow):
         self.live = LiveOutput(right)
         self.unplaced = UnplacedPanel(right)
         self.paths = PathsPanel(right)
+        self.dns_panel = DnsPanel(right)
+        self.ports_panel = PortsPanel(right)
         self.reverse = ReversePanel(right)
         self.reverse_button = QPushButton("Reverse trace", right)
         self.reverse_button.setToolTip("Trace from a RIPE Atlas probe near the target back to you, and "
@@ -141,6 +156,8 @@ class MainWindow(QMainWindow):
         summary_row.addWidget(self.summary, 1)
         summary_row.addWidget(self.reverse_button, 0, Qt.AlignTop)
         right_layout.addLayout(summary_row)
+        right_layout.addWidget(self.dns_panel)
+        right_layout.addWidget(self.ports_panel)
         right_layout.addWidget(self.right_split, 1)
         right_layout.addWidget(self.paths)
         right_layout.addWidget(self.reverse)
@@ -330,7 +347,10 @@ class MainWindow(QMainWindow):
         note = {"ip": f" <span style='color:gray'>(from your public IP, {ORIGIN_APPROX})</span>",
                 "city": " <span style='color:gray'>(set in Settings)</span>",
                 "coords": " <span style='color:gray'>(coordinates set in Settings)</span>",
-                "map": " <span style='color:gray'>(picked on the map)</span>"}.get(how, "")
+                "map": " <span style='color:gray'>(picked on the map)</span>",
+                "agent-city": " <span style='color:gray'>(agent, city set for it)</span>",
+                "agent-ip": f" <span style='color:gray'>(agent, place from its public IP, {ORIGIN_APPROX})</span>",
+                "agent": " <span style='color:gray'>(agent, place unknown)</span>"}.get(how, "")
         self.origin_label.setText(f"<b>Origin</b> {esc(label)}{note}")
 
     def set_tool_status(self, argv: list[str] | None, missing_hint: str | None = None):
@@ -348,6 +368,9 @@ class MainWindow(QMainWindow):
     def set_running(self, running: bool):
         self.busy.setVisible(running)
         self.trace_button.setText("Stop" if running else "Trace")
+        for button in (self.paths_button, self.ports_button):
+            button.setEnabled(not running)
+        self.origin_picker.setEnabled(not running)
 
     # ---------------------------------------------------------------- states ---
     def show_idle(self, origin: tuple[float, float, str] | None, tool_hint: str | None = None):
@@ -358,6 +381,8 @@ class MainWindow(QMainWindow):
         self.table.set_hops([])
         self.unplaced.set_hops([])
         self.paths.set_paths(None, [])
+        self.dns_panel.set_dns(None, None)
+        self.ports_panel.set_ports(None)
         self.reverse.set_comparison(None, None)
         self.reverse_button.hide()
         self.map.clear_overlays()
@@ -391,6 +416,8 @@ class MainWindow(QMainWindow):
         self.table.set_hops([])
         self.unplaced.set_hops([])
         self.paths.set_paths(None, [])
+        self.dns_panel.set_dns(None, None)
+        self.ports_panel.set_ports(None)
         self.reverse.set_comparison(None, None)
         self.reverse_button.hide()
         self.map.clear_overlays()
@@ -433,6 +460,8 @@ class MainWindow(QMainWindow):
         self.table.set_hops([])
         self.unplaced.set_hops([])
         self.paths.set_paths(None, [])
+        self.dns_panel.set_dns(None, None)
+        self.ports_panel.set_ports(None)
         self.reverse.set_comparison(None, None)
         self.reverse_button.hide()
         self.map.clear_overlays()
@@ -442,7 +471,8 @@ class MainWindow(QMainWindow):
                              "finds the path</span>")
         self.set_state(f"Watching <b>{esc(target)}</b>")
 
-    def update_watch(self, hops: list[dict], snap: dict, running: bool, details: dict | None = None) -> None:
+    def update_watch(self, hops: list[dict], snap: dict, running: bool, details: dict | None = None,
+                     dns: str = "") -> None:
         """One cycle's figures: the table, the plot, the changes and the bar."""
         self.table.set_hops(hops, details)
         selected = self.table.selected_hops()
@@ -453,7 +483,7 @@ class MainWindow(QMainWindow):
         self.insight.set_loss(loss)
         placed = sum(1 for h in hops if h.get("lat") is not None)
         self.summary.setText(f"<b>{len(hops)} hops</b>, {placed} placed <span style='color:gray'>· "
-                             f"{esc(loss)}</span>")
+                             f"{esc(loss)}</span>" + (f"<br>{esc(dns)}" if dns else ""))
 
     def end_watch(self) -> None:
         self.trace_button.setEnabled(True)
@@ -461,9 +491,24 @@ class MainWindow(QMainWindow):
         self.act_reset_live.setEnabled(False)
         self.set_state("")
 
+    def set_agents(self, names: list[str], current: str | None = None):
+        """The origin picker: this computer first, then each agent by name."""
+        self.origin_picker.blockSignals(True)
+        self.origin_picker.clear()
+        self.origin_picker.addItem("From: this computer", None)
+        for name in names:
+            self.origin_picker.addItem(f"From: {name}", name)
+        index = self.origin_picker.findData(current) if current else 0
+        self.origin_picker.setCurrentIndex(max(0, index))
+        self.origin_picker.setVisible(bool(names))
+        self.origin_picker.blockSignals(False)
+
+    def agent_name(self) -> str | None:
+        return self.origin_picker.currentData() if self.origin_picker.count() > 1 else None
+
     def show_result(self, route: dict, target: str, argv: list[str] | None,
                     expand_unplaced: bool = False, trace_text: str | None = None,
-                    keep_view: bool = False):
+                    keep_view: bool = False, agent: str | None = None, trace_resolved: dict | None = None):
         hops = route.get("hops") or []
         placed = sum(1 for h in hops if h.get("lat") is not None)
         self.setWindowTitle(f"{target} - {DISPLAY_NAME}")
@@ -477,7 +522,10 @@ class MainWindow(QMainWindow):
         discovery = route.get("paths")
         paths = (discovery or {}).get("paths") or []
         self.table.set_hops(hops, paths=paths)
-        self.paths.set_paths(discovery, hops)
+        self.paths.set_paths(discovery, hops, trace_resolved=trace_resolved, ports=route.get("ports"))
+        where = f"{agent} (agent)" if agent else ""
+        self.dns_panel.set_dns(route.get("resolved"), route.get("dns"), where=where)
+        self.ports_panel.set_ports(route.get("ports"), where=where or "this computer")
         self.unplaced.set_hops(hops)
         self.unplaced.expand(expand_unplaced)
         if trace_text is not None:
@@ -500,6 +548,18 @@ class MainWindow(QMainWindow):
             head = f"<b>{len(hops)} hops, at least {len(paths)} {word}</b>"
         else:
             head = f"<b>{len(hops)} hops</b>, {placed} placed on the map"
-        self.summary.setText(f"{head} <span style='color:gray'>· {detail}</span>{warnings}")
+        if agent:
+            detail = f"measured on {html.escape(agent)} (agent) · " + detail
+        from routemap import probes
+        second = []
+        dns = probes.dns_line(route.get("resolved"), route.get("dns"),
+                              where=f"{agent} system resolver" if agent else "system resolver")
+        if dns:
+            second.append(html.escape(dns))
+        portsl = probes.ports_line(route.get("ports"))
+        if portsl:
+            second.append(html.escape(portsl))
+        line2 = ("<br>" + " <span style='color:gray'>·</span> ".join(second)) if second else ""
+        self.summary.setText(f"{head} <span style='color:gray'>· {detail}</span>{line2}{warnings}")
         if argv:
             self.set_tool_status(argv)

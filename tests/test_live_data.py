@@ -182,11 +182,13 @@ def test_a_saved_annotation_is_not_trusted():
 
 
 def test_a_newer_format_is_refused_clearly():
+    newer = imported.FORMAT_VERSION + 1
     with pytest.raises(imported.NewerFormat) as exc:
-        imported.export({"format_version": 5, "route": {}})
+        imported.export({"format_version": newer, "route": {}})
     assert exc.value.title == "Made by a newer Route Map"
-    assert exc.value.message == ("This export is format version 5, made by a newer Route Map. "
-                                 "This Route Map opens format 4 and older. Update Route Map to open it.")
+    assert exc.value.message == (f"This export is format version {newer}, made by a newer Route Map. "
+                                 f"This Route Map opens format {imported.FORMAT_VERSION} and older. "
+                                 "Update Route Map to open it.")
     assert isinstance(exc.value, imported.ImportRejected)        # every caller that refuses still does
 
 

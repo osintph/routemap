@@ -177,6 +177,16 @@ class Settings:
     # When the user agreed that reverse traces publish their public IP (ISO
     # time, UTC); "" means no consent, and no reverse trace runs.
     reverse_consent_at: str = ""
+    # 0.5.0-beta.1 "Investigate"
+    dns_resolvers: list = field(default_factory=list)   # IP addresses; none by default
+    live_dns: bool = False                   # time the DNS lookup once per Live cycle
+    port_list: str = "443, 80, 22, 25, 53, 3389"
+    tls_ports: str = "443"
+    port_wait: float = 3.0                   # seconds per port, 1 to 10
+    ports_with_trace: bool = False           # test the ports with every trace
+    # Remote agents: servers the user reaches with their own ssh. Name and
+    # destination only; keys and host keys stay with the ssh client.
+    agents: list = field(default_factory=list)
 
     def origin(self) -> tuple[float, float, str] | None:
         """The chosen origin, or None when it is to come from the public IP."""
@@ -376,10 +386,42 @@ def normalise(settings: Settings) -> Settings:
         settings.sensitive_countries = []
     settings.sensitive_countries = sorted({str(c).strip().upper() for c in settings.sensitive_countries
                                            if len(str(c).strip()) == 2 and str(c).strip().isalpha()})
+    settings.dns_resolvers = _resolvers(settings.dns_resolvers)
+    settings.live_dns = bool(settings.live_dns)
+    settings.ports_with_trace = bool(settings.ports_with_trace)
+    from routemap_engine import ports as _ports
+    for key, default in (("port_list", "443, 80, 22, 25, 53, 3389"), ("tls_ports", "443")):
+        try:
+            setattr(settings, key, ", ".join(str(p) for p in _ports.parse_ports(str(getattr(settings, key) or ""))))
+        except _ports.InvalidPorts:
+            setattr(settings, key, default)
+    try:
+        settings.port_wait = min(10.0, max(1.0, float(settings.port_wait)))
+    except (TypeError, ValueError):
+        settings.port_wait = 3.0
+    if settings.port_wait != settings.port_wait:      # NaN
+        settings.port_wait = 3.0
+    from routemap import agents as _agents
+    settings.agents = _agents.clean(settings.agents)
     url = str(settings.falconeye_url or "").strip().rstrip("/")
     settings.falconeye_url = url if url.startswith(("https://", "http://")) else \
         "https://falconeye.osintph.info"
     return settings
+
+
+def _resolvers(value) -> list[str]:
+    """The resolvers a settings file names: IP addresses, in order, without
+    repeats, at most eight; anything else is dropped."""
+    from routemap_engine import dnstime
+    out: list[str] = []
+    for item in value if isinstance(value, list) else []:
+        try:
+            addr = dnstime.validate_resolver(str(item))
+        except dnstime.InvalidResolver:
+            continue
+        if addr not in out:
+            out.append(addr)
+    return out[:dnstime.MAX_RESOLVERS]
 
 
 def site_codes_path() -> Path:

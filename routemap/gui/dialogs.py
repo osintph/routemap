@@ -44,8 +44,10 @@ def _rule() -> QFrame:
 class SettingsDialog(QDialog):
     """Every setting, read from and written back to a config.Settings."""
 
-    ATLAS_TAB = 4   # index of the RIPE Atlas tab, as added in __init__
-    LIVE_TAB = 5
+    PROBES_TAB = 2
+    AGENTS_TAB = 3
+    ATLAS_TAB = 6   # index of the RIPE Atlas tab, as added in __init__
+    LIVE_TAB = 7
 
     pickRequested = Signal()
     clearCacheRequested = Signal()
@@ -53,6 +55,7 @@ class SettingsDialog(QDialog):
     withdrawReverseRequested = Signal()
     updateDataRequested = Signal()
     importDataRequested = Signal()
+    testAgentRequested = Signal(object)
 
     def __init__(self, parent=None, settings: Settings | None = None, *, origin_label: str = "",
                  tools: dict | None = None, cache_count: int = 0, history_count: int = 0):
@@ -67,6 +70,8 @@ class SettingsDialog(QDialog):
         self.tabs = QTabWidget(self)
         self.tabs.addTab(self._origin_page(origin_label), "Origin")
         self.tabs.addTab(self._trace_page(tools or {}), "Trace")
+        self.tabs.addTab(self._probes_page(), "Probes")
+        self.tabs.addTab(self._agents_page(), "Agents")
         self.tabs.addTab(self._sources_page(cache_count), "Sources")
         self.tabs.addTab(self._map_page(), "Map")
         self.tabs.addTab(self._atlas_page(), "RIPE Atlas")
@@ -512,6 +517,159 @@ class SettingsDialog(QDialog):
         self.reverse_withdraw.setVisible(bool(when))
 
     # ---- privacy
+    def _probes_page(self) -> QWidget:
+        """DNS timing and port tests (0.5.0-beta.1)."""
+        from routemap_engine import dnstime, ports as _ports
+        s = self.settings
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.addWidget(QLabel("<b>DNS timing</b>"))
+        self.resolvers = QListWidget()
+        self.resolvers.setAccessibleName("Resolvers to time")
+        self.resolvers.setMaximumHeight(90)
+        for addr in s.dns_resolvers:
+            self.resolvers.addItem(addr)
+        layout.addWidget(self.resolvers)
+        row = QHBoxLayout()
+        self.resolver_entry = QLineEdit()
+        self.resolver_entry.setPlaceholderText("A resolver's IP address, e.g. 9.9.9.9")
+        self.resolver_entry.setAccessibleName("Resolver address to add")
+        add = QPushButton("Add address")
+        remove = QPushButton("Remove")
+        self.resolver_problem = QLabel()
+        self.resolver_problem.setStyleSheet("color: #c0392b;")
+
+        def add_resolver():
+            try:
+                addr = dnstime.validate_resolver(self.resolver_entry.text())
+            except dnstime.InvalidResolver as exc:
+                self.resolver_problem.setText(str(exc))
+                return
+            existing = [self.resolvers.item(i).text() for i in range(self.resolvers.count())]
+            if addr not in existing and len(existing) < dnstime.MAX_RESOLVERS:
+                self.resolvers.addItem(addr)
+            self.resolver_entry.clear()
+            self.resolver_problem.clear()
+        add.clicked.connect(add_resolver)
+        self.resolver_entry.returnPressed.connect(add_resolver)
+        remove.clicked.connect(lambda: self.resolvers.takeItem(self.resolvers.currentRow()))
+        row.addWidget(self.resolver_entry, 1)
+        row.addWidget(add)
+        row.addWidget(remove)
+        layout.addLayout(row)
+        layout.addWidget(self.resolver_problem)
+        layout.addWidget(_note(
+            "Every trace times the lookup of its target through your system resolver, and through each "
+            "address listed here (none by default). Only these resolvers are asked. Plain DNS (port 53) "
+            "is not encrypted: the network between you and a resolver can see the name."))
+        self.live_dns = QCheckBox("Time the DNS lookup once per Live cycle")
+        self.live_dns.setChecked(s.live_dns)
+        layout.addWidget(self.live_dns)
+        layout.addWidget(_rule())
+        layout.addWidget(QLabel("<b>Port tests</b>"))
+        form = QFormLayout()
+        self.port_list = QLineEdit(s.port_list)
+        self.port_list.setAccessibleName("Ports to test")
+        form.addRow("Ports", self.port_list)
+        self.tls_ports = QLineEdit(s.tls_ports)
+        self.tls_ports.setAccessibleName("Ports to time a TLS handshake on")
+        form.addRow("TLS on", self.tls_ports)
+        self.port_wait = QDoubleSpinBox()
+        self.port_wait.setRange(1, 10)
+        self.port_wait.setDecimals(0)
+        self.port_wait.setSuffix(" s")
+        self.port_wait.setValue(s.port_wait)
+        form.addRow("Wait per port", self.port_wait)
+        layout.addLayout(form)
+        self.ports_with_trace = QCheckBox("Test these ports with every trace")
+        self.ports_with_trace.setChecked(s.ports_with_trace)
+        layout.addWidget(self.ports_with_trace)
+        layout.addWidget(_note(
+            f"One TCP connection attempt per port to the traced address, {_ports.PARALLEL} at a time, at most "
+            f"{_ports.MAX_PORTS} ports. This is a reachability check for one target, not a port scanner: no "
+            "ranges, no lists of hosts. The Ports button runs it on the target in the box. On Windows an "
+            "unanswered port is given up after about a second, whatever the wait."))
+        layout.addStretch(1)
+        return page
+
+    def _agents_page(self) -> QWidget:
+        """Remote agents (0.5.0-beta.1): servers the user reaches with ssh."""
+        from routemap import agents as _agents
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        self.agent_list = QListWidget()
+        self.agent_list.setAccessibleName("Agents")
+        self.agent_data = [dict(a) for a in self.settings.agents]
+        self._fill_agents()
+        layout.addWidget(self.agent_list)
+        row = QHBoxLayout()
+        add, edit, remove = QPushButton("Add…"), QPushButton("Edit…"), QPushButton("Remove")
+        self.agent_test = QPushButton("Test connection")
+        add.clicked.connect(lambda: self._edit_agent(None))
+        edit.clicked.connect(lambda: self._edit_agent(self.agent_list.currentRow()))
+        self.agent_list.itemDoubleClicked.connect(lambda *_: self._edit_agent(self.agent_list.currentRow()))
+        remove.clicked.connect(self._remove_agent)
+        self.agent_test.clicked.connect(self._test_agent)
+        for b in (add, edit, remove, self.agent_test):
+            row.addWidget(b)
+        row.addStretch(1)
+        layout.addLayout(row)
+        self.agent_result = _note("")
+        layout.addWidget(self.agent_result)
+        layout.addWidget(_note(
+            "An agent is a server you can already reach with ssh from this computer, with routemap-engine "
+            f"0.8 installed for that user (<code>pip install routemap-engine</code>). {DISPLAY_NAME} runs one "
+            "command there per trace, with your own ssh client, its keys and its config, and stores only the "
+            "name and destination: keys, passwords and host keys stay with ssh. Nothing runs unless you "
+            "click: one connection per trace, never retried. Test connection makes one connection and runs "
+            "<code>routemap-engine agent 1 hello</code>."))
+        layout.addWidget(_note(
+            "Trace, Paths and Ports can run on an agent; Live and reverse traces run from this computer only. "
+            "Paths on a Linux server needs unprivileged ICMP sockets there (net.ipv4.ping_group_range); "
+            f"{DISPLAY_NAME} never changes a server's settings. At most {_agents.MAX_AGENTS} agents."))
+        layout.addStretch(1)
+        return page
+
+    def _fill_agents(self):
+        from routemap import agents as _agents
+        self.agent_list.clear()
+        for d in self.agent_data:
+            a = _agents.Agent.from_dict(d)
+            if a is not None:
+                self.agent_list.addItem(f"{a.name}    {a.destination}    {a.place_text}")
+
+    def _edit_agent(self, row):
+        data = self.agent_data[row] if row is not None and 0 <= row < len(self.agent_data) else None
+        if row is not None and data is None:
+            return
+        dialog = AgentDialog(self, data, taken=[d["name"].lower() for i, d in enumerate(self.agent_data)
+                                                if i != row])
+        if dialog.exec():
+            if data is None:
+                self.agent_data.append(dialog.result_data)
+            else:
+                self.agent_data[row] = dialog.result_data
+            self._fill_agents()
+
+    def _remove_agent(self):
+        row = self.agent_list.currentRow()
+        if 0 <= row < len(self.agent_data):
+            del self.agent_data[row]
+            self._fill_agents()
+
+    def _test_agent(self):
+        row = self.agent_list.currentRow()
+        if not 0 <= row < len(self.agent_data):
+            self.agent_result.setText("Choose an agent to test.")
+            return
+        self.agent_test.setEnabled(False)
+        self.agent_result.setText("Connecting (one ssh connection)…")
+        self.testAgentRequested.emit(dict(self.agent_data[row]))
+
+    def agent_tested(self, text: str):
+        self.agent_test.setEnabled(True)
+        self.agent_result.setText(html.escape(str(text)))
+
     def _live_page(self) -> QWidget:
         from routemap import config as _config, live as _live
         s = self.settings
@@ -647,7 +805,128 @@ class SettingsDialog(QDialog):
         settings.atlas_enabled = self.atlas_on.isChecked()
         settings.atlas_key = self.atlas_key.text().strip()
         settings.history_enabled = self.history_on.isChecked()
+        settings.dns_resolvers = [self.resolvers.item(i).text() for i in range(self.resolvers.count())]
+        settings.live_dns = self.live_dns.isChecked()
+        from routemap_engine import ports as _ports
+        for key, edit in (("port_list", self.port_list), ("tls_ports", self.tls_ports)):
+            try:
+                setattr(settings, key, ", ".join(str(p) for p in _ports.parse_ports(edit.text())))
+            except _ports.InvalidPorts as exc:
+                problems.append(f"Ports: {exc}; the list was not changed.")
+        settings.port_wait = float(self.port_wait.value())
+        settings.ports_with_trace = self.ports_with_trace.isChecked()
+        from routemap import agents as _agents
+        settings.agents = _agents.clean(self.agent_data)
+        _config.normalise(settings)
         return problems
+
+
+class AgentDialog(QDialog):
+    """Add or edit one agent: a name, the ssh destination, its place on the map."""
+
+    def __init__(self, parent=None, data: dict | None = None, *, taken: list[str] | None = None):
+        super().__init__(parent)
+        from routemap import agents as _agents
+        self.taken = taken or []
+        self.result_data: dict | None = None
+        a = _agents.Agent.from_dict(data) if data else None
+        self.setWindowTitle("Edit agent" if a else "Add agent")
+        self.setMinimumWidth(520)
+        layout = QVBoxLayout(self)
+        form = QFormLayout()
+        self.name = QLineEdit(a.name if a else "")
+        self.name.setAccessibleName("Agent name")
+        form.addRow("Name", self.name)
+        self.destination = QLineEdit(a.destination if a else "")
+        self.destination.setAccessibleName("SSH destination")
+        self.destination.setPlaceholderText("a Host from ~/.ssh/config, or user@host")
+        form.addRow("SSH destination", self.destination)
+        layout.addLayout(form)
+        layout.addWidget(_note("It must work with <code>ssh -o BatchMode=yes</code>: the host key already "
+                               "known, the key loaded (in ssh-agent if it has a passphrase)."))
+        layout.addWidget(QLabel("Place on the map"))
+        self.place_ip = QRadioButton("From the agent's public IP")
+        self.place_city = QRadioButton("City")
+        (self.place_city if a and a.place == _agents.PLACE_CITY else self.place_ip).setChecked(True)
+        layout.addWidget(self.place_ip)
+        layout.addWidget(_note("&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Runs a RIPEstat lookup on the server, so RIPEstat "
+                               f"sees the server's address; {DISPLAY_NAME} never shows or keeps it. \"City\" "
+                               "makes no lookup."))
+        layout.addWidget(self.place_city)
+        city_row = QHBoxLayout()
+        city_row.setContentsMargins(24, 0, 0, 0)
+        self.city = QLineEdit(a.city if a and a.place == _agents.PLACE_CITY else "")
+        self.city.setPlaceholderText("Search the bundled city list (offline)")
+        self.city.setAccessibleName("Agent city")
+        city_row.addWidget(self.city)
+        layout.addLayout(city_row)
+        self.city_results = QListWidget()
+        self.city_results.setMaximumHeight(90)
+        cres = QHBoxLayout()
+        cres.setContentsMargins(24, 0, 0, 0)
+        cres.addWidget(self.city_results)
+        layout.addLayout(cres)
+        self._rows: list[dict] = []
+        self.city.textEdited.connect(self._search)
+        self.city.textEdited.connect(lambda *_: self.place_city.setChecked(True))
+        self._picked = ({"display": a.city, "lat": a.lat, "lon": a.lon}
+                        if a and a.place == _agents.PLACE_CITY else None)
+        self.city_results.itemClicked.connect(self._pick)
+        self.show_first = QCheckBox("Show first hops (the server provider's routers; hidden by default)")
+        self.show_first.setChecked(bool(a and a.show_first_hops))
+        layout.addWidget(self.show_first)
+        form2 = QFormLayout()
+        self.command = QLineEdit(a.command if a else "")
+        self.command.setPlaceholderText("routemap-engine")
+        self.command.setAccessibleName("Engine command on the server")
+        form2.addRow("Engine command", self.command)
+        layout.addLayout(form2)
+        layout.addWidget(_note("Only if <code>routemap-engine</code> is not on the server's PATH for ssh "
+                               "commands, for example <code>~/.local/bin/routemap-engine</code>."))
+        self.problem = QLabel()
+        self.problem.setStyleSheet("color: #c0392b;")
+        self.problem.setWordWrap(True)
+        layout.addWidget(self.problem)
+        buttons = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+        buttons.accepted.connect(self._save)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+    def _search(self, text: str):
+        from routemap_engine import cities
+        self.city_results.clear()
+        self._rows = cities.search(text, limit=8) if len(text.strip()) >= 2 else []
+        for row in self._rows:
+            self.city_results.addItem(row["display"])
+
+    def _pick(self, item):
+        row = self.city_results.row(item)
+        if 0 <= row < len(self._rows):
+            self._picked = self._rows[row]
+            self.city.setText(self._picked["display"])
+
+    def _save(self):
+        from routemap import agents as _agents
+        data = {"name": self.name.text().strip(), "destination": self.destination.text().strip(),
+                "command": self.command.text().strip(), "show_first_hops": self.show_first.isChecked(),
+                "place": _agents.PLACE_IP}
+        if self.place_city.isChecked():
+            if not self._picked:
+                self.problem.setText("Choose the city from the list.")
+                return
+            data.update(place=_agents.PLACE_CITY, city=self._picked["display"], lat=self._picked["lat"],
+                        lon=self._picked["lon"])
+        if data["name"].lower() in self.taken:
+            self.problem.setText("Another agent has that name.")
+            return
+        agent = _agents.Agent.from_dict(data)
+        if agent is None:
+            self.problem.setText("Give a name (40 characters at most) and an SSH destination such as "
+                                 "ubuntu@server.example.net or a Host from your ssh config, with no spaces and "
+                                 "not starting with '-'. The engine command must be a plain path.")
+            return
+        self.result_data = agent.to_dict()
+        self.accept()
 
 
 # ------------------------------------------------------------------- export ---

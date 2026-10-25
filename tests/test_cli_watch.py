@@ -24,7 +24,7 @@ def test_json_at_the_end_is_a_version_3_export(network, monkeypatch, capsys):
     out, err = capsys.readouterr()
     assert code == 0
     doc = json.loads(out)
-    assert doc["format_version"] == 4 and doc["session"]["cycles"] == 6
+    assert doc["format_version"] == 5 and doc["session"]["cycles"] == 6
     assert doc["session"]["stopped_by"] == "count" and doc["trace"]["source"] == "watch"
     assert [h["hop"] for h in doc["session"]["hops"]] == [1, 2, 3, 4]
     assert "Loss%" in err            # the table goes to stderr when stdout is JSON
@@ -72,9 +72,12 @@ def test_durations(text, seconds):
 def test_compare_with_a_newer_export_says_why(tmp_path):
     import pathlib
     newer = tmp_path / "newer.json"
-    newer.write_text(json.dumps({"format": "routemap/route-export", "format_version": 5, "route": {}}))
+    from routemap import imported
+    newer.write_text(json.dumps({"format": "routemap/route-export", "format_version": imported.FORMAT_VERSION + 1,
+                                 "route": {}}))
     trace = pathlib.Path(__file__).parent / "fixtures" / "routemap" / "heise_traceroute.txt"
     with pytest.raises(SystemExit) as exc:
         cli.main(["parse", str(trace), "--offline", "--origin", "Manila, PH", "--compare", str(newer), "--json"])
-    assert "made by a newer Route Map. This Route Map opens format 4 and older." in str(exc.value)
+    assert (f"made by a newer Route Map. This Route Map opens format {imported.FORMAT_VERSION} and older."
+            in str(exc.value))
     assert "is not a route export" not in str(exc.value)

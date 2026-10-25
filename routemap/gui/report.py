@@ -184,7 +184,7 @@ def write_pdf(path: str, route: dict, *, target: str, trace_text: str, tool_labe
               include_trace: bool = True, insight: dict | None = None,
               comparison: dict | None = None, quiet_ms: float = 15.0, hot_ms: float = 60.0,
               origin_cc: str | None = None, session: dict | None = None, reverse: dict | None = None,
-              reverse_cmp: dict | None = None) -> None:
+              reverse_cmp: dict | None = None, agent: dict | None = None) -> None:
     when = when or _dt.datetime.now().astimezone()
     writer = QPdfWriter(path)
     writer.setResolution(300)
@@ -219,10 +219,22 @@ def write_pdf(path: str, route: dict, *, target: str, trace_text: str, tool_labe
                   "file": f"opened from a file ({route.get('parser_label', '')})",
                   "watch": "continuous, built-in ICMP prober",
                   "paths": f"path discovery, built-in Paris prober "
-                           f"({service.paths_method(route.get('paths'))}): {tool_label}"}.get(source, tool_label)
+                           f"({service.paths_method(route.get('paths'))}): {tool_label}",
+                  "agent": f"run on the agent {(agent or {}).get('name')} over ssh: {tool_label}",
+                  "agent-paths": f"path discovery on the agent {(agent or {}).get('name')} over ssh "
+                                 f"({service.paths_method(route.get('paths'))})"}.get(source, tool_label)
+    if agent:
+        how = ("the agent's city, set for it" if origin_how == "agent-city" else
+               "the agent's place, from its public IP; approximate" if origin_how == "agent-ip" else how)
+    from routemap import probes
+    resolved = route.get("resolved") or {}
+    origin_text = f"{origin.get('label') or 'unknown'}, {how}" if how else (origin.get("label") or "unknown")
+    if agent:
+        origin_text = f"{agent.get('name')} (agent), {origin_text}"
     facts = [
-        ["Target", target],
-        ["Origin", f"{origin.get('label') or 'unknown'}, {how}" if how else (origin.get("label") or "unknown")],
+        ["Target", target + (f" ({resolved['address']})" if resolved.get("address") and
+                             resolved.get("address") != target else "")],
+        ["Origin", origin_text],
         ["Trace", trace_desc],
         ["Hops", f"{len(hops)} hops, {len(placed)} placed on the map, {len(unplaced)} not placed"],
         ["Sources", "CAIDA Hoiho ruleset " + route["hoiho_ruleset_date"]
@@ -231,6 +243,7 @@ def write_pdf(path: str, route: dict, *, target: str, trace_text: str, tool_labe
     flow.table(None, facts, [28, 150], size=8.5)
     for warning in route.get("warnings") or []:
         flow.text(f"Note: {warning}", 8.5, color=QColor("#a35a00"))
+    _probes_section(flow, route, f"{agent.get('name')} (agent)" if agent else "this computer")
 
     credit = f"{geometry.ATTRIBUTION} · GeoNames CC BY 4.0" + (
         " · IP Geolocation by DB-IP" if mapview.uses_dbip(route) else "")
@@ -319,6 +332,22 @@ def write_pdf(path: str, route: dict, *, target: str, trace_text: str, tool_labe
     painter.end()
 
 
+def _probes_section(flow: "_Flow", route: dict, where: str) -> None:
+    """DNS timing and port tests (0.5.0-beta.1), after the facts."""
+    from routemap import probes
+    if route.get("dns"):
+        flow.heading("DNS")
+        flow.table(["Resolver", "Type", "Time", "Answer", "TTL", "Addresses"],
+                   [[r[0], r[1], r[2], r[3] + ("" if r[4] in ("not stated", "") else f", AA {r[4]}"), r[6], r[7]]
+                    for r in probes.dns_rows(route["dns"])], [26, 11, 15, 32, 13, 81], size=8)
+        flow.text(probes.dns_note(route.get("resolved")), 8, color=MUTED, gap=1)
+    if route.get("ports"):
+        flow.heading(f"Ports to {route['ports'].get('address')}")
+        flow.table(probes.PORT_HEADERS, probes.port_rows(route["ports"]), [16, 90, 22, 30], size=8,
+                   align_right={0, 2, 3})
+        flow.text(probes.ports_note(route["ports"], where=where), 8, color=MUTED, gap=1)
+
+
 def _paths_section(flow: "_Flow", route: dict) -> None:
     """A path discovery: each path with its flows, where it differs, and its
     own latency and loss to the target; then how the paths were found."""
@@ -343,6 +372,9 @@ def _paths_section(flow: "_Flow", route: dict) -> None:
              "path; flows are added at each hop until the multipath detection algorithm's stopping rule is "
              "met at 95% confidence. Each path's latency comes from ten probes to the target on its flows."
              ] + path_notes(disc)
+    from routemap import probes
+    for line in probes.paths_lines(disc, ports=route.get("ports")):
+        flow.text(line, 8.5, gap=1)
     for note in notes:
         flow.text(note, 8.5, color=MUTED, gap=1)
 
