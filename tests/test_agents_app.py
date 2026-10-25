@@ -200,3 +200,15 @@ def test_a_remote_result_names_the_agent_in_the_summary_and_the_origin(window):
     assert "fra-vps system resolver" in w.summary.text()
     assert "fra-vps, Frankfurt am Main, DE" in w.origin_label.text() and "agent" in w.origin_label.text()
     assert not w.reverse_button.isVisible()
+
+
+def test_an_interrupt_closes_the_session_at_once():
+    """Ctrl+C in the CLI: the ssh process is killed, not waited for."""
+    proc = FakeProc([HELLO, RESULT])
+
+    def readline(n=-1):
+        raise KeyboardInterrupt
+    proc.stdout.readline = readline
+    with pytest.raises(KeyboardInterrupt):
+        agents.run(AGENT, "trace", _settings(), target="bbc.com", ssh="ssh", popen=_popen(proc, {}))
+    assert proc.killed

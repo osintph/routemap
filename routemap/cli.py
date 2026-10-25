@@ -441,6 +441,9 @@ def cmd_trace(args) -> int:
         if args.paths and not (args.json or args.png or args.pdf):
             sys.stdout.write(_paths_text(body) + _probes_text(body, where=f"{agent.name} (agent)"))
             return 0
+        if probe_only:
+            sys.stdout.write(_probes_text(body, where=f"{agent.name} (agent)"))
+            return 0
         return _outputs(args, current)
     if probe_only:
         from routemap import probes

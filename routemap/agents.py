@@ -186,6 +186,14 @@ def run(agent: Agent, action: str, settings, *, target: str | None = None, ports
         t.start()
     try:
         result = engine_agent.read_run(proc.stdout, on_line=on_line, on_progress=on_progress)
+    except BaseException:
+        # Ctrl+C in the CLI, or anything else: close the session now, so the
+        # agent stops on its stdin closing instead of running on.
+        try:
+            proc.kill()
+        except OSError:
+            pass
+        raise
     finally:
         try:
             proc.stdin.close()
