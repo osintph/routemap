@@ -214,3 +214,16 @@ def test_online_lookups_off_asks_only_the_system_resolver(monkeypatch, online, e
     monkeypatch.setattr(dnstime, "measure", lambda target, resolvers, **kw: asked.append(list(resolvers)) or [])
     probes.measure_dns("bbc.com", config.Settings(dns_resolvers=["9.9.9.9"], online_lookups=online))
     assert asked == [expected]
+
+
+def test_ctrl_c_on_a_remote_run_ends_cleanly(monkeypatch, capsys):
+    from routemap import agents
+    monkeypatch.setattr(config, "load_settings", lambda: config.normalise(config.Settings(
+        agents=[{"name": "fra-vps", "destination": "fra-vps"}])))
+
+    def run(*a, **kw):
+        raise KeyboardInterrupt
+    monkeypatch.setattr(agents, "run", run)
+    with pytest.raises(SystemExit) as exc:
+        cli.main(["bbc.com", "--from", "fra-vps", "--json"])
+    assert exc.value.code == 130 and "the ssh session to fra-vps was closed" in capsys.readouterr().err

@@ -359,6 +359,9 @@ def _remote(args, target: str, settings, origin_how_default: str):
                          on_line=_err, ports=None if args.ports is None else (args.ports or settings.port_list))
     except agents.AgentFailed as exc:
         raise SystemExit(f"{NAME}: {exc}")
+    except KeyboardInterrupt:
+        _err(f"{NAME}: stopped; the ssh session to {agent.name} was closed")
+        raise SystemExit(130)
     if action == "ports":
         res = run.result
         body = {"resolved": res["resolved"], "dns": res["dns"], "ports": res["ports"]}
