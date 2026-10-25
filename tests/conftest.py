@@ -1,7 +1,41 @@
 import os
+import pathlib
+import shutil
 import sys
+import tempfile
 
 import pytest
+
+# The whole run, collection included, uses a config folder of its own: a test
+# module that loads a fixture at import time runs before any fixture does
+# (test_odin_run3_view.py unpacked the ASN database into the real folder),
+# and a folder named by the developer's own ROUTEMAP_CONFIG_DIR is theirs too.
+SESSION_CONFIG_DIR = tempfile.mkdtemp(prefix="routemap-tests-")
+os.environ["ROUTEMAP_CONFIG_DIR"] = SESSION_CONFIG_DIR
+
+
+def _real_folder() -> dict:
+    """What is in the app's real config folder: path to (size, mtime)."""
+    from routemap import config
+    root = config._default_config_dir()
+    if not root.is_dir():
+        return {}
+    return {str(f.relative_to(root)): (f.stat().st_size, f.stat().st_mtime_ns)
+            for f in root.rglob("*") if f.is_file()}
+
+
+_REAL_BEFORE = _real_folder()
+
+
+def pytest_sessionfinish(session, exitstatus):
+    """A run that wrote to the real config folder fails, whatever the tests
+    said (Mac, 26 Oct 2026: settings and the ASN database written there)."""
+    after = _real_folder()
+    if after != _REAL_BEFORE:
+        changed = sorted(k for k in set(after) | set(_REAL_BEFORE) if after.get(k) != _REAL_BEFORE.get(k))
+        print(f"\nthe test run changed the real config folder: {', '.join(changed)}", file=sys.stderr)
+        session.exitstatus = 1
+    shutil.rmtree(SESSION_CONFIG_DIR, ignore_errors=True)
 
 # Headless Qt for the GUI tests. Not on Windows: there the offscreen platform has
 # no font database (text silently fails to render), while the native platform

@@ -114,6 +114,13 @@ jobs:
           # One tag, one commit, every platform: the binary must report the commit being built.
           grep -q "commit $GITHUB_SHA " smoke/result.txt || { echo "::error::smoke/result.txt does not report commit $GITHUB_SHA"; cat smoke/result.txt; exit 1; }
           "$BIN" parse tests/fixtures/routemap/heise_mtr.txt --offline --origin "Manila, PH" > smoke/parse.json
+          # An upgrade keeps the settings: the file 0.4.0-beta.2 wrote, in the default
+          # folder of a fresh home, is what this build reads (Mac, 26 Oct 2026).
+          UP="$RUNNER_TEMP/upgrade-home"
+          mkdir -p "$UP/Library/Application Support/routemap"
+          cp tests/fixtures/settings/settings-0.4.0-beta.2.json "$UP/Library/Application Support/routemap/settings.json"
+          env -u ROUTEMAP_CONFIG_DIR HOME="$UP" "$BIN" parse tests/fixtures/routemap/heise_mtr.txt --offline --json > smoke/upgrade.json
+          python -c "import json,sys; o=json.load(open('smoke/upgrade.json'))['origin']; sys.exit(0 if (o['lat'], o['lon']) == (14.5995, 120.9842) else 'settings not read, origin ' + repr(o))"
       - name: Package (macOS dmg, ad-hoc signed)
         if: runner.os == 'macOS'
         env:

@@ -34,6 +34,15 @@ your user folder (`%LOCALAPPDATA%\Programs\Route Map`) without administrator
 rights. **Install for all users** puts it in Program Files and needs them.
 From a terminal: `routemap-<version>-windows-x86_64-setup.exe /CURRENTUSER`.
 
+## "Settings not read" at start, or settings missing after an upgrade
+
+The app found `settings.json` in its config folder (see PRIVACY.md) and could
+not read it, so it started with the defaults. The file is not written over:
+when settings are next saved it is moved to `settings.json.unreadable` beside
+the new one. After every upgrade the file as the previous version left it is
+kept as `settings.previous.json`; to go back to it, quit the app, copy it over
+`settings.json` and start the app again.
+
 ## A summary section says "unavailable"
 
 The route summary's online parts come from RIPEstat and RIPE Atlas. When one

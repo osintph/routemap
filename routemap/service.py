@@ -198,9 +198,12 @@ def run(target: str, settings: config.Settings, **kwargs):
     return run_trace(target, trace_options(settings, tool, **kwargs))
 
 
-def analyse_sync(text_or_hops, origin, settings: config.Settings, progress=None) -> Route:
+def analyse_sync(text_or_hops, origin, settings: config.Settings, progress=None,
+                 destination: str | None = None) -> Route:
+    """*destination*: the address traced, when known (a destination that
+    answered too fast for its registered place is placed as anycast)."""
     return asyncio.run(analyse(text_or_hops, origin, sources=sources_for(settings),
-                               progress=progress))
+                               progress=progress, destination=destination))
 
 
 # -------------------------------------------------------------------- export ---

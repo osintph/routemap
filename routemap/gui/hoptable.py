@@ -79,6 +79,23 @@ def differs_text(entries: list[dict], sep: str = "; ") -> str:
     return sep.join(f"hop {h['hop']}: {_place(h)}" for h in entries)
 
 
+def shared_differences(differences: dict[str, list[dict]]) -> tuple[list[dict], dict[str, list[dict]]]:
+    """The entries of :func:`path_differences` that read the same on all the
+    paths found (a split between routers in one place), and each path's others: the
+    PDF prints the shared ones once above its table (ODIN, 26 Oct 2026: 16
+    rows repeating hops 4 to 6)."""
+    if len(differences) < 2:
+        return [], differences
+
+    def key(h):
+        return h.get("hop"), _place(h)
+    keys = [{key(h) for h in entries} for entries in differences.values()]
+    common = set.intersection(*keys) if keys else set()
+    first = next(iter(differences.values()))
+    shared = [h for h in first if key(h) in common]
+    return shared, {pid: [h for h in entries if key(h) not in common] for pid, entries in differences.items()}
+
+
 def _place(h: dict) -> str:
     return h.get("place") or h.get("hostname") or h["address"]
 
@@ -101,7 +118,26 @@ def last_answer(path: dict) -> dict | None:
     return next((h for h in reversed(path.get("located") or []) if h.get("address")), None)
 
 
-def rtt_cell(path: dict) -> str:
+def answered_none(path: dict, discovery: dict) -> bool:
+    """A path whose full-TTL attempts all went unanswered while the target
+    answered other paths' attempts in the same run: the target is alive, so
+    this is a server answering fewer after the discovery's probes, not a path
+    that does not get there (ODIN, heise.de, 26 Oct 2026: reached on 2 of 16
+    paths, the other 14 answered 0 of 10). "Not reached" is kept for a run in
+    which no path reached the target."""
+    sent = path.get("sent") or 0
+    return (not path.get("reached") and sent > 0 and (path.get("lost") or 0) >= sent
+            and any(p.get("reached") for p in discovery.get("paths") or []))
+
+
+def _none_answered(path: dict, discovery: dict) -> str:
+    sent = path.get("sent") or 0
+    return f"0 of {sent}" if discovery.get("method") == "tcp-paris" else f"100% ({sent} of {sent})"
+
+
+def rtt_cell(path: dict, discovery: dict | None = None) -> str:
+    if discovery is not None and answered_none(path, discovery):
+        return ""
     if not path.get("reached"):
         return "not reached"
     rtt = path.get("rtt_to_target_ms")
@@ -130,6 +166,9 @@ def probes_text(discovery: dict) -> str:
 def legend_text(path: dict, discovery: dict) -> str:
     """A path's line in a map legend, in the path list's words: "253 ms ·
     10 of 10 answered" (TCP), "253 ms · 0% loss" (ICMP), or "not reached"."""
+    if answered_none(path, discovery):
+        sent = path.get("sent") or 0
+        return f"0 of {sent} answered" if discovery.get("method") == "tcp-paris" else "100% loss"
     if not path.get("reached"):
         return "not reached"
     rtt = path.get("rtt_to_target_ms")
@@ -155,6 +194,8 @@ def target_column(discovery: dict) -> str:
 
 
 def target_cell(path: dict, discovery: dict, short: bool = False) -> str:
+    if answered_none(path, discovery):
+        return _none_answered(path, discovery)
     if not path.get("reached") and short:
         last = last_answer(path)
         return f"last answer: hop {last['hop']}" if last else ""
@@ -184,7 +225,8 @@ def path_notes(discovery: dict) -> list[str]:
     notes = [f"“At least”: some load balancers do not spread {method.split()[0]} probes, so a path can stay "
              "hidden."]
     if discovery.get("method") == "tcp-paris":
-        sent = sorted({p.get("sent") or 0 for p in discovery.get("paths") or [] if p.get("reached")})
+        sent = sorted({p.get("sent") or 0 for p in discovery.get("paths") or []
+                       if p.get("reached") or answered_none(p, discovery)})
         if not sent or sent == [10]:
             count = "ten connection attempts per path"
         elif len(sent) == 1:

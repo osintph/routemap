@@ -665,7 +665,8 @@ def _legend_rows(route: dict, pal: theme.Palette, quiet_ms: float, hot_ms: float
     """The rows both legends show, in order: (kind, value)."""
     from routemap.gui.mapview import route_groups
     hops = route.get("hops") or []
-    used = [s for s in ("hoiho", "site-code", "ip-db", "local") if any(h.get("source") == s for h in hops)]
+    used = [s for s in ("hoiho", "site-code", "ip-db", "anycast", "local")
+            if any(h.get("source") == s for h in hops)]
     rows: list[tuple[str, object]] = [("title", "Placed by")]
     rows += [("dot", s) for s in used]
     if any(h.get("precision") == "country" for h in hops):
