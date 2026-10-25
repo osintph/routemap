@@ -212,3 +212,29 @@ def test_an_interrupt_closes_the_session_at_once():
     with pytest.raises(KeyboardInterrupt):
         agents.run(AGENT, "trace", _settings(), target="bbc.com", ssh="ssh", popen=_popen(proc, {}))
     assert proc.killed
+
+
+@pytest.mark.parametrize("line", [
+    "  1.|-- _gateway (51.68.0.1)        0.0%     3    0.5   0.3   0.2   0.5   0.2",
+    " 1  gw.example.net (51.68.0.1)  0.4 ms  0.3 ms  0.3 ms",
+    " 1  51.68.0.1  0.4 ms  0.3 ms",
+    "  1    <1 ms    <1 ms    <1 ms  gw.example.net [51.68.0.1]",
+    " 2  2001:41d0::1  1.0 ms",
+    "traceroute to 151.101.0.81 (151.101.0.81), 30 hops max, 60 byte packets",
+], ids=["mtr", "traceroute", "bare", "tracert", "v6", "banner"])
+def test_lines_streamed_from_a_masked_agent_show_no_address(line):
+    out = agents.redact_line(line)
+    assert "51.68" not in out and "2001:41d0" not in out and "151.101" not in out and "gw.example" not in out
+    assert "_gateway" not in out and "…" in out
+
+
+def test_a_masked_agent_streams_redacted_lines_and_a_shown_one_does_not():
+    got = []
+    agents.run(AGENT, "trace", _settings(), target="bbc.com", ssh="ssh", on_line=got.append,
+               popen=_popen(FakeProc([HELLO, {"type": "line", "text": " 1  _gateway (51.68.0.1)  0.2 ms"}, RESULT]), {}))
+    assert got == [" 1  …  0.2 ms"]
+    shown = agents.Agent(**dict(AGENT.to_dict(), show_first_hops=True))
+    got.clear()
+    agents.run(shown, "trace", _settings(), target="bbc.com", ssh="ssh", on_line=got.append,
+               popen=_popen(FakeProc([HELLO, {"type": "line", "text": " 1  _gateway (51.68.0.1)  0.2 ms"}, RESULT]), {}))
+    assert got == [" 1  _gateway (51.68.0.1)  0.2 ms"]

@@ -149,6 +149,9 @@ def run(agent: Agent, action: str, settings, *, target: str | None = None, ports
         if action == "ports" or ports is not None:
             kw["ports"] = ports if ports is not None else settings.port_list
             kw["tls_ports"] = settings.tls_ports
+    if on_line is not None and not agent.show_first_hops:
+        shown = on_line
+        on_line = lambda text: shown(redact_line(text))     # noqa: E731
     line = engine_agent.remote_command(action, command=agent.command or None,
                                        place_from_ip=agent.place == PLACE_IP and online, **kw)
     argv = engine_agent.ssh_argv(ssh, agent.destination, line)
@@ -210,6 +213,34 @@ def run(agent: Agent, action: str, settings, *, target: str | None = None, ports
     if result.error and result.result is None:
         raise AgentFailed(f"{agent.name}: {result.error}")
     return result
+
+
+_NAMED = re.compile(r"\S+ [(\[]([0-9A-Fa-f:.]+)[)\]]")
+_ADDRESS = re.compile(r"(?<![\w.:])(?:\d{1,3}(?:\.\d{1,3}){3}|[0-9A-Fa-f]{0,4}(?::[0-9A-Fa-f]{0,4}){2,7})(?![\w.:])")
+
+
+def redact_line(text: str) -> str:
+    """A tool line as it streams from an agent, with every address and the
+    name printed with it replaced by "…". Which first hops are the
+    provider's is known only once the route is analysed; until then no
+    address is shown (vps-e7d7933f, 25 Oct 2026: the server's gateway in the
+    live output). The masked text replaces these lines when the run ends."""
+    import ipaddress
+
+    def named(m):
+        try:
+            ipaddress.ip_address(m.group(1))
+            return "…"
+        except ValueError:
+            return m.group(0)
+
+    def bare(m):
+        try:
+            ipaddress.ip_address(m.group(0))
+            return "…"
+        except ValueError:
+            return m.group(0)
+    return _ADDRESS.sub(bare, _NAMED.sub(named, text))
 
 
 def _ssh_reason(stderr: bytes) -> str:
