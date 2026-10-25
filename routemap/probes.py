@@ -56,10 +56,15 @@ def ports_line(ports: dict | None) -> str:
         return ""
     parts = []
     for i, r in enumerate(ports["results"]):
+        if r["state"] == "filtered":
+            continue
         cell = f"{r['port']} {r['state']}"
         if r["state"] == "open" and i == 0 and r.get("connect_ms") is not None:
             cell += f" {_ms(r['connect_ms'])}"
         parts.append(cell)
+    filtered = sum(1 for r in ports["results"] if r["state"] == "filtered")
+    if filtered:
+        parts.append(f"{filtered} filtered" if parts else f"all {filtered} filtered")
     return "ports: " + ", ".join(parts)
 
 
@@ -166,11 +171,17 @@ def paths_lines(disc: dict | None, *, trace_resolved: dict | None = None, ports:
         else:
             out.append(f"Routers on this network do not answer TCP probes beyond hop {n - 1}; Paths cannot map "
                        "past it here; Trace (ICMP) can.")
-    for p in late:
-        sent, lost = p.get("sent") or 0, p.get("lost") or 0
-        if sent and lost:
-            out.append(f"Path {p.get('id')}: the target answered {sent - lost} of {sent} attempts; some servers "
-                       "answer fewer after the discovery's probes.")
+    short = [p for p in late if (p.get("sent") or 0) and (p.get("lost") or 0)]
+    if len(short) == 1:
+        p = short[0]
+        out.append(f"Path {p.get('id')}: the target answered {p['sent'] - p['lost']} of {p['sent']} attempts; "
+                   "some servers answer fewer after the discovery's probes.")
+    elif short:
+        got = sorted(p["sent"] - p["lost"] for p in short)
+        sent = max(p["sent"] for p in short)
+        span = f"{got[0]}" if got[0] == got[-1] else f"{got[0]} to {got[-1]}"
+        out.append(f"On {len(short)} paths the target answered {span} of {sent} attempts each; some servers "
+                   "answer fewer after the discovery's probes.")
     unreached = [p for p in paths if not p.get("reached")]
     if unreached and ports and ports.get("address") == resolved.get("address"):
         port = next((r for r in ports.get("results") or [] if r["port"] == (disc.get("port") or 443)), None) \

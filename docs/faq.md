@@ -31,8 +31,9 @@ Source column and the marker colour say which. See
 ## What does it send, and to whom?
 
 Only what [PRIVACY.md](../PRIVACY.md) lists: public router hostnames to CAIDA
-Hoiho, public hop addresses to RIPEstat, reverse DNS queries to your own
-resolver, and, only if you have not set your location, your public IP to
+Hoiho, public hop addresses to RIPEstat, reverse DNS queries and the target's
+own lookup to your resolver (and to any resolver you add in Settings >
+Probes), and, only if you have not set your location, your public IP to
 RIPEstat. Private and carrier-NAT addresses are never looked up. Each source
 can be switched off.
 
@@ -43,7 +44,8 @@ Yes: File > Paste Trace, and say where it was run from. Output of `traceroute`,
 
 ## Does it need administrator rights?
 
-No. It runs your system's own trace tool as you.
+No. It runs your system's own trace tool, or its built-in prober, as you.
+Port tests and DNS timing need no rights either.
 
 ## Can it watch a route over time?
 
@@ -52,6 +54,29 @@ mtr style, with per-hop loss, latency and jitter, a ping plot and the path
 changes. It never goes faster than mtr's own defaults (one cycle a second, at
 most 30 probes a second) and stops by itself after an hour unless you choose
 longer, 8 hours at most. See the [guide](guide.md#continuous-mode).
+
+## Is Ports a port scanner?
+
+No. It tries one connection to each of at most 32 single ports you list, on
+the one address you traced, four at a time. It refuses ranges and lists of
+hosts. It answers "can I reach this service from here?", not "what runs on
+this host?". See the [guide](guide.md#port-tests).
+
+## Can I trace from somewhere else?
+
+Yes, from a server you can reach with ssh: install `routemap-engine` there and
+add it in Settings > Agents. Route Map runs one command there per trace with
+your own ssh client and stores no keys or passwords. See the
+[guide](guide.md#remote-agents).
+
+## Paths says the routers do not answer TCP probes. What does that mean?
+
+On Windows, Paths probes with TCP connection attempts. Some networks answer
+ICMP but not TCP probes past some hop, so Paths cannot see the routers there;
+use Trace, which probes with ICMP. If the target itself answers ICMP at that
+hop while its TCP service answers only to the last attempts, something in
+front of the target (a firewall or load balancer) is the likely reason, and
+the heading says that instead.
 
 ## Is there a command line?
 

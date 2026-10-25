@@ -62,7 +62,8 @@ class SettingsDialog(QDialog):
         super().__init__(parent)
         self.settings = settings or Settings()
         self.setWindowTitle(f"{DISPLAY_NAME} Settings")
-        self.setMinimumWidth(620)
+        # Nine tabs since 0.5.0-beta.1 (Probes, Agents): all of them in view.
+        self.setMinimumWidth(720)
         # The Trace tab (IP version and the Paths budget since 0.4.0) needs this
         # much to show every note whole; shorter, Qt squeezes the wrapped notes.
         self.setMinimumHeight(720)
@@ -1441,8 +1442,20 @@ it (Settings &rsaquo; RIPE Atlas &rsaquo; Withdraw consent stops it). To RIPEsta
 IP address of the traced family and the target's address, to learn both networks. To
 atlas.ripe.net: your API key, the probe chosen near the target, and <b>your public IP address
 as the measurement's target</b>, which RIPE NCC publishes.</td></tr>
-<tr><td><b>Paths</b></td><td>ICMP probes to the target and the routers on the way, as a trace,
-at most 20 a second and 1,500 in all; the same lookups as one trace.</td></tr>
+<tr><td><b>Paths</b></td><td>ICMP probes to the target and the routers on the way, as a trace
+(on Windows TCP connection attempts to port 443, plus one ICMP echo per hop that did not answer
+TCP), at most 20 a second and 1,500 in all; the same lookups as one trace.</td></tr>
+<tr><td><b>DNS timing</b></td><td>the target's name, at each trace, to your system resolver and
+to the resolvers you add in Settings &rsaquo; Probes (none by default), nowhere else. Plain DNS is
+not encrypted.</td></tr>
+<tr><td><b>Port tests</b></td><td>only when you click Ports, or turn on Test these ports with
+every trace: one TCP connection attempt per chosen port to the traced address (at most 32), and
+for TLS ports a TLS ClientHello with the target's name.</td></tr>
+<tr><td><b>Remote agents</b></td><td>only when you trace from an agent: one ssh connection, with
+your own ssh client, to the server you named in Settings &rsaquo; Agents; the server sends the
+probes. "From the agent's public IP" makes the server look itself up at RIPEstat, so RIPEstat
+sees the server's address; "City" makes no lookup. The app never receives the server's
+address, and stores no keys.</td></tr>
 <tr><td><b>Update check</b></td><td>only when you choose Help &rsaquo; Check for updates: one
 request to GitHub for the latest release tag.</td></tr>
 </table>

@@ -51,7 +51,8 @@ class UnplacedPanel(QWidget):
         self.list.setVisible(on)
 
     def set_hops(self, hops: list[dict]):
-        unplaced = [h for h in hops if h.get("lat") is None]
+        # An agent's masked first hops are hidden on purpose, not unplaced.
+        unplaced = [h for h in hops if h.get("lat") is None and not h.get("masked")]
         self.list.clear()
         for hop in unplaced:
             reason = hop.get("reason") or "no source could place it"
@@ -179,7 +180,7 @@ class DnsPanel(_Collapsible):
 
     def __init__(self, parent=None):
         from routemap import probes
-        super().__init__(probes.DNS_HEADERS, [118, 48, 66, 110, 96, 84, 64], parent, height=150)
+        super().__init__(probes.DNS_HEADERS, [118, 48, 66, 110, 96, 84, 64], parent, height=110)
         self.setAccessibleName("DNS lookups")
         self.set_dns(None, None)
 
@@ -208,7 +209,7 @@ class PortsPanel(_Collapsible):
 
     def __init__(self, parent=None):
         from routemap import probes
-        super().__init__(probes.PORT_HEADERS, [60, 230, 80], parent, height=170)
+        super().__init__(probes.PORT_HEADERS, [60, 230, 80], parent, height=120)
         self.setAccessibleName("Port tests")
         self.set_ports(None)
 

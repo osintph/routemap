@@ -51,11 +51,19 @@
 
 ## Paths
 
-- **A lower bound.** Paths probes with ICMP, and some load balancers do not
-  spread ICMP across their links, so a path can stay hidden.
-- **Not on Windows yet.** Windows' ICMP function chooses each probe's
-  identifier and sequence number, so a flow cannot be held on one path; the
-  options are being weighed for a later version.
+- **A lower bound.** Paths probes with ICMP on macOS and Linux and with TCP
+  connection attempts to port 443 on Windows (Windows 10 version 2004 or
+  later). Some load balancers spread one kind of probe and not the other, so a
+  path can stay hidden either way.
+- **Networks that do not answer TCP probes.** On Windows, routers past some
+  hop may answer ICMP but not TCP probes. Paths cannot map past that hop; it
+  says so in the heading ("Routers on this network do not answer TCP probes
+  beyond hop N"), and Trace (ICMP) can map on. When the ICMP check is answered
+  by the target itself, the heading says a firewall or load balancer in front
+  of the target is the likely reason instead.
+- **Silent hops.** Discovery stops after 5 silent hops, then asks the target
+  once more at full TTL on each path found; a path reached only that way shows the
+  silent stretch, and the target is numbered after the last hop sent.
 - **Rate-limited routers** answer only some probes; Paths does not add flows
   there once more flows stop showing anything new, so a balancer behind a
   heavily rate-limited hop can be missed now and then.

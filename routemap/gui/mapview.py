@@ -126,12 +126,19 @@ def _fmt_ms(value) -> str:
     return "-" if value is None else f"{value:.1f} ms"
 
 
+HIDDEN_LABEL = "hidden (agent's provider)"
+
+
 def place_label(hop: dict) -> str:
+    if hop.get("masked"):
+        return HIDDEN_LABEL
     place = hop.get("place") or ("not placed" if hop.get("lat") is None else "")
     return f"{place} (country only)" if is_country_only(hop) else place
 
 
 def source_label(hop: dict) -> str:
+    if hop.get("masked"):
+        return "hidden"
     short = theme.SOURCE_SHORT.get(hop.get("source"), hop.get("source") or "")
     if hop.get("source") == "ip-db":
         # Which tier answered: the offline file, or RIPEstat because the file

@@ -237,7 +237,12 @@ way (per-packet balancing) is named, and does not make paths of its own.
 **Limits**, so it never floods a network: at most 20 probes a second (the
 default rate of CAIDA's scamper), at most 1,500 probes per discovery, the pings
 included (Settings > Trace can lower this), at most 64 flows, and it stops
-after 3 silent hops. A discovery takes one to three minutes: 1,500 probes at 20 a
+after 5 silent hops (scamper's and RIPE Atlas's default), then asks the target
+once more at full TTL on each path found, as RIPE Atlas does with its last probe. A
+path reached only by that last attempt is shown reached, with its silent
+stretch marked, and "not reached" always means the target was asked and did
+not answer. The heading says why discovery ended ("stopped after 5 silent hops
+(3 to 7)"). A discovery takes one to three minutes: 1,500 probes at 20 a
 second is 75 seconds of sending, and each round of probes waits up to a second
 for the routers that do not answer. No
 administrator rights are needed anywhere.
@@ -256,6 +261,95 @@ column of the Paths list is **Target answered**: of ten connection attempts per
 path, how many the target answered. They are spaced so no port is reused at
 once (a server can ignore a quick repeat from the same port), and a server can
 still ignore some, so a shortfall there is not necessarily loss on the path.
+The ten attempts are at least a second apart; some servers still answer fewer
+of them after the discovery's own probes, and the heading says so.
+
+**When TCP goes quiet (Windows).** For each hop where no TCP probe got an
+answer, Paths sends one ICMP echo with the same TTL. If routers answer it, the
+heading says "Routers on this network do not answer TCP probes beyond hop N;
+Paths cannot map past it here; Trace (ICMP) can". If the target itself answers
+it, the heading says the target answers ICMP there but its TCP service only at
+full TTL, and that a firewall or load balancer in front of the target is
+likely.
+
+**The address.** Paths, like Trace, resolves the target once and probes that
+address; the heading shows it. When the Trace before it resolved the same name
+to another address (a CDN can answer with a different one each time), both are
+shown.
+
+## DNS timing
+
+Every trace times the lookup of its target: one lookup for IPv4 (A) and one
+for IPv6 (AAAA) through your system resolver, and the same through each
+resolver you add in **Settings > Probes** (none by default; IP addresses
+only). The summary under the map says which address was traced and how long
+the system resolver took ("bbc.com resolved to 151.101.0.81 in 18 ms"); the
+**DNS** section above the hop table lists every lookup with its time, its
+answer, whether the resolver said it is authoritative (the AA bit) and the
+answer's TTL. Neither your system resolver nor a recursive resolver says
+whether it answered from its cache, so that column reads "not stated". A
+computer without IPv6 gets no IPv6 address from the system resolver even when
+the name has one; the row says so and does not claim the record is missing.
+Each lookup gives up after 2 seconds, the whole step after 5.
+
+The traced address is the one the trace was sent to: Route Map resolves the
+name once and gives the address to traceroute, tracert or mtr, so they cannot
+resolve it to another address of their own.
+
+Plain DNS is not encrypted: the network between you and a resolver can see
+the name. Only your system resolver and the resolvers you list are asked.
+**Settings > Probes > Time the DNS lookup once per Live cycle** adds one
+system-resolver lookup per cycle to continuous mode (off by default).
+
+## Port tests
+
+**Ports** (next to Paths) or `routemap TARGET --ports` tries one TCP
+connection to each port in **Settings > Probes** (443, 80, 22, 25, 53 and 3389
+by default) on the traced address and reports each as **open** (with the time
+to connect), **closed** (the target answered with a reset) or **filtered**
+(nothing answered within the wait, or an ICMP unreachable). For 443 and the
+ports listed under "TLS on", it also times a TLS handshake; certificates are
+not checked, so that time says nothing about the certificate. At most 32
+ports, 4 at a time, single ports only: it is a reachability check for one
+target, not a port scanner, and ranges are refused. On Windows an unanswered
+port is given up after about a second (Windows sends one connection attempt
+and waits for its first retransmission timer); the result says so. Turn on
+**Test these ports with every trace** to add the test to each trace (off by
+default). The PNG never shows port results.
+
+Next to a Paths run, the port test tells "not reached" apart: if port 443
+answers, the target is up and the routers in between are what is silent.
+
+## Remote agents
+
+A remote agent is a server you can already reach with ssh from this computer.
+Route Map runs one trace there and shows it with the server as its origin, so
+you can see the route from a data centre or another country.
+
+On the server, install the engine for the user you log in as:
+`pip install routemap-engine` (Python 3.11 or later), then check it with
+`routemap-engine agent 1 hello`. In **Settings > Agents**, add the server by a
+name and its SSH destination (a Host from your `~/.ssh/config`, or
+`user@host`) and choose where it is on the map: **from the agent's public IP**
+(a RIPEstat lookup made on the server, so RIPEstat sees the server's address;
+Route Map never shows or keeps it) or a **city** (no lookup). **Test
+connection** makes one connection and reports the engine version and what the
+server can probe.
+
+Then choose the agent in the **From:** list next to Trace and click Trace,
+Paths or Ports. Route Map runs your own ssh once, with `-T`, `BatchMode=yes`
+and a 15 second connect timeout: an unknown host key or a key that needs a
+passphrase not loaded in ssh-agent fails at once instead of asking. It never
+retries and never connects in the background. Placing the hops and every
+lookup happen on your computer, with your Sources settings.
+
+The first hops of a trace from a server are its provider's routers. They are
+hidden by default: listed, with no address, name or place, as are the
+server's own name and its gateway in the tool output. **Show first hops** in
+the agent's settings shows them. Live and reverse traces run from this
+computer only. Paths on a Linux server needs unprivileged ICMP sockets
+there (`net.ipv4.ping_group_range`); Route Map does not change a server's
+settings, and says so when Paths cannot run.
 
 ## Continuous mode
 
@@ -337,6 +431,12 @@ same three formats; see the [command-line reference](cli.md).
 - **Trace**: the tool (detected at startup: `tracert` on Windows, `traceroute`
   on macOS and Linux, or `mtr` if installed), its flags, and **Give up after**,
   the time limit for one trace.
+- **Probes**: the resolvers DNS timing also asks (IP addresses, none by
+  default), **Time the DNS lookup once per Live cycle**, and the port test's
+  **Ports**, **TLS on** and **Wait per port**, with **Test these ports with
+  every trace** (off by default). See DNS timing and Port tests above.
+- **Agents**: the servers you can trace from, with Add, Edit, Remove and
+  **Test connection**. See Remote agents above.
 - **Sources**: **Online lookups** switches every online source at once; off,
   nothing new leaves the machine. Under it, each source on its own: CAIDA
   Hoiho, the bundled carrier site-code table (offline), the IP geolocation

@@ -92,6 +92,31 @@ means the destination or its firewall drops the probes; the Notes column says
 when the destination does not answer ICMP. Try `mtr` (Settings > Trace), or
 switch the IP database fallback back on if you turned it off.
 
+## A remote agent does not connect
+
+Route Map runs `ssh -T -o BatchMode=yes` once and shows the last line ssh
+printed. Check the destination works without questions from a terminal:
+`ssh -o BatchMode=yes YOUR-DESTINATION routemap-engine agent 1 hello`. Common
+causes: the host key is not in `known_hosts` yet (connect once by hand and
+check its fingerprint), the key has a passphrase and is not loaded in
+ssh-agent, or `routemap-engine` is not on the PATH for ssh commands (set the
+engine command in the agent's settings, for example
+`~/.local/bin/routemap-engine`). Route Map never retries: one failed attempt
+is one attempt in the server's log.
+
+## Paths on an agent says it cannot run
+
+Path discovery on Linux needs unprivileged ICMP sockets for the user you log
+in as (`net.ipv4.ping_group_range`). Trace still works there with
+`traceroute` or `mtr`. Route Map does not change a server's settings.
+
+## Ports says "filtered" for ports I know are open
+
+Filtered means nothing answered: a firewall on the way, at the target or on
+your own network. Many ISPs block outgoing port 25. On Windows an unanswered
+port is given up after about a second; a slow server on a long path can look
+filtered there.
+
 ## The trace takes a long time
 
 Unanswered hops each wait for a timeout. **Settings > Trace > Give up after**

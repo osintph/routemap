@@ -1,0 +1,385 @@
+{
+ "_note": "SYNTHETIC agent trace for the screenshots, not a measurement: hops 1 to 3 are documentation and private addresses standing for a server provider's network (masked, as the app shows them), hops 4 to 9 the Frankfurt end of the heise.de route in routemap-engine tests/fixtures/odin_paths_040b2t3.txt; times invented. The agent is named fra-vps.",
+ "route": {
+  "parser": "icmp",
+  "parser_label": "Built-in ICMP prober",
+  "target": "193.99.144.80",
+  "warnings": [],
+  "hoiho_ruleset_date": null,
+  "origin": {
+   "lat": 50.11,
+   "lon": 8.68,
+   "label": "Frankfurt am Main, DE",
+   "source": "supplied"
+  },
+  "hops": [
+   {
+    "hop": 1,
+    "addresses": [],
+    "address": null,
+    "hostnames": [],
+    "hostname": null,
+    "min_rtt_ms": 0.3,
+    "avg_rtt_ms": 0.333,
+    "sent": 3,
+    "lost": 0,
+    "loss_pct": 0.0,
+    "codes": [],
+    "source": "unresolved",
+    "lat": null,
+    "lon": null,
+    "place": null,
+    "cc": null,
+    "distance_km": null,
+    "rtt_budget_km": null,
+    "annotations": [
+     "agent's provider network, hidden"
+    ],
+    "reason": null,
+    "candidates": [],
+    "masked": true,
+    "annotation_details": [
+     "agent's provider network, hidden: the first hops of a trace from an agent are its server provider's routers; they are listed without address, name or place (Settings > Agents > Show first hops)"
+    ]
+   },
+   {
+    "hop": 2,
+    "addresses": [],
+    "address": null,
+    "hostnames": [],
+    "hostname": null,
+    "min_rtt_ms": 0.6,
+    "avg_rtt_ms": 0.633,
+    "sent": 3,
+    "lost": 0,
+    "loss_pct": 0.0,
+    "codes": [],
+    "source": "unresolved",
+    "lat": null,
+    "lon": null,
+    "place": null,
+    "cc": null,
+    "distance_km": null,
+    "rtt_budget_km": null,
+    "annotations": [
+     "agent's provider network, hidden"
+    ],
+    "reason": null,
+    "candidates": [],
+    "masked": true,
+    "annotation_details": [
+     "agent's provider network, hidden: the first hops of a trace from an agent are its server provider's routers; they are listed without address, name or place (Settings > Agents > Show first hops)"
+    ]
+   },
+   {
+    "hop": 3,
+    "addresses": [],
+    "address": null,
+    "hostnames": [],
+    "hostname": null,
+    "min_rtt_ms": 1.0,
+    "avg_rtt_ms": 1.033,
+    "sent": 3,
+    "lost": 0,
+    "loss_pct": 0.0,
+    "codes": [],
+    "source": "unresolved",
+    "lat": null,
+    "lon": null,
+    "place": null,
+    "cc": null,
+    "distance_km": null,
+    "rtt_budget_km": null,
+    "annotations": [
+     "agent's provider network, hidden"
+    ],
+    "reason": null,
+    "candidates": [],
+    "masked": true,
+    "annotation_details": [
+     "agent's provider network, hidden: the first hops of a trace from an agent are its server provider's routers; they are listed without address, name or place (Settings > Agents > Show first hops)"
+    ]
+   },
+   {
+    "hop": 4,
+    "addresses": [],
+    "address": null,
+    "hostnames": [],
+    "hostname": null,
+    "min_rtt_ms": 1.6,
+    "avg_rtt_ms": 1.633,
+    "sent": 3,
+    "lost": 0,
+    "loss_pct": 0.0,
+    "codes": [],
+    "source": "unresolved",
+    "lat": null,
+    "lon": null,
+    "place": null,
+    "cc": null,
+    "distance_km": null,
+    "rtt_budget_km": null,
+    "annotations": [
+     "agent's provider network, hidden"
+    ],
+    "reason": null,
+    "candidates": [],
+    "masked": true,
+    "annotation_details": [
+     "agent's provider network, hidden: the first hops of a trace from an agent are its server provider's routers; they are listed without address, name or place (Settings > Agents > Show first hops)"
+    ]
+   },
+   {
+    "hop": 5,
+    "addresses": [],
+    "address": null,
+    "hostnames": [],
+    "hostname": null,
+    "min_rtt_ms": 2.4,
+    "avg_rtt_ms": 2.433,
+    "sent": 3,
+    "lost": 0,
+    "loss_pct": 0.0,
+    "codes": [],
+    "source": "unresolved",
+    "lat": null,
+    "lon": null,
+    "place": null,
+    "cc": null,
+    "distance_km": null,
+    "rtt_budget_km": null,
+    "annotations": [
+     "agent's provider network, hidden"
+    ],
+    "reason": null,
+    "candidates": [],
+    "masked": true,
+    "annotation_details": [
+     "agent's provider network, hidden: the first hops of a trace from an agent are its server provider's routers; they are listed without address, name or place (Settings > Agents > Show first hops)"
+    ]
+   },
+   {
+    "hop": 6,
+    "addresses": [
+     "82.98.102.1"
+    ],
+    "address": "82.98.102.1",
+    "hostnames": [],
+    "hostname": null,
+    "min_rtt_ms": 2.9,
+    "avg_rtt_ms": 2.933,
+    "sent": 3,
+    "lost": 0,
+    "loss_pct": 0.0,
+    "codes": [],
+    "source": "ip-db",
+    "lat": 50.1111,
+    "lon": 8.66105,
+    "place": "Frankfurt am Main, DE",
+    "cc": "DE",
+    "distance_km": 1.4,
+    "rtt_budget_km": 590.0,
+    "annotations": [],
+    "reason": null,
+    "candidates": [
+     {
+      "source": "ip-db",
+      "address": "82.98.102.1",
+      "place": "Frankfurt am Main, DE",
+      "lat": 50.1111,
+      "lon": 8.66105,
+      "distance_km": 1.4,
+      "rtt_budget_km": 590.0,
+      "accepted": true,
+      "provider": "dbip"
+     }
+    ],
+    "ip_provider": "dbip"
+   },
+   {
+    "hop": 7,
+    "addresses": [
+     "82.98.103.3"
+    ],
+    "address": "82.98.103.3",
+    "hostnames": [],
+    "hostname": null,
+    "min_rtt_ms": 3.3,
+    "avg_rtt_ms": 3.333,
+    "sent": 3,
+    "lost": 0,
+    "loss_pct": 0.0,
+    "codes": [],
+    "source": "ip-db",
+    "lat": 50.1111,
+    "lon": 8.66105,
+    "place": "Frankfurt am Main, DE",
+    "cc": "DE",
+    "distance_km": 1.4,
+    "rtt_budget_km": 630.0,
+    "annotations": [],
+    "reason": null,
+    "candidates": [
+     {
+      "source": "ip-db",
+      "address": "82.98.103.3",
+      "place": "Frankfurt am Main, DE",
+      "lat": 50.1111,
+      "lon": 8.66105,
+      "distance_km": 1.4,
+      "rtt_budget_km": 630.0,
+      "accepted": true,
+      "provider": "dbip"
+     }
+    ],
+    "ip_provider": "dbip"
+   },
+   {
+    "hop": 8,
+    "addresses": [
+     "212.19.61.13"
+    ],
+    "address": "212.19.61.13",
+    "hostnames": [],
+    "hostname": null,
+    "min_rtt_ms": 5.8,
+    "avg_rtt_ms": 5.833,
+    "sent": 3,
+    "lost": 0,
+    "loss_pct": 0.0,
+    "codes": [],
+    "source": "ip-db",
+    "lat": 50.1111,
+    "lon": 8.66105,
+    "place": "Frankfurt am Main, DE",
+    "cc": "DE",
+    "distance_km": 1.4,
+    "rtt_budget_km": 880.0,
+    "annotations": [],
+    "reason": null,
+    "candidates": [
+     {
+      "source": "ip-db",
+      "address": "212.19.61.13",
+      "place": "Frankfurt am Main, DE",
+      "lat": 50.1111,
+      "lon": 8.66105,
+      "distance_km": 1.4,
+      "rtt_budget_km": 880.0,
+      "accepted": true,
+      "provider": "dbip"
+     }
+    ],
+    "ip_provider": "dbip"
+   },
+   {
+    "hop": 9,
+    "addresses": [
+     "193.99.144.80"
+    ],
+    "address": "193.99.144.80",
+    "hostnames": [],
+    "hostname": null,
+    "min_rtt_ms": 6.0,
+    "avg_rtt_ms": 6.067,
+    "sent": 3,
+    "lost": 0,
+    "loss_pct": 0.0,
+    "codes": [],
+    "source": "ip-db",
+    "lat": 52.3861,
+    "lon": 9.80954,
+    "place": "Hanover, DE",
+    "cc": "DE",
+    "distance_km": 265.0,
+    "rtt_budget_km": 900.0,
+    "annotations": [],
+    "reason": null,
+    "candidates": [
+     {
+      "source": "ip-db",
+      "address": "193.99.144.80",
+      "place": "Hanover, DE",
+      "lat": 52.3861,
+      "lon": 9.80954,
+      "distance_km": 265.0,
+      "rtt_budget_km": 900.0,
+      "accepted": true,
+      "provider": "dbip"
+     }
+    ],
+    "ip_provider": "dbip"
+   }
+  ],
+  "resolved": {
+   "name": "heise.de",
+   "address": "193.99.144.80",
+   "family": 4,
+   "by": "system"
+  },
+  "dns": [
+   {
+    "resolver": "system",
+    "type": "A",
+    "ms": 37.4,
+    "addresses": [
+     "193.99.144.80"
+    ],
+    "rcode": null,
+    "aa": null,
+    "cached": null,
+    "ttl": null,
+    "error": null,
+    "tcp": false
+   },
+   {
+    "resolver": "system",
+    "type": "AAAA",
+    "ms": 21.7,
+    "addresses": [
+     "2a02:2e0:3fe:1001:302::"
+    ],
+    "rcode": null,
+    "aa": null,
+    "cached": null,
+    "ttl": null,
+    "error": null,
+    "tcp": false
+   },
+   {
+    "resolver": "9.9.9.9",
+    "type": "A",
+    "ms": 0.4,
+    "addresses": [
+     "193.99.144.80"
+    ],
+    "rcode": "NOERROR",
+    "aa": false,
+    "cached": null,
+    "ttl": 38494,
+    "error": null,
+    "tcp": false
+   },
+   {
+    "resolver": "9.9.9.9",
+    "type": "AAAA",
+    "ms": 0.2,
+    "addresses": [
+     "2a02:2e0:3fe:1001:302::"
+    ],
+    "rcode": "NOERROR",
+    "aa": false,
+    "cached": null,
+    "ttl": 23923,
+    "error": null,
+    "tcp": false
+   }
+  ]
+ },
+ "trace_text": "traceroute to 193.99.144.80 (193.99.144.80), 30 hops max, 60 byte packets, ICMP echo, routemap-engine built-in prober\n 1  hidden  0.4 ms  0.3 ms  0.3 ms\n 2  hidden  0.6 ms  0.6 ms  0.7 ms\n 3  hidden  1.0 ms  1.1 ms  1.0 ms\n 4  hidden  1.6 ms  1.7 ms  1.6 ms\n 5  hidden  2.4 ms  2.5 ms  2.4 ms\n 6  82.98.102.1  2.9 ms  3.0 ms  2.9 ms\n 7  82.98.103.3  3.3 ms  3.4 ms  3.3 ms\n 8  212.19.61.13  5.8 ms  5.9 ms  5.8 ms\n 9  193.99.144.80  6.1 ms  6.0 ms  6.1 ms\n",
+ "agent": {
+  "name": "fra-vps",
+  "place": "Frankfurt am Main, DE",
+  "first_hops_masked": true
+ }
+}

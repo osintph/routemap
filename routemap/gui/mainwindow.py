@@ -87,6 +87,7 @@ class MainWindow(QMainWindow):
         self.origin_picker.setToolTip("Where the trace runs from: this computer, or a server you reach "
                                       "with ssh (Settings › Agents)")
         self.origin_picker.setMinimumHeight(30)
+        self.origin_picker.hide()                # shown once Settings › Agents has one
         self.watch_button = QPushButton("Watch", central)
         self.watch_button.setToolTip("Trace continuously: every hop probed once a cycle, mtr style "
                                      "(Ctrl+Shift+W)")
