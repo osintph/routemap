@@ -122,12 +122,51 @@ def state_unplaced(window: MainWindow):
                        trace_text=data["trace_text"])
 
 
+def state_probes(window: MainWindow):
+    """0.5.0-beta.1: the summary's DNS and ports line, the DNS and Ports
+    sections open (heise.de, rows from tests/fixtures/gui/heise_probes.json)."""
+    data = _fixture("heise_ecmp_route")
+    probes = _fixture("heise_probes")
+    route = dict(data["route"], resolved=probes["resolved"], dns=probes["dns"], ports=probes["ports"])
+    window.show_result(route, "heise.de", _argv("heise.de"), trace_text=data["trace_text"])
+    window.dns_panel.expand(True)
+    window.ports_panel.expand(True)
+
+
+def state_paths_silent(window: MainWindow):
+    """0.5.0-beta.1: a Paths run that stopped on silent hops and reached the
+    target at full TTL; the TCP silence answered by the target (ODIN)."""
+    data = _fixture("odin_paths_080dev1_route")
+    window.show_result(data["route"], "heise.de", ["tcp-paris", "heise.de"], trace_text=data["trace_text"])
+    window.paths.expand(True)
+
+
+AGENT_SETTINGS = [{"name": "fra-vps", "destination": "fra-vps", "place": "city", "city": "Frankfurt am Main, DE",
+                   "lat": 50.11, "lon": 8.68},
+                  {"name": "sgp-lab", "destination": "ubuntu@lab.example.net", "place": "ip"}]
+
+
+def state_agent(window: MainWindow):
+    """0.5.0-beta.1: a trace from a remote agent, its provider's first hops
+    hidden (a synthetic trace; tests/fixtures/gui/agent_route.json says so)."""
+    data = _fixture("agent_route")
+    window.set_agents([a["name"] for a in AGENT_SETTINGS], "fra-vps")
+    window.show_result(data["route"], "heise.de", ["ssh fra-vps", "icmp", "heise.de"],
+                       trace_text=data["trace_text"], agent="fra-vps")
+    window.set_origin_status("fra-vps, Frankfurt am Main, DE", "agent-city")
+    window.watch_button.setEnabled(False)
+    window.dns_panel.expand(True)
+
+
 STATES = {
     "idle": state_idle,
     "no-tool": state_no_tool,
     "tracing": state_tracing,
     "result": state_result,
     "unplaced": state_unplaced,
+    "probes": state_probes,
+    "paths-silent": state_paths_silent,
+    "agent": state_agent,
 }
 
 
@@ -159,13 +198,13 @@ def render_all(out: pathlib.Path) -> list[pathlib.Path]:
         set_scheme(dark)
         suffix = "-dark" if dark else ""
         for name, build in STATES.items():
-            if dark and name not in ("idle", "tracing", "result", "unplaced"):
+            if dark and name not in ("idle", "tracing", "result", "unplaced", "probes", "agent"):
                 continue
             window = _window()
             window.show()
             build(window)
             _settle(window)
-            if name in ("result", "unplaced"):
+            if name in ("result", "unplaced", "probes", "paths-silent", "agent"):
                 window.map.fit_route()
             save(window, f"{len(written) + 1:02d}-{name}{suffix}")
             window.close()
@@ -188,12 +227,15 @@ def render_all(out: pathlib.Path) -> list[pathlib.Path]:
             window, text=_fixture("amazon_route")["trace_text"],
             detected="Detected: mtr --report, 18 hops", origin_label=MANILA[2])),
         ("privacy", dialogs.PrivacyDialog(window)),
+        ("add-agent", dialogs.AgentDialog(window, AGENT_SETTINGS[0])),
     ):
         dialog.show()
         save(dialog, f"{len(written) + 1:02d}-{name}")
         dialog.close()
 
-    settings = dialogs.SettingsDialog(window, origin_label=MANILA[2],
+    from routemap.config import Settings, normalise
+    shown = normalise(Settings(agents=AGENT_SETTINGS, dns_resolvers=["9.9.9.9"]))
+    settings = dialogs.SettingsDialog(window, shown, origin_label=MANILA[2],
                                       tools=runner.available_tools() or {"traceroute": "x"},
                                       cache_count=214, history_count=4)
     settings.show()

@@ -32,9 +32,31 @@ seen before, never every cycle. It never uses RIPE Atlas.
 trace does, with different flow identifiers; on Windows it sends TCP connection
 attempts to the target's port 443 instead, each closed at once (one that
 reaches the target is an ordinary connection, so the target's operator sees
-your address, as when you visit it). At most 20 a second and at most 1,500 per
+your address, as when you visit it), plus one ICMP echo for each hop where no
+TCP probe was answered. At most 20 a second and at most 1,500 per
 discovery. Its lookups are those of one trace, made once for every
 router any path answered from.
+
+**DNS timing** looks up the target's name (IPv4 and IPv6) through your system
+resolver at each trace, and through each resolver you add in Settings >
+Probes (none by default), nowhere else. Plain DNS is not encrypted. The trace
+then goes to the address that lookup returned.
+
+**Port tests** (Ports, or Test these ports with every trace) send one TCP
+connection attempt to each chosen port of the traced address, at most 32, and
+for TLS ports a TLS ClientHello with the target's name; each connection is
+closed at once. The target's operator sees your address, as when you visit it.
+
+**Remote agents** run on a server you name in Settings > Agents, over your own
+ssh client: one connection per trace you start, nothing in the background. The
+server then sends the probes, the DNS lookups and the port tests, from its own
+address. If the agent is placed "from its public IP", the server looks itself
+up at RIPEstat, so RIPEstat sees the server's address; "City" makes no lookup.
+Route Map stores the agent's name and SSH destination only, never keys or
+passwords, and never receives the server's address: exports name the agent
+and its place. The provider's first hops of an agent trace are hidden unless
+you show them. Every lookup about the hops is made from this computer, as for
+any trace.
 
 **Settings > Sources > Online lookups** switches every row above except the
 trace itself, the explicit update check and downloads you start: off, nothing

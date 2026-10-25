@@ -1,0 +1,130 @@
+{
+ "_note": "DNS timing and port test rows for heise.de as an agent measured them on 25 Oct 2026 (routemap-engine 0.8.0.dev1): public addresses and resolver 9.9.9.9 only. For the screenshots in routemap.gui.mockup.",
+ "resolved": {
+  "name": "heise.de",
+  "address": "193.99.144.80",
+  "family": 4,
+  "by": "system"
+ },
+ "dns": [
+  {
+   "resolver": "system",
+   "type": "A",
+   "ms": 374.2,
+   "addresses": [
+    "193.99.144.80"
+   ],
+   "rcode": null,
+   "aa": null,
+   "cached": null,
+   "ttl": null,
+   "error": null,
+   "tcp": false
+  },
+  {
+   "resolver": "system",
+   "type": "AAAA",
+   "ms": 217.0,
+   "addresses": [
+    "2a02:2e0:3fe:1001:302::"
+   ],
+   "rcode": null,
+   "aa": null,
+   "cached": null,
+   "ttl": null,
+   "error": null,
+   "tcp": false
+  },
+  {
+   "resolver": "9.9.9.9",
+   "type": "A",
+   "ms": 4.2,
+   "addresses": [
+    "193.99.144.80"
+   ],
+   "rcode": "NOERROR",
+   "aa": false,
+   "cached": null,
+   "ttl": 38494,
+   "error": null,
+   "tcp": false
+  },
+  {
+   "resolver": "9.9.9.9",
+   "type": "AAAA",
+   "ms": 2.5,
+   "addresses": [
+    "2a02:2e0:3fe:1001:302::"
+   ],
+   "rcode": "NOERROR",
+   "aa": false,
+   "cached": null,
+   "ttl": 23923,
+   "error": null,
+   "tcp": false
+  }
+ ],
+ "ports": {
+  "address": "193.99.144.80",
+  "cap": 32,
+  "parallel": 4,
+  "wait": 3.0,
+  "seconds": 3.3,
+  "results": [
+   {
+    "port": 443,
+    "state": "open",
+    "reason": null,
+    "connect_ms": 155.9,
+    "tls_ms": 158.4,
+    "tls_version": "TLSv1.3",
+    "tls_error": null
+   },
+   {
+    "port": 80,
+    "state": "open",
+    "reason": null,
+    "connect_ms": 155.2,
+    "tls_ms": null,
+    "tls_version": null,
+    "tls_error": null
+   },
+   {
+    "port": 22,
+    "state": "filtered",
+    "reason": "no answer in 3 s",
+    "connect_ms": null,
+    "tls_ms": null,
+    "tls_version": null,
+    "tls_error": null
+   },
+   {
+    "port": 25,
+    "state": "filtered",
+    "reason": "no answer in 3 s",
+    "connect_ms": null,
+    "tls_ms": null,
+    "tls_version": null,
+    "tls_error": null
+   },
+   {
+    "port": 53,
+    "state": "filtered",
+    "reason": "no answer in 3 s",
+    "connect_ms": null,
+    "tls_ms": null,
+    "tls_version": null,
+    "tls_error": null
+   },
+   {
+    "port": 3389,
+    "state": "filtered",
+    "reason": "no answer in 3 s",
+    "connect_ms": null,
+    "tls_ms": null,
+    "tls_version": null,
+    "tls_error": null
+   }
+  ]
+ }
+}

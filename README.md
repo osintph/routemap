@@ -29,8 +29,15 @@ Atlas probe near the target to trace back to you and compares the two
 directions. **Watch** traces continuously, mtr style. All of it over IPv4 or
 IPv6.
 
-The trace runs on your machine with the system's own `tracert`, `traceroute`
-or `mtr`. Nothing about it is sent anywhere except the lookups listed in
+Every trace times the target's **DNS** lookup (your system resolver, and any
+resolver you add), and shows the address it traced. **Ports** tries one TCP
+connection to each of a few ports on the target (open, closed or filtered,
+with connect and TLS times): a reachability check, not a scanner. A **remote
+agent** runs the trace on a server you reach with your own ssh, and shows the
+route from there.
+
+The trace runs on your machine (or, with an agent, on your server) with the
+system's own `tracert`, `traceroute` or `mtr`, or the built-in prober. Nothing about it is sent anywhere except the lookups listed in
 [PRIVACY.md](PRIVACY.md).
 
 ## Install

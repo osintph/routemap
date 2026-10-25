@@ -35,10 +35,15 @@ routemap --version
 | `--interval SECONDS` | with `--watch`: seconds per cycle, 1 to 60 (default from Settings > Live, 1) |
 | `--count N` | with `--watch`: stop after N cycles |
 | `--duration TIME` | with `--watch`: stop after this long, as `90s`, `10m` or `2h`, 5 minutes to 8 hours (default 1 hour) |
-| `--paths` | find the paths a load balancer spreads your traffic over; some may stay hidden (ICMP Paris, or TCP Paris to port 443 on Windows; at most 20 probes a second and the Settings budget, 1,500 at most); prints the hops with the paths through each and one line per path, or exports with `--json`, `--png`, `--pdf` |
+| `--paths` | find the paths a load balancer spreads your traffic over; some may stay hidden (ICMP Paris, or TCP Paris to port 443 on Windows; at most 20 probes a second and the Settings budget, 1,500 at most; stops after 5 silent hops, then asks the target at full TTL); prints the resolved address, why discovery ended, the hops with the paths through each and one line per path, or exports with `--json`, `--png`, `--pdf` |
 | `--reverse` | also trace back from a RIPE Atlas probe near the target to your public IP (Atlas key from Settings; 60 credits) |
 | `--publish-my-ip` | with `--reverse`: agree, for this run, that your public IP address is published as the target of a public RIPE Atlas measurement. Without it `--reverse` refuses (exit code 2) |
 | `-4`, `-6` | trace (or `--paths`, `--watch`) over IPv4 only or IPv6 only, for this run |
+| `--dns` | time the target's DNS lookup (system resolver and the resolvers in Settings > Probes) and print it; with `--json`, `--png` or `--pdf` it is in the export |
+| `--resolver ADDR` | also time the lookup through this resolver (an IP address), this run only; repeatable |
+| `--no-dns` | do not time DNS lookups this run (the target is still resolved once) |
+| `--ports [LIST]` | test TCP ports on the target, one connection attempt each: the list given (`443,80,22`) or the one in Settings; at most 32, no ranges. Put it after the target. With `--paths`, the port test is printed after the paths |
+| `--from AGENT` | run the trace (or `--paths`, `--ports`) on a remote agent from Settings > Agents, over your own ssh, one connection; not with `--watch` or `--reverse` |
 
 With `--watch`, `--json` prints the export (format version 4, with the
 session) on stdout when the session ends, and the table goes to stderr. On a
@@ -79,4 +84,10 @@ routemap parse their-trace.txt --origin "Frankfurt, DE" --pdf report.pdf
 
 # No network at all: placements from carrier site codes and DB-IP Lite only
 routemap parse trace.txt --offline --json
+
+# DNS timing through your resolver and Quad9, and three ports
+routemap example.com --dns --resolver 9.9.9.9 --ports 443,80,22
+
+# Paths from a server in Settings > Agents
+routemap example.com --from fra-vps --paths
 ```

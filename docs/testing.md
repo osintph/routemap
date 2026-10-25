@@ -55,6 +55,17 @@ we know exactly which build you ran.
   (Windows) or the menu entry (Linux) is gone.
 - **Help > Check for Updates**: it should say you have the latest release, or
   offer the right file for your system.
+- **DNS**: the summary names the address traced and the system resolver's
+  time; add a resolver in Settings > Probes (9.9.9.9, say) and trace again: the
+  DNS section lists both.
+- **Ports**: click Ports. 443 and 80 are usually open on a web server, the rest
+  filtered. On Windows the note says the system gave up after about a second.
+- **Paths** to a target behind silent hops: the heading says where discovery
+  stopped and whether the target answered at full TTL.
+- **A remote agent**, if you have a server you reach with ssh: install
+  `routemap-engine` there, add it in Settings > Agents, Test connection, then
+  trace from it. The first hops should read "hidden" unless Show first hops is
+  on.
 
 ## Report what you found
 

@@ -273,7 +273,8 @@ def write_pdf(path: str, route: dict, *, target: str, trace_text: str, tool_labe
         src = theme.SOURCE_SHORT.get(h.get("source"), "")
         if h.get("source") == "ip-db":
             src += " DB-IP" if h.get("ip_provider") == "dbip" else " RIPEstat"
-        rows.append([str(h["hop"]), h.get("place") or "not placed", src,
+        rows.append([str(h["hop"]), mapview.place_label(h) if h.get("masked") else (h.get("place") or "not placed"),
+                     src,
                      f"AS{h['asn']}" if h.get("asn") else "", RPKI_SHORT.get(detail.get("rpki"), ""),
                      name, address,
                      _fmt(h.get("min_rtt_ms")), "" if h.get("loss_pct") is None else f"{h['loss_pct']:.0f}%",
