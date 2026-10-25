@@ -84,7 +84,7 @@ the marker has the same colour:
 | `ip-db (DB-IP)` | Neither hostname source knew it, so the offline DB-IP Lite City database on this machine placed it. Treat it as a hint: backbone addresses often geolocate to where the prefix was registered. |
 | `ip-db (RIPEstat, online)` | The same, answered by RIPEstat online, because DB-IP Lite City is not installed or did not know the address. |
 | `ip-db, country only` | The database knew only the country. The marker is hollow, sits in the country, and the map does not zoom out for it. |
-| `anycast, served from near X` | The destination only. It answered faster than the place the database registers it at allows (bbc.com's Fastly address, registered in Montreal, answers from Manila in 5 ms), so it is served from a node near you: placed at the largest city that RTT reaches, and the summary says "likely anycast". An inference, not a measured place. |
+| `anycast, served from near X` | The destination only. It answered faster than the place the database registers it at allows (bbc.com's Fastly address, registered in Montreal, answers from Manila in 5 ms), so it is served from a node near you: placed at the largest city reachable in the RTT it added past the last placed hop before it, and the summary says "likely anycast". An inference, not a measured place. |
 | `local` | Your own network or your ISP's carrier NAT. Never looked up anywhere. |
 | `unresolved` | Not placed: it did not answer, or no source placed it within the physics bound. The **Unplaced** panel says why. |
 
