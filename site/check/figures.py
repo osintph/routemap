@@ -95,7 +95,8 @@ def check(site: pathlib.Path, widths=WIDTHS, schemes=("light", "dark"), chrome: 
                         (probe_dir / name).write_text(MEASURE % {"w": width, "page": page,
                                                                "dark": "true" if scheme == "dark" else "false"},
                                                       encoding="utf-8")
-                        dom = subprocess.run([chrome, "--headless=new", "--disable-gpu", "--window-size=2000,2200",
+                        dom = subprocess.run([chrome, "--headless=new", "--password-store=basic", "--use-mock-keychain",
+                                              "--disable-gpu", "--window-size=2000,2200",
                                               "--virtual-time-budget=6000", "--dump-dom",
                                               f"http://127.0.0.1:{port}/__check/{name}"],
                                              capture_output=True, text=True, timeout=120).stdout

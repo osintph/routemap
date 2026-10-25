@@ -59,7 +59,8 @@ def render(chrome: str, name: str, headline: str, line: str) -> pathlib.Path:
         page.write_text(TEMPLATE.format(fonts=FONTS.as_uri(), icon=ICON.as_uri(), shot=SHOT.as_uri(),
                                         headline=html.escape(headline), line=html.escape(line)), encoding="utf-8")
         png = pathlib.Path(tmp) / f"{name}.png"
-        subprocess.run([chrome, "--headless=new", "--disable-gpu", "--hide-scrollbars", "--force-device-scale-factor=1",
+        subprocess.run([chrome, "--headless=new", "--password-store=basic", "--use-mock-keychain",
+                        "--disable-gpu", "--hide-scrollbars", "--force-device-scale-factor=1",
                         "--window-size=1200,630", "--virtual-time-budget=4000", f"--screenshot={png}", page.as_uri()],
                        check=True, capture_output=True)
         out = SITE / "assets" / "og" / f"{name}.jpg"
