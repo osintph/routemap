@@ -413,6 +413,8 @@ def cmd_trace(args) -> int:
         _err(f"{NAME}: {exc}")
         return 2
     settings.dns_resolvers = list(dict.fromkeys(settings.dns_resolvers + extra))      # this run only
+    if getattr(args, "offline", False):
+        settings.dns_resolvers = []         # --offline: only the system lookup the trace itself needs
     probe_only = (args.dns or args.ports is not None) and not (args.json or args.png or args.pdf or args.paths
                                                               or args.reverse)
     if not (args.json or args.png or args.pdf or args.paths or args.reverse or probe_only):

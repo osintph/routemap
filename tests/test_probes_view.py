@@ -202,3 +202,15 @@ def test_the_png_title_has_the_address_and_the_dns_time_and_no_ports():
     assert title.startswith(f"bbc.com ({BBC}) from ") and "DNS 18 ms" in title and "443" not in title
     assert app.png_title(_route_with_probes(), "bbc.com", {"name": "fra-vps"}).startswith(
         f"bbc.com ({BBC}) from fra-vps (agent)")
+
+
+@pytest.mark.real_dns
+@pytest.mark.parametrize("online,expected", [(False, []), (True, ["9.9.9.9"])])
+def test_online_lookups_off_asks_only_the_system_resolver(monkeypatch, online, expected):
+    """Help > Privacy lists DNS timing under Online lookups: off, the added
+    resolvers are not asked (the engine's lookups are replaced here)."""
+    from routemap_engine import dnstime
+    asked = []
+    monkeypatch.setattr(dnstime, "measure", lambda target, resolvers, **kw: asked.append(list(resolvers)) or [])
+    probes.measure_dns("bbc.com", config.Settings(dns_resolvers=["9.9.9.9"], online_lookups=online))
+    assert asked == [expected]

@@ -297,7 +297,9 @@ name once and gives the address to traceroute, tracert or mtr, so they cannot
 resolve it to another address of their own.
 
 Plain DNS is not encrypted: the network between you and a resolver can see
-the name. Only your system resolver and the resolvers you list are asked.
+the name. Only your system resolver and the resolvers you list are asked;
+with **Online lookups** off (or `--offline`), only the system resolver, whose
+lookup the trace needs.
 **Settings > Probes > Time the DNS lookup once per Live cycle** adds one
 system-resolver lookup per cycle to continuous mode (off by default).
 

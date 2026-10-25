@@ -40,7 +40,8 @@ router any path answered from.
 **DNS timing** looks up the target's name (IPv4 and IPv6) through your system
 resolver at each trace, and through each resolver you add in Settings >
 Probes (none by default), nowhere else. Plain DNS is not encrypted. The trace
-then goes to the address that lookup returned.
+then goes to the address that lookup returned. With Online lookups off (or
+`--offline`), only the system resolver is asked: the trace needs that lookup.
 
 **Port tests** (Ports, or Test these ports with every trace) send one TCP
 connection attempt to each chosen port of the traced address, at most 32, and
