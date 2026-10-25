@@ -21,9 +21,9 @@ uses [Semantic Versioning](https://semver.org/).
 - **Anycast destinations are placed.** bbc.com's Fastly address answered in
   5 to 10 ms from Manila and is registered in Montreal: the summary said
   "likely anycast, served from near Quezon City" while the table said "not
-  placed" and the map drew it hollow. It is now placed there, Source
-  "anycast, served from near Quezon City, NCR, PH" (routemap-engine
-  0.8.0).
+  placed" and the map drew it hollow. It is now placed, Source "anycast,
+  served from near Quezon City, NCR, PH", counted from the last placed hop
+  before it (routemap-engine 0.8.0).
 - **Paths: "not reached" only when no path reached the target.** With the
   target reached at full TTL on 2 of 16 paths, the other 14 (ten attempts
   each, none answered) said "not reached; last answer hop 13". They now say
