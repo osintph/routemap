@@ -137,7 +137,8 @@ def _outputs(args, current: dict) -> int:
             current["route"], target=current["target"], trace_text=current["trace_text"],
             argv=current.get("argv"), source=current["source"],
             origin_how=current.get("origin_how"), insight=current.get("insight"),
-            comparison=current.get("comparison"), reverse=current.get("reverse")) if args.envelope else
+            comparison=current.get("comparison"), reverse=current.get("reverse"),
+            agent=current.get("agent")) if args.envelope else
             json.dumps(current["route"], indent=2, ensure_ascii=False) + "\n")
     return 0
 
@@ -261,6 +262,8 @@ def _paths_text(route: dict) -> str:
                                        target_column)
     lines = [f"Built-in Paris, {service.paths_method(disc)} · at least {len(paths)} {word} · "
              f"{disc.get('flows')} flows · {probes_text(disc)}"]
+    from routemap import probes
+    lines += probes.paths_lines(disc, ports=route.get("ports"))
     table = []
     for row in path_rows(route.get("hops") or [], paths):
         place = row.get("place") or ("local" if row.get("source") == "local" else "")
@@ -286,21 +289,82 @@ def _paths_text(route: dict) -> str:
     return "\n".join(lines) + "\n"
 
 
-def _discover(target: str, settings, origin, offline: bool):
-    from routemap import service
+def _table(header: list[str], rows: list[list[str]], indent: str = "") -> list[str]:
+    width = [max(len(r[i]) for r in rows + [header]) for i in range(len(header))]
+    return [indent + "  ".join(f"{c:<{width[i]}}" for i, c in enumerate(r)).rstrip() for r in [header] + rows]
+
+
+def _probes_text(route: dict, *, where: str = "this computer") -> str:
+    """DNS timing and port tests as the terminal shows them (0.5.0-beta.1)."""
+    from routemap import probes
+    lines = []
+    if route.get("dns"):
+        lines.append("")
+        lines += _table(["DNS"] + probes.DNS_HEADERS[1:4] + ["Addresses"],
+                        [[r[0], r[1], r[2], r[3] if not r[4] or r[4] == "not stated" else
+                          f"{r[3]}, {'authoritative' if r[4] == 'yes' else 'not authoritative'}" +
+                          (f", TTL {r[6]}" if r[6] else ""), r[7]] for r in probes.dns_rows(route["dns"])])
+    if route.get("ports"):
+        lines.append("")
+        ports = route["ports"]
+        lines.append(f"Ports to {ports.get('address')} (from {where}; one connection attempt each, at most "
+                     f"{ports.get('cap', 32)})")
+        lines += _table(probes.PORT_HEADERS, probes.port_rows(ports), indent="  ")
+    return "\n".join(lines) + ("\n" if lines else "")
+
+
+def _discover(target: str, settings, origin, offline: bool, ports=None):
+    from routemap import probes, service
     from routemap_engine import analyse_paths, multipath
     ok, why = multipath.available()
     if not ok:
         raise SystemExit(f"{NAME}: path discovery cannot run on this system yet: {why}")
+    resolved, dns = _resolve(target, settings)
     _err(f"{NAME}: finding paths to {target} (at most {settings.paths_budget:,} probes, "
          f"{multipath.MAX_RATE:g} a second)")
     d = multipath.discover(target, family=settings.ip_version,
-                           options=multipath.Options(budget=settings.paths_budget),
+                           options=multipath.Options(budget=settings.paths_budget), address=resolved["address"],
                            on_progress=lambda p: _err(f"{NAME}: hop {p['ttl']}, {p['paths']} paths so far, "
                                                       f"{p['probes']} probes"))
     sources = service.offline_sources() if offline else service.sources_for(settings)
     route = asyncio.run(analyse_paths(d, origin[:2] if origin else None, sources=sources))
+    route.resolved, route.dns = resolved, dns
+    if ports is not None:
+        route.ports = probes.check_ports(resolved["address"], target, settings, ports or None)
     return route, d.trace_text(), [d.method, f"{d.flows_used} flows", f"{d.probes_sent} probes", target]
+
+
+def _resolve(target: str, settings, *, dns: bool = True):
+    """The address to trace, resolved once, and the DNS timing rows."""
+    from routemap import probes
+    resolved = probes.resolve(target, settings)
+    rows = probes.measure_dns(target, settings) if dns else []
+    from routemap.probes import dns_line
+    _err(f"{NAME}: {dns_line(resolved, rows)}")
+    return resolved, rows
+
+
+def _remote(args, target: str, settings, origin_how_default: str):
+    """--from AGENT: one run on the agent over the user's ssh, analysed here."""
+    from routemap import agents
+    agent = agents.by_name(settings, args.from_agent)
+    if agent is None:
+        names = ", ".join(a.name for a in agents.all_agents(settings)) or "none yet (Settings > Agents)"
+        raise SystemExit(f"{NAME}: no agent named {args.from_agent!r}; agents: {names}")
+    action = "paths" if args.paths else ("ports" if args.ports is not None and not (args.json or args.png or
+                                                                                    args.pdf) else "trace")
+    _err(f"{NAME}: running on {agent.name} over ssh (one connection)")
+    try:
+        run = agents.run(agent, action, settings, target=target, online=settings.online_lookups,
+                         on_line=_err, ports=None if args.ports is None else (args.ports or settings.port_list))
+    except agents.AgentFailed as exc:
+        raise SystemExit(f"{NAME}: {exc}")
+    if action == "ports":
+        res = run.result
+        body = {"resolved": res["resolved"], "dns": res["dns"], "ports": res["ports"]}
+        return None, body, agent
+    out = agents.remote_result(agent, action, target, run, settings)
+    return out, None, agent
 
 
 def _reverse(args, current: dict, settings) -> None:
@@ -339,7 +403,19 @@ def cmd_trace(args) -> int:
     settings = config.load_settings()
     if args.ipv4 or args.ipv6:
         settings.ip_version = "6" if args.ipv6 else "4"         # this run only, not saved
-    if not (args.json or args.png or args.pdf or args.paths or args.reverse):
+    from routemap_engine import dnstime
+    from routemap_engine import ports as engine_ports
+    try:
+        extra = [dnstime.validate_resolver(r) for r in getattr(args, "resolver", [])]
+        if getattr(args, "ports", None):
+            engine_ports.parse_ports(args.ports)
+    except (dnstime.InvalidResolver, engine_ports.InvalidPorts) as exc:
+        _err(f"{NAME}: {exc}")
+        return 2
+    settings.dns_resolvers = list(dict.fromkeys(settings.dns_resolvers + extra))      # this run only
+    probe_only = (args.dns or args.ports is not None) and not (args.json or args.png or args.pdf or args.paths
+                                                              or args.reverse)
+    if not (args.json or args.png or args.pdf or args.paths or args.reverse or probe_only):
         return open_window([args.target] + (["--origin", args.origin] if args.origin else []))
     try:
         target = validate_target(args.target)
@@ -350,18 +426,44 @@ def cmd_trace(args) -> int:
         _err(f"{NAME}: --reverse publishes your public IP address as the target of a public RIPE Atlas "
              "measurement. Add --publish-my-ip to agree for this run.")
         return 2
-    origin, how = _origin(args, settings)
     from routemap_engine.probe import NoAddress
+    if args.from_agent:
+        out, probe_body, agent = _remote(args, target, settings, "first-hop")
+        if probe_body is not None:
+            sys.stdout.write(_probes_text(probe_body, where=f"{agent.name} (agent)"))
+            return 0
+        body = out["route"].to_dict()
+        current = {"route": body, "target": target, "trace_text": out["text"], "argv": out["argv"],
+                   "source": "agent-paths" if args.paths else "agent", "origin_how": out["origin_how"],
+                   "agent": out["agent"], "when": _dt.datetime.now().astimezone()}
+        if args.paths and not (args.json or args.png or args.pdf):
+            sys.stdout.write(_paths_text(body) + _probes_text(body, where=f"{agent.name} (agent)"))
+            return 0
+        return _outputs(args, current)
+    if probe_only:
+        from routemap import probes
+        try:
+            resolved, dns = _resolve(target, settings, dns=not args.no_dns)
+        except NoAddress as exc:
+            _err(f"{NAME}: {exc}")
+            return 2
+        body = {"resolved": resolved, "dns": dns}
+        if args.ports is not None:
+            body["ports"] = probes.check_ports(resolved["address"], target, settings, args.ports or None)
+        sys.stdout.write(_probes_text(body))
+        return 0
+    origin, how = _origin(args, settings)
     if args.paths:
         try:
-            route, text, argv = _discover(target, settings, origin, args.offline)
+            route, text, argv = _discover(target, settings, origin, args.offline, ports=args.ports)
         except NoAddress as exc:
             _err(f"{NAME}: {exc}")
             return 2
         source = "paths"
     else:
         try:
-            result = service.run(target, settings, on_line=_err)
+            resolved, dns = _resolve(target, settings, dns=not args.no_dns)
+            result = service.run(target, settings, on_line=_err, address=resolved["address"])
         except TraceToolMissing as exc:
             _err(f"{NAME}: {exc}")
             return 3
@@ -376,6 +478,10 @@ def cmd_trace(args) -> int:
         except TraceParseError as exc:
             _err(f"{NAME}: {exc}")
             return 1
+        route.resolved, route.dns = resolved, dns
+        if args.ports is not None:
+            from routemap import probes
+            route.ports = probes.check_ports(resolved["address"], target, settings, args.ports or None)
         text, argv, source = result.text, result.argv, "local"
     body = route.to_dict()
     current = {"route": body, "target": target, "trace_text": text, "argv": argv,
@@ -392,7 +498,7 @@ def cmd_trace(args) -> int:
             entry["reverse"] = current["reverse"]
         config.add_history(entry, settings)
     if args.paths and not (args.json or args.png or args.pdf):
-        sys.stdout.write(_paths_text(body))
+        sys.stdout.write(_paths_text(body) + _probes_text(body))
         return 0
     return _outputs(args, current)
 
@@ -749,6 +855,18 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--reverse", action="store_true",
                         help="also trace back from a RIPE Atlas probe near the target to your public IP "
                              "(public on RIPE Atlas; needs --publish-my-ip)")
+    parser.add_argument("--dns", action="store_true",
+                        help="time the target's DNS lookup (system resolver, the resolvers in Settings and "
+                             "--resolver) and print it; with --json etc. it is in the export")
+    parser.add_argument("--resolver", action="append", default=[], metavar="ADDR",
+                        help="also time the lookup through this resolver (an IP address); repeatable, this run only")
+    parser.add_argument("--no-dns", action="store_true", help="do not time DNS lookups this run")
+    parser.add_argument("--ports", nargs="?", const="", default=None, metavar="LIST",
+                        help="test TCP ports on the target, one connection attempt each (default: Settings, "
+                             "443,80,22,25,53,3389; at most 32, no ranges): a reachability check, not a port "
+                             "scanner")
+    parser.add_argument("--from", dest="from_agent", metavar="AGENT",
+                        help="run on a remote agent from Settings > Agents, over your own ssh (one connection)")
     parser.add_argument("--publish-my-ip", action="store_true",
                         help="with --reverse: agree, for this run, that your public IP address is published "
                              "as the target of a public RIPE Atlas measurement")
@@ -761,6 +879,8 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("--publish-my-ip goes with --reverse")
     if (args.paths or args.reverse) and args.watch:
         parser.error("--paths and --reverse do not go with --watch")
+    if args.from_agent and (args.watch or args.reverse):
+        parser.error("--from does not go with --watch or --reverse: Live and reverse traces run from this computer")
     if args.watch:
         if not args.target:
             parser.error("--watch needs a target")

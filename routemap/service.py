@@ -32,7 +32,7 @@ EXPORT_FORMAT = "routemap/route-export"
 # "paths" in the route (path discovery), the optional "reverse" (a reverse
 # trace via RIPE Atlas) and "af". Every 0.4.0 export is version 4, so a
 # 0.3.0 reader says "Made by a newer Route Map" rather than dropping paths.
-EXPORT_FORMAT_VERSION = 4
+EXPORT_FORMAT_VERSION = 5
 
 
 def startup() -> None:
@@ -183,12 +183,15 @@ async def resolve_origin(settings: config.Settings) -> tuple[float, float, str, 
 
 
 def trace_options(settings: config.Settings, tool: str, *, cancel: threading.Event | None = None,
-                  on_line: Callable[[str], None] | None = None) -> TraceOptions:
+                  on_line: Callable[[str], None] | None = None, address: str | None = None) -> TraceOptions:
     return TraceOptions(tool=tool, flags=settings.flags_for(tool), timeout=settings.timeout_seconds,
-                        cancel=cancel, on_line=on_line, family=settings.ip_version)
+                        cancel=cancel, on_line=on_line, family=settings.ip_version, address=address)
 
 
 def run(target: str, settings: config.Settings, **kwargs):
+    """One trace. *address* (0.5.0-beta.1): the address resolved once for
+    the trace and shown with it; the tool is given that address, never the
+    name, so it cannot resolve the name to another address of its own."""
     from routemap_engine.runner import pick_tool
 
     tool, _path = pick_tool(settings.tool)
@@ -205,7 +208,8 @@ def analyse_sync(text_or_hops, origin, settings: config.Settings, progress=None)
 def export_json(route: Route | dict, *, target: str | None, trace_text: str,
                 argv: list[str] | None, source: str, origin_how: str | None,
                 insight: dict | None = None, comparison: dict | None = None,
-                session: dict | None = None, reverse: dict | None = None) -> str:
+                session: dict | None = None, reverse: dict | None = None,
+                agent: dict | None = None) -> str:
     """The JSON export: the route model plus how the trace was made."""
     body = route.to_dict() if isinstance(route, Route) else dict(route)
     document = {
@@ -228,6 +232,10 @@ def export_json(route: Route | dict, *, target: str | None, trace_text: str,
         from routemap import insight as _insight
         document["insight"] = insight
         document["attributions"] = _insight.attributions(insight)
+    if agent:
+        # The agent the trace ran on (0.5.0-beta.1): its name and how it was
+        # placed. Never its address: the app never has it.
+        document["agent"] = {k: agent.get(k) for k in ("name", "place", "first_hops_masked")}
     if comparison:
         document["comparison"] = comparison
     if session:

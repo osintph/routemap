@@ -88,18 +88,19 @@ def _export(route, reverse=None):
 def test_every_0_4_0_export_is_version_4_with_its_family():
     route, _ = paths_route()
     doc = _export(route)
-    assert doc["format_version"] == service.EXPORT_FORMAT_VERSION == imported.FORMAT_VERSION == 4
+    assert doc["format_version"] == service.EXPORT_FORMAT_VERSION == imported.FORMAT_VERSION == 5
     assert doc["af"] == 4 and _export(paths_route(v6=True)[0])["af"] == 6
 
 
-def test_released_0_3_0_reader_refuses_a_version_4_export_as_made_by_a_newer_route_map(reader_030):
+def test_released_0_3_0_reader_refuses_a_newer_export_as_made_by_a_newer_route_map(reader_030):
     route, _ = paths_route()
     for doc in (_export(route), _export(analyse_sync("traceroute to x (192.0.2.9), 30 hops max\n"
                                                       " 1  192.0.2.9  1.0 ms\n", sources=OFFLINE))):
         with pytest.raises(reader_030.NewerFormat) as exc:
             reader_030.export(doc)
         assert exc.value.title == "Made by a newer Route Map"
-        assert exc.value.message.startswith("This export is format version 4, made by a newer Route Map.")
+        assert exc.value.message.startswith(f"This export is format version {service.EXPORT_FORMAT_VERSION}, "
+                                            "made by a newer Route Map.")
 
 
 def test_version_4_round_trips_paths_reverse_and_ipv6():
@@ -126,7 +127,9 @@ def test_paths_in_a_file_are_held_to_their_limits():
     doc["route"]["paths"]["paths"] = many
     doc["route"]["paths"]["paths"][0]["hops"] = ["203.0.113.1"] * 100
     got = imported.export(doc)["route"]["paths"]
-    assert len(got["paths"]) == 16 and len(got["paths"][0]["hops"]) == 30
+    # 31: 30 hops plus the target's answer to the full-TTL attempts, numbered
+    # after the last hop sent (engine 0.8.0, final_hop).
+    assert len(got["paths"]) == 16 and len(got["paths"][0]["hops"]) == 31
     doc["route"]["paths"]["method"] = "udp-whatever"
     assert "paths" not in imported.export(doc)["route"]
 

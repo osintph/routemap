@@ -28,11 +28,11 @@ from routemap_engine.parse import PARSER_LABELS
 # 8 MB: an 8-hour continuous session with its plot data is about 4 MB (RM-12).
 MAX_FILE_BYTES = 8_000_000
 MAX_TEXT = 300
-FORMAT_VERSION = 4            # the newest export this version reads (service.EXPORT_FORMAT_VERSION)
+FORMAT_VERSION = 5            # the newest export this version reads (service.EXPORT_FORMAT_VERSION)
 MAX_ITEMS = 512
 MAX_TRACE_TEXT = 256_000
-SOURCES = ("local", "paste", "file", "atlas", "watch", "paths")
-ORIGIN_HOWS = ("auto", "city", "coords", "map", "ip")
+SOURCES = ("local", "paste", "file", "atlas", "watch", "paths", "agent", "agent-paths")
+ORIGIN_HOWS = ("auto", "city", "coords", "map", "ip", "agent-city", "agent-ip")
 _HOSTNAME = re.compile(r"[A-Za-z0-9_.:-]{1,253}")
 _WHEN = re.compile(r"\d{4}-\d\d-\d\dT[\d:.]+(?:Z|[+-]\d\d:?\d\d)?")
 
@@ -384,6 +384,22 @@ def reverse(data) -> dict | None:
             "trace_text": text(data.get("trace_text"), MAX_TRACE_TEXT, newlines=True) or ""}
 
 
+_AGENT_NAME = re.compile(r"[^\x00-\x1f\x7f<>]{1,40}")
+
+
+def agent(data) -> dict | None:
+    """The agent a trace ran on (0.5.0-beta.1): a name and how it was placed,
+    nothing more, each checked."""
+    if not isinstance(data, dict) or not isinstance(data.get("name"), str):
+        return None
+    name = data["name"].strip()
+    if not _AGENT_NAME.fullmatch(name):
+        return None
+    place = data.get("place") if isinstance(data.get("place"), str) else None
+    return {"name": name, "place": text(place, 120) if place else None,
+            "first_hops_masked": bool(data.get("first_hops_masked"))}
+
+
 def export(document) -> dict:
     """What the app shows from a route export: the rebuilt route, the target, the
     trace text and how it was made. The saved insight is not kept."""
@@ -405,6 +421,7 @@ def export(document) -> dict:
         "exported_at": when if isinstance(when, str) and _WHEN.fullmatch(when[:40]) else None,
         "session": session(document.get("session")) if "session" in document else None,
         "reverse": reverse(document.get("reverse")) if "reverse" in document else None,
+        "agent": agent(document.get("agent")) if "agent" in document else None,
     }
 
 
@@ -430,4 +447,5 @@ def history_entry(entry) -> dict | None:
             "source": entry.get("source") if entry.get("source") in SOURCES else "local",
             "origin_how": entry.get("origin_how") if entry.get("origin_how") in ORIGIN_HOWS else None,
             "session": session(entry.get("session")) if "session" in entry else None,
-            "reverse": reverse(entry.get("reverse")) if "reverse" in entry else None}
+            "reverse": reverse(entry.get("reverse")) if "reverse" in entry else None,
+            "agent": agent(entry.get("agent")) if "agent" in entry else None}

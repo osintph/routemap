@@ -92,7 +92,7 @@ def test_a_session_runs_shows_pauses_stops_and_is_kept(app, network, tmp_path):
     path = tmp_path / "s.json"
     write_export("json", str(path), c.current, settings=c.settings)
     doc = json.loads(path.read_text())
-    assert doc["format_version"] == 4 and doc["session"]["cycles"] >= 15
+    assert doc["format_version"] == 5 and doc["session"]["cycles"] >= 15
     back = imported.export(imported.parse_json(path.read_text()))
     assert back["session"]["cycles"] == doc["session"]["cycles"]
     assert [h["hop"] for h in back["session"]["hops"]] == list(range(1, DEPTH + 1))
@@ -257,9 +257,11 @@ def test_a_newer_export_is_refused_with_its_own_title(app, tmp_path, monkeypatch
     shown = []
     monkeypatch.setattr(c, "error", lambda title, text: shown.append((title, text)))
     path = tmp_path / "newer.json"
-    path.write_text(json.dumps({"format": "routemap/route-export", "format_version": 5, "route": {}}))
+    from routemap import imported
+    newer = imported.FORMAT_VERSION + 1
+    path.write_text(json.dumps({"format": "routemap/route-export", "format_version": newer, "route": {}}))
     c.open_path(str(path))
     assert shown == [("Made by a newer Route Map",
-                      "This export is format version 5, made by a newer Route Map. "
-                      "This Route Map opens format 4 and older. Update Route Map to open it.")]
+                      f"This export is format version {newer}, made by a newer Route Map. "
+                      f"This Route Map opens format {imported.FORMAT_VERSION} and older. Update Route Map to open it.")]
     w.close()

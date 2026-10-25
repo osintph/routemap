@@ -18,7 +18,7 @@ from PySide6.QtCore import QByteArray, QObject, Qt, QTimer, QUrl
 from PySide6.QtGui import QDesktopServices, QGuiApplication, QIcon
 from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox
 
-from routemap import bugreport, config, dbip, imported, insight, live, reverse, service, updater
+from routemap import agents, bugreport, config, dbip, imported, insight, live, probes, reverse, service, updater
 from routemap.__about__ import (DISPLAY_NAME, NAME, REPO_URL, engine_line, version_line,
                                 CONTACT_EMAIL, WINDOWS_SIGNED, SITE_LINKED, SITE_URL,
                                 VERSION)
@@ -31,6 +31,7 @@ from routemap.gui.mainwindow import MainWindow
 from routemap.gui.workers import Task
 
 LOCAL, PASTE, FILE, ATLAS, PATHS = "local", "paste", "file", "atlas", "paths"
+AGENT, AGENT_PATHS = "agent", "agent-paths"
 
 
 class Controller(QObject):
@@ -68,6 +69,8 @@ class Controller(QObject):
         w.act_stop.triggered.connect(self.stop)
         w.watch_button.clicked.connect(self.watch)
         w.paths_button.clicked.connect(self.find_paths)
+        w.ports_button.clicked.connect(self.test_ports)
+        w.origin_picker.currentIndexChanged.connect(lambda *_: self._origin_choice_changed())
         w.reverse_button.clicked.connect(self.reverse_trace)
         w.paths.pathSelected.connect(w.map.set_selected_path)
         w.act_watch.triggered.connect(self.watch)
@@ -125,6 +128,7 @@ class Controller(QObject):
         self.refresh_history()
         self._refresh_tool_status()
         self._refresh_atlas_action()
+        self._refresh_agents()
         chosen = self.settings.origin()
         if chosen is not None:
             self.origin, self.origin_how = chosen, self.settings.origin_mode
@@ -165,6 +169,12 @@ class Controller(QObject):
         self._refresh_origin_status()
 
     def _refresh_origin_status(self):
+        shown = (self.current or {}).get("agent")
+        if shown:
+            place = shown.get("place")
+            self.w.set_origin_status(f"{shown['name']}, {place}" if place else shown["name"],
+                                     (self.current or {}).get("origin_how") if place else "agent")
+            return
         if self.origin:
             self.w.set_origin_status(self.origin[2], self.origin_how or "")
         elif self.origin_task is not None and self.origin_task.isRunning():
@@ -200,6 +210,10 @@ class Controller(QObject):
         """Start a continuous session for the target in the box."""
         if self.watching() or self.busy():
             return
+        if self.w.agent_name():
+            self.error("Continuous trace", "Live runs from this computer only. Choose \"From: this computer\" "
+                       "to watch a route.")
+            return
         raw = self.w.target.text()
         try:
             target = validate_target(raw)
@@ -219,6 +233,9 @@ class Controller(QObject):
                                       family=s.ip_version)
         self._end_comparison_quietly()
         self.live_snap, self.live_route, self.live_target = None, None, target
+        self.live_dns_ms: list[float] = []          # Settings › Probes › once per Live cycle
+        self.live_dns_last: list[dict] | None = None
+        self._live_dns_busy = False
         self.watcher = None
         holder = {}
 
@@ -272,7 +289,40 @@ class Controller(QObject):
         hops = live.merge_hops((self.live_route or {}).get("hops") or [], snap["hops"])
         if self.current is not None and self.current.get("source") == "watch" and self.live_route is not None:
             self.current["route"] = dict(self.live_route, hops=hops)
-        self.w.update_watch(hops, snap, running=True, details=self._live_details())
+        self._live_dns(snap)
+        self.w.update_watch(hops, snap, running=True, details=self._live_details(), dns=self._live_dns_text())
+
+    def _live_dns(self, snap: dict):
+        """One system-resolver lookup of the target per cycle, when Settings ›
+        Probes asks for it; never two at once, and never on the UI thread."""
+        if not self.settings.live_dns or self._live_dns_busy or not self.live_target:
+            return
+        self._live_dns_busy = True
+        target, family = self.live_target, self.settings.ip_version
+
+        def lookup():
+            from routemap_engine import dnstime
+            try:
+                rows = [r.to_dict() for r in dnstime.measure(target, [])]
+                kind = "AAAA" if family == "6" else "A"
+                row = next((r for r in rows if r["type"] == kind), None)
+                self.live_dns_last = rows
+                if row and row.get("ms") is not None:
+                    self.live_dns_ms.append(row["ms"])
+            except Exception:  # noqa: BLE001 - a failed lookup never stops the session
+                pass
+            finally:
+                self._live_dns_busy = False
+        import threading
+        threading.Thread(target=lookup, name="routemap-live-dns", daemon=True).start()
+
+    def _live_dns_text(self) -> str:
+        if not self.live_dns_ms:
+            return ""
+        ordered = sorted(self.live_dns_ms)
+        median = ordered[len(ordered) // 2]
+        return (f"DNS (system resolver): last {probes._ms(self.live_dns_ms[-1])}, median {probes._ms(median)} "
+                f"over {len(ordered)} lookups")
 
     def _place_new(self, snap: dict):
         """Place the first cycle's hops once, then only hops or addresses not
@@ -328,7 +378,10 @@ class Controller(QObject):
                         "when": _dt.datetime.fromtimestamp(snap["started"]).astimezone()}
         if kept:
             self.current["insight"] = kept
-        self.w.update_watch(route["hops"], snap, running=False, details=self._live_details())
+        if self.live_dns_last:
+            route["dns"] = self.live_dns_last
+        self.w.update_watch(route["hops"], snap, running=False, details=self._live_details(),
+                            dns=self._live_dns_text())
         self.w.end_watch()
         self.w.statusBar().showMessage(f"Continuous trace ended after {snap['cycles']} cycles.", 8000)
         if self.settings.live_keep_history and snap["cycles"]:
@@ -425,6 +478,10 @@ class Controller(QObject):
             self.w.summary.setText(f"<span style='color:#c0392b'>{exc}.</span>")
             self.w.target.setFocus()
             return
+        agent = agents.by_name(self.settings, self.w.agent_name())
+        if agent is not None:
+            self.remote(agent, "trace", target)
+            return
         try:
             tool, _path = pick_tool(self.settings.tool)
         except (TraceToolMissing, ValueError) as exc:
@@ -478,13 +535,21 @@ class Controller(QObject):
     def _done(self, result: dict, target: str, source: str):
         route: Route = result["route"]
         body = route.to_dict()
+        before = self.current if self.current and self.current.get("target") == target else None
         self.current = {"route": body, "target": target, "trace_text": result["text"],
                         "argv": result.get("argv"), "source": source,
                         "origin_how": result.get("origin_how") or (
                             self.origin_how if body["origin"]["source"] == "supplied" else "first-hop"),
                         "when": _dt.datetime.now().astimezone()}
+        if result.get("agent"):
+            self.current["agent"] = result["agent"]
+        # The Trace's address beside a Paths run's, when they differ (bbc.com).
+        if body.get("paths") and before and not before["route"].get("paths"):
+            self.current["trace_resolved"] = before["route"].get("resolved")
         self.w.show_result(body, target, result.get("argv"), trace_text=result["text"],
-                           keep_view=source == LOCAL)
+                           keep_view=source == LOCAL, agent=(result.get("agent") or {}).get("name"),
+                           trace_resolved=self.current.get("trace_resolved"))
+        self._refresh_origin_status()
         if result.get("stopped"):
             self.w.statusBar().showMessage(f"Stopped; the {len(body['hops'])} hops traced so "
                                            "far are shown.", 10000)
@@ -495,6 +560,8 @@ class Controller(QObject):
         entry = config.history_entry(body, target=target, trace_text=result["text"],
                                      argv=result.get("argv"), source=source)
         entry["origin_how"] = self.current["origin_how"]
+        if result.get("agent"):
+            entry["agent"] = result["agent"]
         self.current["history_when"] = entry["when"]
         config.add_history(entry, self.settings)
         self.refresh_history()
@@ -506,7 +573,8 @@ class Controller(QObject):
         self.w.sources.hide()
         if self.current:
             c = self.current
-            self.w.show_result(c["route"], c["target"], c.get("argv"), trace_text=c.get("trace_text"))
+            self.w.show_result(c["route"], c["target"], c.get("argv"), trace_text=c.get("trace_text"),
+                               agent=(c.get("agent") or {}).get("name"), trace_resolved=c.get("trace_resolved"))
         else:
             self.show_idle()
         self.w.summary.setText(f"<span style='color:#c0392b'>{_html(message)}</span>")
@@ -643,6 +711,7 @@ class Controller(QObject):
         dialog.updateDataRequested.connect(lambda: self.update_databases(dialog))
         dialog.importDataRequested.connect(lambda: self.import_city_database(dialog))
         dialog.withdrawReverseRequested.connect(lambda: self.withdraw_reverse_consent(dialog))
+        dialog.testAgentRequested.connect(lambda data: self.test_agent(dialog, data))
         if not dialog.exec():
             return
         problems = dialog.values_into(self.settings)
@@ -658,6 +727,7 @@ class Controller(QObject):
         self._refresh_origin_status()
         self._refresh_tool_status()
         self._refresh_atlas_action()
+        self._refresh_agents()
         self._refresh_reverse_action()
         self._refresh_compare_actions()
         self.refresh_history()
@@ -737,13 +807,17 @@ class Controller(QObject):
                         "argv": e.get("argv"), "source": e.get("source", LOCAL),
                         "origin_how": e.get("origin_how"),
                         "when": _dt.datetime.fromtimestamp(e["when"]).astimezone()}
+        if e.get("agent"):
+            self.current["agent"] = e["agent"]
         if e.get("session"):
             self.current["session"] = e["session"]
             self.show_session(self.current)
             return
         self.current["history_when"] = e["when"]
         self.leave_live()
-        self.w.show_result(e["route"], e["target"], e.get("argv"), trace_text=e.get("trace_text", ""))
+        self.w.show_result(e["route"], e["target"], e.get("argv"), trace_text=e.get("trace_text", ""),
+                           agent=(e.get("agent") or {}).get("name"))
+        self._refresh_origin_status()
         self._after_result()
         if e.get("reverse"):
             self._show_reverse(e["reverse"])
@@ -767,6 +841,10 @@ class Controller(QObject):
             self.w.summary.setText(f"<span style='color:#c0392b'>{_html(str(exc))}.</span>")
             self.w.target.setFocus()
             return
+        agent = agents.by_name(self.settings, self.w.agent_name())
+        if agent is not None:
+            self.remote(agent, "paths", target)
+            return
         from routemap_engine import multipath
         ok, why = multipath.available()
         if not ok:
@@ -783,8 +861,13 @@ class Controller(QObject):
             def progress(p):
                 on_progress("trace", "started", f"hop {p['ttl']} · {p['paths']} paths so far · "
                                                 f"{p['probes']} of at most {p['budget']:,} probes")
+            on_progress("dns", "started", "resolving")
+            resolved = probes.resolve(target, settings)
+            dns = probes.measure_dns(target, settings)
+            on_progress("dns", "done")
             d = multipath.discover(target, family=settings.ip_version, cancel=cancel, on_progress=progress,
-                                   options=multipath.Options(budget=settings.paths_budget))
+                                   options=multipath.Options(budget=settings.paths_budget),
+                                   address=resolved["address"])
             text = d.trace_text()
             for line in text.splitlines():
                 on_line(line)
@@ -792,6 +875,9 @@ class Controller(QObject):
             route = asyncio.run(analyse_paths(d, origin[:2] if origin else None,
                                               sources=service.sources_for(settings),
                                               progress=lambda a, b, c: on_progress(a, b, c)))
+            route.resolved, route.dns = resolved, dns
+            if settings.ports_with_trace and d.stopped_by != "cancel":
+                route.ports = probes.check_ports(resolved["address"], target, settings)
             return {"route": route, "text": text, "stopped": d.stopped_by == "cancel",
                     "argv": [d.method, f"{d.flows_used} flows", f"{d.probes_sent} probes", target]}
 
@@ -803,10 +889,125 @@ class Controller(QObject):
             self.w.map.set_origin(*origin)
         self._run(job, target=target, source=PATHS)
 
+    # ------------------------------------------------- remote agents (0.5.0) ---
+    def _refresh_agents(self):
+        current = self.w.agent_name()
+        names = [a.name for a in agents.all_agents(self.settings)]
+        self.w.set_agents(names, current if current in names else None)
+        self._origin_choice_changed()
+
+    def _origin_choice_changed(self):
+        """An agent runs Trace, Paths and Ports; Live and reverse traces stay
+        on this computer."""
+        remote = bool(self.w.agent_name())
+        self.w.watch_button.setEnabled(not remote and not self.watching())
+        self.w.watch_button.setToolTip("Live runs from this computer" if remote else
+                                       "Trace continuously: every hop probed once a cycle, mtr style "
+                                       "(Ctrl+Shift+W)")
+        self._refresh_reverse_action()
+
+    def remote(self, agent, action: str, target: str):
+        """One run of *action* ("trace" or "paths") on *agent*, over the user's
+        own ssh: one connection, never retried."""
+        settings = self.settings
+        online = settings.online_lookups
+
+        def job(on_line, on_progress, cancel, **_):
+            on_progress("trace", "started", f"on {agent.name}")
+
+            def progress(p):
+                on_progress("trace", "started", f"{agent.name}: hop {p['ttl']} · {p['paths']} paths so far · "
+                                                f"{p['probes']} probes")
+            run = agents.run(agent, action, settings, target=target, on_line=on_line, on_progress=progress,
+                             cancel=cancel, online=online,
+                             ports=settings.port_list if settings.ports_with_trace else None)
+            return agents.remote_result(agent, action, target, run, settings, on_progress)
+
+        self.w.show_tracing(target, [f"ssh {agent.destination}", action, target])
+        self.w.set_state(f"{'Tracing' if action == 'trace' else 'Finding the paths to'} <b>{_html(target)}</b> "
+                         f"from <b>{_html(agent.name)}</b> (one ssh connection)")
+        if agent.place == agents.PLACE_CITY and agent.lat is not None:
+            self.w.map.set_origin(agent.lat, agent.lon, agent.city)
+        self._end_comparison_quietly()
+        self._run(job, target=target, source=AGENT if action == "trace" else AGENT_PATHS)
+
+    def test_agent(self, dialog, data: dict):
+        """Settings › Agents › Test connection: one ssh connection running
+        "routemap-engine agent 1 hello"; only when clicked."""
+        agent = agents.Agent.from_dict(data)
+        if agent is None:
+            dialog.agent_tested("That agent's name or SSH destination is not valid.")
+            return
+        settings = self.settings
+
+        def job(**_):
+            run = agents.run(agent, "hello", settings, online=False)
+            hello = run.hello or {}
+            can = hello.get("can") or {}
+            paths = "Paths can run there" if can.get("paths") else \
+                f"Paths cannot run there ({hello.get('paths_reason') or 'no unprivileged ICMP sockets'})"
+            tools = ", ".join(hello.get("tools") or []) or "none"
+            return (f"Connected to {agent.name}: routemap-engine {hello.get('engine')} on {hello.get('platform')}, "
+                    f"Python {hello.get('python')}. Trace tools: {tools}. {paths}.")
+        task = Task(job, self)
+        task.succeeded.connect(dialog.agent_tested)
+        task.failed.connect(dialog.agent_tested)
+        self.agent_task = task
+        task.start()
+
+    def test_ports(self):
+        """The ports in Settings › Probes on the target, from this computer or
+        the chosen agent; attached to the shown trace when it is the same."""
+        if self.watching() or self.busy():
+            return
+        try:
+            target = validate_target(self.w.target.text())
+        except InvalidTarget as exc:
+            self.w.summary.setText(f"<span style='color:#c0392b'>{_html(str(exc))}.</span>")
+            self.w.target.setFocus()
+            return
+        agent = agents.by_name(self.settings, self.w.agent_name())
+        settings = self.settings
+
+        def job(on_line, on_progress, cancel, **_):
+            if agent is not None:
+                run = agents.run(agent, "ports", settings, target=target, cancel=cancel,
+                                 online=False)
+                return {"ports": run.result["ports"], "resolved": run.result["resolved"],
+                        "dns": run.result["dns"]}
+            resolved = probes.resolve(target, settings)
+            return {"ports": probes.check_ports(resolved["address"], target, settings), "resolved": resolved}
+
+        task = Task(job, self)
+        task.succeeded.connect(lambda r: self._ports_done(r, target, agent.name if agent else None))
+        task.failed.connect(self._failed)
+        self.task = task
+        self.w.set_running(True)
+        self.w.set_state(f"Testing ports on <b>{_html(target)}</b>"
+                         + (f" from <b>{_html(agent.name)}</b>" if agent else ""))
+        task.start()
+
+    def _ports_done(self, result: dict, target: str, agent: str | None):
+        self.w.set_running(False)
+        self.w.set_state("")
+        c = self.current
+        same = c and c.get("target") == target and (c.get("agent") or {}).get("name") == agent and \
+            ((c["route"].get("resolved") or {}).get("address") in (None, result["ports"]["address"]))
+        if same:
+            c["route"]["ports"] = result["ports"]
+            self.w.show_result(c["route"], c["target"], c.get("argv"), trace_text=c.get("trace_text"),
+                               agent=agent, trace_resolved=c.get("trace_resolved"), keep_view=True)
+            return
+        where = f"{agent} (agent)" if agent else "this computer"
+        self.w.ports_panel.set_ports(result["ports"], where=where)
+        self.w.ports_panel.expand(True)
+        self.w.summary.setText(f"<b>Ports to {_html(target)}</b> <span style='color:gray'>· "
+                               f"{_html(probes.ports_line(result['ports']))}</span>")
+
     # ------------------------------------------------------- reverse trace ---
     def _refresh_reverse_action(self):
-        ready = bool(self.current and not self.current.get("session") and reverse.destination(
-            self.current["route"]) is not None)
+        ready = bool(self.current and not self.current.get("session") and not self.current.get("agent")
+                     and reverse.destination(self.current["route"]) is not None)
         self.w.reverse_button.setVisible(ready)
         self.w.act_reverse.setEnabled(ready)
         why = reverse.ready(self.settings)[1]
@@ -1549,7 +1750,12 @@ def progressive_trace(target: str, settings: config.Settings, origin, *, on_line
         return await trace.finish()
 
     try:
-        result = service.run(target, settings, cancel=cancel, on_line=line_seen)
+        # 0.5.0-beta.1: one resolution, timed, and the trace goes to that address.
+        on_progress("dns", "started", "resolving")
+        resolved = probes.resolve(target, settings)
+        dns = probes.measure_dns(target, settings)
+        on_progress("dns", "done")
+        result = service.run(target, settings, cancel=cancel, on_line=line_seen, address=resolved["address"])
         if not result.text.strip():
             raise RuntimeError(f"{result.tool} printed nothing (exit code {result.returncode}).")
         if result.cancelled and not trace.hops:
@@ -1559,6 +1765,11 @@ def progressive_trace(target: str, settings: config.Settings, origin, *, on_line
     finally:
         loop.call_soon_threadsafe(loop.stop)
         thread.join(timeout=2)
+    route.resolved, route.dns = resolved, dns
+    if settings.ports_with_trace and not result.cancelled:
+        on_progress("ports", "started", "testing ports")
+        route.ports = probes.check_ports(resolved["address"], target, settings)
+        on_progress("ports", "done")
     return {"route": route, "text": result.text, "argv": result.argv,
             "timed_out": result.timed_out, "stopped": result.cancelled}
 
@@ -1593,15 +1804,15 @@ def write_export(fmt: str, path: str, current: dict, *, dark_png: bool = False,
         text = service.export_json(route, target=target, trace_text=current.get("trace_text", ""),
                                    argv=current.get("argv"), source=current.get("source", LOCAL),
                                    origin_how=current.get("origin_how"), insight=ins, comparison=cmp,
-                                   session=current.get("session"), reverse=current.get("reverse"))
+                                   session=current.get("session"), reverse=current.get("reverse"),
+                                   agent=current.get("agent"))
         with open(path, "w", encoding="utf-8") as handle:
             handle.write(text)
     elif fmt == "png":
         from routemap.gui import geometry
         image = mapview.render_png(
             route, dark=dark_png, destination=target,
-            title=f"{target} from {_city(route)}" + (
-                f" · paths by {service.paths_method(route.get('paths'))}" if route.get("paths") else ""),
+            title=png_title(route, target, current.get("agent")),
             provenance=f"{DISPLAY_NAME} {VERSION} \u00b7 {report.stamp(when)} \u00b7 "
                        f"{label or current.get('source', '')} · {geometry.ATTRIBUTION} · "
                        "GeoNames CC BY 4.0" + (" · IP Geolocation by DB-IP" if mapview.uses_dbip(route) else ""),
@@ -1618,9 +1829,23 @@ def write_export(fmt: str, path: str, current: dict, *, dark_png: bool = False,
                          insight=ins, comparison=cmp, quiet_ms=settings.rtt_quiet_ms,
                          hot_ms=settings.rtt_hot_ms, origin_cc=_origin_cc_of(route),
                          session=current.get("session"), reverse=current.get("reverse"),
-                         reverse_cmp=_reverse_cmp(current))
+                         reverse_cmp=_reverse_cmp(current), agent=current.get("agent"))
     else:
         raise ValueError(f"unknown export format {fmt!r}")
+
+
+def png_title(route: dict, target: str, agent: dict | None = None) -> str:
+    """The PNG's title (0.5.0-beta.1): the target, the address traced, where
+    from, the system resolver's time; never port results."""
+    address = (route.get("resolved") or {}).get("address")
+    where = f"{agent['name']} (agent)" if agent else _city(route)
+    title = f"{target}" + (f" ({address})" if address and address != target else "") + f" from {where}"
+    row = probes.system_row(route.get("dns"), (route.get("resolved") or {}).get("family"))
+    if row and row.get("ms") is not None:
+        title += f" · DNS {probes._ms(row['ms'])}"
+    if route.get("paths"):
+        title += f" · paths by {service.paths_method(route.get('paths'))}"
+    return title
 
 
 def _reverse_cmp(current: dict) -> dict | None:

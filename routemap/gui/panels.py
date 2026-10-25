@@ -138,7 +138,8 @@ class PathsPanel(_Collapsible):
         items = self.list.selectedItems()
         self.pathSelected.emit(items[0].data(0, Qt.UserRole) if items else None)
 
-    def set_paths(self, discovery: dict | None, hops: list[dict]):
+    def set_paths(self, discovery: dict | None, hops: list[dict], *, trace_resolved: dict | None = None,
+                  ports: dict | None = None):
         self.list.clear()
         paths = (discovery or {}).get("paths") or []
         self.setVisible(bool(discovery))
@@ -165,9 +166,67 @@ class PathsPanel(_Collapsible):
         method = service.paths_method(discovery)
         self.toggle.setText(f"Paths: at least {len(paths)} {word} · {method}")
         from routemap.gui.hoptable import path_notes
-        notes = [f"Probes: {method}."] + path_notes(discovery)
+        from routemap import probes
+        notes = probes.paths_lines(discovery, trace_resolved=trace_resolved, ports=ports) + \
+            [f"Probes: {method}."] + path_notes(discovery)
         self.note.setText("<span style='color:gray'>" + "<br>".join(html.escape(n) for n in notes) + "</span>")
         self.toggle.setEnabled(True)
+
+
+class DnsPanel(_Collapsible):
+    """DNS response timing (0.5.0-beta.1): each lookup of the target, through
+    the system resolver and the resolvers in Settings > Probes."""
+
+    def __init__(self, parent=None):
+        from routemap import probes
+        super().__init__(probes.DNS_HEADERS, [118, 48, 66, 110, 96, 84, 64], parent, height=150)
+        self.setAccessibleName("DNS lookups")
+        self.set_dns(None, None)
+
+    def set_dns(self, resolved: dict | None, dns: list | None, *, where: str = ""):
+        from routemap import probes
+        self.list.clear()
+        self.setVisible(bool(dns))
+        if not dns:
+            return
+        for row in probes.dns_rows(dns):
+            item = QTreeWidgetItem(row)
+            item.setTextAlignment(2, Qt.AlignRight | Qt.AlignVCenter)
+            item.setToolTip(7, html.escape(row[7]))
+            self.list.addTopLevelItem(item)
+        named = len({r.get("resolver") for r in dns if r.get("resolver") != "system"})
+        word = "lookup" if len(dns) == 1 else "lookups"
+        extra = f", {named} resolver{'s' if named != 1 else ''} added" if named else ""
+        self.toggle.setText(f"DNS: {len(dns)} {word}{extra}" + (f" · {where}" if where else ""))
+        self.note.setText("<span style='color:gray'>" + html.escape(probes.dns_note(resolved)) + "</span>")
+        self._expand(self.toggle.isChecked())
+
+
+class PortsPanel(_Collapsible):
+    """Port tests (0.5.0-beta.1): one connection attempt per port to the
+    traced address; open, closed or filtered, with connect and TLS times."""
+
+    def __init__(self, parent=None):
+        from routemap import probes
+        super().__init__(probes.PORT_HEADERS, [60, 230, 80], parent, height=170)
+        self.setAccessibleName("Port tests")
+        self.set_ports(None)
+
+    def set_ports(self, ports: dict | None, *, where: str = "this computer"):
+        from routemap import probes
+        self.list.clear()
+        self.setVisible(bool(ports))
+        if not ports:
+            return
+        for row in probes.port_rows(ports):
+            item = QTreeWidgetItem(row)
+            for col in (0, 2, 3):
+                item.setTextAlignment(col, Qt.AlignRight | Qt.AlignVCenter)
+            self.list.addTopLevelItem(item)
+        self.toggle.setText(probes.ports_title(ports))
+        self.note.setText("<span style='color:gray'>" + html.escape(probes.ports_note(ports, where=where))
+                          + "</span>")
+        self._expand(self.toggle.isChecked())
 
 
 class ReversePanel(_Collapsible):
@@ -324,7 +383,7 @@ class HistoryPanel(QWidget):
 class SourceStatus(QWidget):
     """Per-source progress in the status bar: PTR, Hoiho, IP database."""
 
-    LABELS = (("trace", "Trace"), ("reverse-dns", "PTR"), ("hoiho", "Hoiho"), ("ip-db", "IP db"))
+    LABELS = (("dns", "DNS"), ("trace", "Trace"), ("reverse-dns", "PTR"), ("hoiho", "Hoiho"), ("ip-db", "IP db"))
     MARKS = {"waiting": "•", "started": "…", "done": "✓", "timeout": "timed out",
              "failed": "failed", "off": "off"}
 
