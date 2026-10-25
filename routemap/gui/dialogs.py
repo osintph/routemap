@@ -1447,7 +1447,8 @@ as the measurement's target</b>, which RIPE NCC publishes.</td></tr>
 TCP), at most 20 a second and 1,500 in all; the same lookups as one trace.</td></tr>
 <tr><td><b>DNS timing</b></td><td>the target's name, at each trace, to your system resolver and
 to the resolvers you add in Settings &rsaquo; Probes (none by default), nowhere else. Plain DNS is
-not encrypted.</td></tr>
+not encrypted. With Online lookups off, only the system resolver is asked: the trace needs that
+lookup.</td></tr>
 <tr><td><b>Port tests</b></td><td>only when you click Ports, or turn on Test these ports with
 every trace: one TCP connection attempt per chosen port to the traced address (at most 32), and
 for TLS ports a TLS ClientHello with the target's name.</td></tr>

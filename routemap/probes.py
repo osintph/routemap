@@ -18,7 +18,11 @@ def resolve(target: str, settings) -> dict:
 
 
 def measure_dns(target: str, settings, *, system: bool = True) -> list[dict]:
-    return [r.to_dict() for r in dnstime.measure(target, settings.dns_resolvers, system=system)]
+    """The DNS timing rows. The resolvers in Settings > Probes are asked only
+    while Online lookups is on (Help > Privacy lists them under it); the
+    system resolver is the one the trace needs anyway."""
+    named = settings.dns_resolvers if getattr(settings, "online_lookups", True) else []
+    return [r.to_dict() for r in dnstime.measure(target, named, system=system)]
 
 
 def check_ports(address: str, target: str, settings, ports=None) -> dict:

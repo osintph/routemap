@@ -17,6 +17,35 @@ def isolated_config(tmp_path, monkeypatch):
     yield
 
 
+@pytest.fixture(autouse=True)
+def no_real_dns(monkeypatch, request):
+    """No test resolves a name for real (0.5.0-beta.1: every trace resolves
+    its target first). A name resolves to a documentation address of the
+    family asked for, a literal to itself; DNS timing has no rows. A test that
+    stubs these itself, or is marked real_dns, is left alone."""
+    if request.node.get_closest_marker("real_dns"):
+        yield
+        return
+    from routemap import probes
+
+    def resolve(target, settings):
+        import ipaddress
+        try:
+            ipaddress.ip_address(target)
+            return {"name": target, "address": target, "family": 6 if ":" in target else 4, "by": "literal"}
+        except ValueError:
+            six = getattr(settings, "ip_version", "auto") == "6"
+            return {"name": target, "address": "2001:db8::9" if six else "192.0.2.9", "family": 6 if six else 4,
+                    "by": "system"}
+    monkeypatch.setattr(probes, "resolve", resolve)
+    monkeypatch.setattr(probes, "measure_dns", lambda target, settings, **kw: [])
+    yield
+
+
+def pytest_configure(config):
+    config.addinivalue_line("markers", "real_dns: let the test resolve names for real")
+
+
 # A test id is copied into the PYTEST_CURRENT_TEST environment variable, which
 # Windows caps at 32767 characters and Linux at 128 KiB per string for a child
 # process; a whole malformed file as a parameter id broke both in the engine.
