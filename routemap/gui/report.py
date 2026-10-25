@@ -340,7 +340,7 @@ def _probes_section(flow: "_Flow", route: dict, where: str) -> None:
         flow.heading("DNS")
         flow.table(["Resolver", "Type", "Time", "Answer", "TTL", "Addresses"],
                    [[r[0], r[1], r[2], r[3] + ("" if r[4] in ("not stated", "") else f", AA {r[4]}"), r[6], r[7]]
-                    for r in probes.dns_rows(route["dns"])], [26, 11, 15, 32, 13, 81], size=8)
+                    for r in probes.dns_rows(route["dns"])], [26, 11, 15, 30, 18, 78], size=8)
         flow.text(probes.dns_note(route.get("resolved")), 8, color=MUTED, gap=1)
     if route.get("ports"):
         flow.heading(f"Ports to {route['ports'].get('address')}")
