@@ -1755,6 +1755,7 @@ def progressive_trace(target: str, settings: config.Settings, origin, *, on_line
         resolved = probes.resolve(target, settings)
         dns = probes.measure_dns(target, settings)
         on_progress("dns", "done")
+        trace.destination = resolved["address"]
         result = service.run(target, settings, cancel=cancel, on_line=line_seen, address=resolved["address"])
         if not result.text.strip():
             raise RuntimeError(f"{result.tool} printed nothing (exit code {result.returncode}).")
@@ -1883,6 +1884,12 @@ def headless_platform() -> None:
         os.environ["QT_QPA_PLATFORM"] = "offscreen"
 
 
+def unreadable_text(settings) -> str:
+    return (f"{settings.problem} {DISPLAY_NAME} started with the default settings. Your file is kept: when "
+            "settings are next saved it is moved to settings.json.unreadable beside it, and nothing is written "
+            "over it.")
+
+
 def make_app(argv: list[str] | None = None) -> QApplication:
     app = QApplication.instance() or QApplication(argv or [sys.argv[0]])
     app.setApplicationName(DISPLAY_NAME)
@@ -1908,6 +1915,8 @@ def run_gui(target: str | None = None, origin_override: tuple | None = None) -> 
         controller.origin, controller.origin_how = origin_override, "coords"
     controller.start()
     window.show()
+    if isinstance(settings, config.SettingsUnreadable):
+        QTimer.singleShot(0, lambda: controller.error("Settings not read", unreadable_text(settings)))
     if target:
         window.target.setText(target)
         QTimer.singleShot(200, controller.trace)

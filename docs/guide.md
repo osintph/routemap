@@ -84,6 +84,7 @@ the marker has the same colour:
 | `ip-db (DB-IP)` | Neither hostname source knew it, so the offline DB-IP Lite City database on this machine placed it. Treat it as a hint: backbone addresses often geolocate to where the prefix was registered. |
 | `ip-db (RIPEstat, online)` | The same, answered by RIPEstat online, because DB-IP Lite City is not installed or did not know the address. |
 | `ip-db, country only` | The database knew only the country. The marker is hollow, sits in the country, and the map does not zoom out for it. |
+| `anycast, served from near X` | The destination only. It answered faster than the place the database registers it at allows (bbc.com's Fastly address, registered in Montreal, answers from Manila in 5 ms), so it is served from a node near you: placed at the largest city that RTT reaches, and the summary says "likely anycast". An inference, not a measured place. |
 | `local` | Your own network or your ISP's carrier NAT. Never looked up anywhere. |
 | `unresolved` | Not placed: it did not answer, or no source placed it within the physics bound. The **Unplaced** panel says why. |
 
@@ -225,9 +226,11 @@ with the path's letter; a **Paths** column in the hop table and a sub-row for
 each router at a hop where the paths differ (3a, 3b); and the **Paths** list
 under the table with each path's share of the flows, the hop where it splits from
 the path listed before it (hover for every hop where it differs; the PDF and the
-JSON have them all), and its RTT to the target. A path whose probes never got
-an answer from the target says **not reached** and names the last hop that
-answered. Choose a path in the list to show it alone on the
+JSON have them all), and its RTT to the target. When the target answered on
+some paths, a path whose ten attempts all went unanswered says **0 of 10**
+(the target is up; some servers answer fewer after the discovery's probes).
+When no path reached the target, each says **not reached** and names the last
+hop that answered. Choose a path in the list to show it alone on the
 map.
 
 "At least": some load balancers do not spread every kind of probe, so a path
@@ -240,8 +243,8 @@ included (Settings > Trace can lower this), at most 64 flows, and it stops
 after 5 silent hops (scamper's and RIPE Atlas's default), then asks the target
 once more at full TTL on each path found, as RIPE Atlas does with its last probe. A
 path reached only by that last attempt is shown reached, with its silent
-stretch marked, and "not reached" always means the target was asked and did
-not answer. The heading says why discovery ended ("stopped after 5 silent hops
+stretch marked; "not reached" means the target was asked and answered on no
+path at all. The heading says why discovery ended ("stopped after 5 silent hops
 (3 to 7)"). A discovery takes one to three minutes: 1,500 probes at 20 a
 second is 75 seconds of sending, and each round of probes waits up to a second
 for the routers that do not answer. No

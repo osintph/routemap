@@ -61,10 +61,20 @@ def offline(route: dict, settings: config.Settings) -> dict:
         "as_path": path,
         "as_path_text": osint.as_path_text(path),
         "jurisdictions": osint.jurisdictions(route, set(settings.sensitive_countries)),
-        "anycast": osint.anycast_note(route, _registered_destination(route)),
+        "anycast": _anycast(route),
         "databases": {"asn": asn.month if asn else None, "city": city.month if city else None},
         "online": None,
     }
+
+
+def _anycast(route: dict) -> str | None:
+    """The anycast note: the engine's own words when it placed the destination
+    as anycast (so the summary and the table say the same place), else the
+    note from the destination's ASN or its registered place."""
+    answered = [h for h in route.get("hops") or [] if h.get("min_rtt_ms") is not None]
+    if answered and answered[-1].get("source") == "anycast" and answered[-1].get("reason"):
+        return answered[-1]["reason"]
+    return osint.anycast_note(route, _registered_destination(route))
 
 
 def _registered_destination(route: dict):

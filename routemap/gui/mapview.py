@@ -136,10 +136,17 @@ def place_label(hop: dict) -> str:
     return f"{place} (country only)" if is_country_only(hop) else place
 
 
+def anycast_label(hop: dict) -> str:
+    """The Source of a destination placed as anycast (engine geo.place_anycast)."""
+    return f"anycast, served from near {hop.get('place')}" if hop.get("place") else "anycast"
+
+
 def source_label(hop: dict) -> str:
     if hop.get("masked"):
         return "hidden"
     short = theme.SOURCE_SHORT.get(hop.get("source"), hop.get("source") or "")
+    if hop.get("source") == "anycast":
+        return anycast_label(hop)
     if hop.get("source") == "ip-db":
         # Which tier answered: the offline file, or RIPEstat because the file
         # is not installed (or did not know the address).
@@ -1208,7 +1215,7 @@ class MapView(QGraphicsView):
                     item.setAcceptedMouseButtons(Qt.NoButton)
                 self.items_ = ghost_items + self.items_
             hops = self.route.get("hops") or []
-            used = [s for s in ("hoiho", "site-code", "ip-db", "local")
+            used = [s for s in ("hoiho", "site-code", "ip-db", "anycast", "local")
                     if any(h.get("source") == s for h in hops)]
             extra = []
             if any(is_country_only(h) for h in hops):

@@ -46,10 +46,20 @@ def _headless_qt():
     from routemap.gui.app import headless_platform, make_app
     headless_platform()
     app = make_app()
-    settings = config.load_settings()
+    settings = _load_settings()
     theme.set_rtt_palette(settings.rtt_palette)
     theme.apply(app, settings.theme)
     return app
+
+
+def _load_settings():
+    """Settings, with a warning when the file is there and could not be read
+    (it is kept, never written over)."""
+    from routemap import config
+    settings = config.load_settings()
+    if isinstance(settings, config.SettingsUnreadable):
+        _err(f"{NAME}: {settings.problem} Using the default settings; the file is kept.")
+    return settings
 
 
 def _origin(args, settings):
@@ -73,7 +83,7 @@ def _origin(args, settings):
         return None, None
 
 
-def _analyse(text, origin, settings, offline: bool):
+def _analyse(text, origin, settings, offline: bool, destination: str | None = None):
     from routemap import service
     from routemap_engine import OFFLINE, analyse
 
@@ -84,7 +94,7 @@ def _analyse(text, origin, settings, offline: bool):
             _err(f"{NAME}: {source} {state}{': ' + detail if detail else ''}")
 
     return asyncio.run(analyse(text, origin[:2] if origin else None, sources=sources,
-                               progress=progress))
+                               progress=progress, destination=destination))
 
 
 def _insight(args, current: dict, settings) -> None:
@@ -122,7 +132,7 @@ def _insight(args, current: dict, settings) -> None:
 def _outputs(args, current: dict) -> int:
     from routemap import config, service
 
-    settings = config.load_settings()
+    settings = _load_settings()
     _insight(args, current, settings)
 
     if args.png or args.pdf:
@@ -161,7 +171,7 @@ def cmd_watch(args) -> int:
     from routemap_engine import InvalidTarget, probe, validate_target, watch
 
     service.startup()
-    settings = config.load_settings()
+    settings = _load_settings()
     try:
         target = validate_target(args.target)
     except InvalidTarget as exc:
@@ -278,7 +288,7 @@ def _paths_text(route: dict) -> str:
         return (f"{cells[0]:>{width[0]}}  {cells[1]:<{width[1]}}  {cells[2]:<{width[2]}}  "
                 f"{cells[3]:<{width[3]}}  {cells[4]:>{width[4]}}  {cells[5]:>{width[5]}}").rstrip()
     lines += [line(head)] + [line(r) for r in table]
-    summary = [(p.get("id") or "?", flows_cell(p, disc), split_text(paths, i), rtt_cell(p), target_cell(p, disc))
+    summary = [(p.get("id") or "?", flows_cell(p, disc), split_text(paths, i), rtt_cell(p, disc), target_cell(p, disc))
                for i, p in enumerate(paths)]
     head2 = ("Path", "Flows", "Splits from", "RTT to target", target_column(disc))
     w2 = [max(len(r[i]) for r in summary + [head2]) for i in range(5)]
@@ -403,7 +413,7 @@ def cmd_trace(args) -> int:
     from routemap_engine.runner import TraceToolMissing
 
     service.startup()
-    settings = config.load_settings()
+    settings = _load_settings()
     if args.ipv4 or args.ipv6:
         settings.ip_version = "6" if args.ipv6 else "4"         # this run only, not saved
     from routemap_engine import dnstime
@@ -482,7 +492,7 @@ def cmd_trace(args) -> int:
             _err(f"{NAME}: {result.tool} printed nothing (exit code {result.returncode})")
             return 1
         try:
-            route = _analyse(result.text, origin, settings, args.offline)
+            route = _analyse(result.text, origin, settings, args.offline, destination=resolved["address"])
         except TraceParseError as exc:
             _err(f"{NAME}: {exc}")
             return 1
@@ -516,7 +526,7 @@ def cmd_parse(args) -> int:
     from routemap_engine import TraceParseError
 
     service.startup()
-    settings = config.load_settings()
+    settings = _load_settings()
     from routemap import imported
     try:
         text = imported.read_file(args.file)

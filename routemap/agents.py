@@ -291,7 +291,8 @@ def remote_result(agent: Agent, action: str, target: str, run, settings, on_prog
         text, argv = d.trace_text(), [f"ssh {agent.name}", d.method, f"{d.flows_used} flows",
                                       f"{d.probes_sent} probes", target]
     else:
-        route = service.analyse_sync(res["trace_text"], point, settings, progress=prog)
+        route = service.analyse_sync(res["trace_text"], point, settings, progress=prog,
+                                     destination=(res.get("resolved") or {}).get("address"))
         text, argv = res["trace_text"], [f"ssh {agent.name}", res.get("tool") or "trace", target]
     body = route.to_dict()
     body["resolved"], body["dns"] = res["resolved"], res["dns"]

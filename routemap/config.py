@@ -31,7 +31,7 @@ import time
 from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
 
-from routemap.__about__ import NAME
+from routemap.__about__ import NAME, VERSION
 from routemap_engine.runner import DEFAULT_FLAGS
 
 HISTORY_LIMIT = 50
@@ -55,7 +55,8 @@ def _default_config_dir() -> Path:
 # The files the app keeps in its folder; each is 0600 and the folder 0700
 # (RM-11): they name where the user traces to and through.
 OWN_FILES = ("settings.json", "history.json", "cache.sqlite3", "ipgeo-cache.sqlite3",
-             "ripe-cache.sqlite3", "site_codes.tsv")
+             "ripe-cache.sqlite3", "site_codes.tsv", "settings.previous.json",
+             "settings.json.unreadable", "history.json.unreadable")
 SQLITE_COMPANIONS = ("", "-wal", "-shm", "-journal")
 
 
@@ -177,6 +178,9 @@ class Settings:
     # When the user agreed that reverse traces publish their public IP (ISO
     # time, UTC); "" means no consent, and no reverse trace runs.
     reverse_consent_at: str = ""
+    # The version that last saved this file (0.5.0-beta.1). A different one
+    # means an upgrade: the file is copied to settings.previous.json first.
+    saved_by: str = ""
     # 0.5.0-beta.1 "Investigate"
     dns_resolvers: list = field(default_factory=list)   # IP addresses; none by default
     live_dns: bool = False                   # time the DNS lookup once per Live cycle
@@ -204,12 +208,39 @@ def settings_path() -> Path:
     return config_dir() / "settings.json"
 
 
+class SettingsUnreadable(Settings):
+    """Defaults standing in for a settings file that exists and could not be
+    read. Saving them first moves that file aside (settings.json.unreadable),
+    so it is never written over; ``problem`` says what went wrong."""
+
+    problem: str = ""
+
+
+def _unreadable(problem: str) -> Settings:
+    s = Settings()
+    s.__class__ = SettingsUnreadable
+    s.problem = problem
+    return s
+
+
 def load_settings() -> Settings:
-    """Settings from disk; defaults for anything missing or unreadable."""
+    """Settings from disk; defaults when there are none yet. A file that is
+    there and cannot be read gives defaults that will not replace it (Mac,
+    26 Oct 2026: the 0.5.0-beta.1 test build started with none of the
+    settings 0.4.0-beta.2 had kept)."""
+    path = settings_path()
     try:
-        raw = json.loads(settings_path().read_text(encoding="utf-8"))
-    except (OSError, ValueError, RecursionError):
+        text = path.read_text(encoding="utf-8")
+    except FileNotFoundError:
         return Settings()
+    except OSError as exc:
+        return _unreadable(f"{path} could not be read ({exc.strerror or exc.__class__.__name__}).")
+    try:
+        raw = json.loads(text)
+    except (ValueError, RecursionError):
+        return _unreadable(f"{path} is not a settings file this version can read.")
+    if isinstance(raw, dict) and raw.get("saved_by") != VERSION:
+        _keep_previous(path, text)
     known = {f.name for f in fields(Settings)}
     values = {k: v for k, v in raw.items() if k in known} if isinstance(raw, dict) else {}
     # Settings saved before the tour existed belong to someone who has used the
@@ -227,7 +258,21 @@ def load_settings() -> Settings:
     return normalise(settings)
 
 
+def _keep_previous(path: Path, text: str) -> None:
+    """The file as an older version left it, before this one saves over it."""
+    try:
+        _atomic_write(path.with_name("settings.previous.json"), text)
+        os.chmod(path.with_name("settings.previous.json"), 0o600)
+    except OSError:
+        pass
+
+
 def save_settings(settings: Settings) -> None:
+    if isinstance(settings, SettingsUnreadable) and settings_path().exists():
+        # Raises OSError when it cannot be moved: then nothing is written.
+        os.replace(settings_path(), settings_path().with_name("settings.json.unreadable"))
+        settings.__class__ = Settings
+    settings.saved_by = VERSION
     _atomic_write(settings_path(), json.dumps(asdict(settings), indent=2))
     try:
         # The Atlas key lives here; keep the file to its owner where the OS allows.
@@ -279,11 +324,33 @@ def cap_sessions(entries: list[dict], limit: int = SESSIONS_MAX_BYTES) -> list[d
     return out
 
 
+def _history_for_writing() -> list[dict]:
+    """The history to add to. A file that is there and cannot be read is
+    moved aside first (history.json.unreadable), never written over with the
+    one new trace; OSError when it cannot be moved, and nothing is written."""
+    path = history_path()
+    try:
+        path.read_bytes()
+    except FileNotFoundError:
+        return []
+    except OSError:
+        os.replace(path, path.with_name("history.json.unreadable"))
+        return []
+    try:
+        from routemap import imported
+        if isinstance(imported.parse_json(path.read_text(encoding="utf-8")), list):
+            return load_history()
+    except (OSError, ValueError):
+        pass
+    os.replace(path, path.with_name("history.json.unreadable"))
+    return []
+
+
 def add_history(entry: dict, settings: Settings) -> list[dict]:
     """Prepend *entry* (newest first, capped). A no-op while history is off."""
     if not settings.history_enabled:
         return []
-    entries = [entry] + load_history()
+    entries = [entry] + _history_for_writing()
     entries = cap_sessions(entries[:HISTORY_LIMIT])
     _atomic_write(history_path(), json.dumps(entries, ensure_ascii=False))
     return entries

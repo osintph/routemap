@@ -1,0 +1,69 @@
+{
+  "origin_mode": "city",
+  "origin_lat": 14.5995,
+  "origin_lon": 120.9842,
+  "origin_label": "Manila, PH",
+  "tool": "mtr",
+  "flags": {
+    "icmp": [
+      "-m",
+      "30",
+      "-q",
+      "3",
+      "-w",
+      "1",
+      "-n"
+    ],
+    "tracert": [
+      "-h",
+      "30",
+      "-w",
+      "1000"
+    ],
+    "traceroute": [
+      "-m",
+      "30",
+      "-q",
+      "3",
+      "-w",
+      "1"
+    ],
+    "mtr": [
+      "--report-wide",
+      "--show-ips",
+      "-c",
+      "3",
+      "-m",
+      "30"
+    ]
+  },
+  "timeout_seconds": 90,
+  "use_hoiho": false,
+  "use_ip_db": false,
+  "use_ptr": false,
+  "cache_ttl_days": 7,
+  "atlas_enabled": true,
+  "atlas_key": "not-a-real-key",
+  "atlas_acknowledged": true,
+  "history_enabled": false,
+  "window_geometry": "AdnQywADAAAAAAAAAAAAAAAABQAAAAMgAAAAAAAAAAAAAAUAAAADIAAAAAAAAAAAAAAPAAAAAAAAAAAAAAAAAAAA",
+  "online_lookups": false,
+  "projection": "globe",
+  "theme": "dark",
+  "rtt_quiet_ms": 20.0,
+  "rtt_hot_ms": 80.0,
+  "sensitive_countries": [
+    "CN",
+    "RU"
+  ],
+  "falconeye_url": "https://falconeye.example.org",
+  "city_db_declined": true,
+  "tour_seen": true,
+  "rtt_palette": "colour-blind",
+  "live_interval": 5.0,
+  "live_duration_min": 120,
+  "live_keep_history": false,
+  "ip_version": "4",
+  "paths_budget": 800,
+  "reverse_consent_at": "2026-10-12T00:00:00Z"
+}

@@ -4,6 +4,43 @@ All notable changes to this project are documented here. The format is based
 on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 uses [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+
+- **An upgrade keeps every setting.** On a Mac the 0.5.0-beta.1 test build
+  started with no origin, Online lookups off, no history and no city
+  database, though 0.4.0-beta.2 had all of them. The settings file an older
+  version left is now kept as `settings.previous.json` before anything is
+  saved over it; a settings or history file that is there and cannot be read
+  is set aside (`.unreadable`) instead of being replaced by defaults, and the
+  window says so. A test reads the file 0.4.0-beta.2 writes with every field
+  changed, and the macOS build reads it from a fresh home folder. The test
+  suite no longer writes to the real config folder (a test module unpacked
+  the ASN database there while being collected), and a run that does fails.
+- **Anycast destinations are placed.** bbc.com's Fastly address answered in
+  5 to 10 ms from Manila and is registered in Montreal: the summary said
+  "likely anycast, served from near Quezon City" while the table said "not
+  placed" and the map drew it hollow. It is now placed there, Source
+  "anycast, served from near Quezon City, NCR, PH" (routemap-engine
+  0.8.0).
+- **Paths: "not reached" only when no path reached the target.** With the
+  target reached at full TTL on 2 of 16 paths, the other 14 (ten attempts
+  each, none answered) said "not reached; last answer hop 13". They now say
+  "0 of 10", and the notes count them with the paths the target answered
+  fewer times.
+- **A hop several routers answered shows the router its name belongs to.**
+  Hop 11 to heise.de read "62.115.153.153, ffm-b16-link, not placed": the
+  name was another router's, and that router is in Frankfurt by Arelion's
+  site code (routemap-engine 0.8.0).
+- **PDF: the Paths table prints the differences all the paths share once,**
+  above the table, and each row only its own.
+- **The site's figure check and Open Graph renders no longer touch the
+  macOS keychain.** `site/check/figures.py` and `site/og/make_og.py` start
+  headless Chrome with `--password-store=basic` and `--use-mock-keychain`;
+  without them a test run from a non-interactive context showed a "Keychain
+  Not Found" dialog for every page rendered.
+
 ## [0.4.0-beta.2] - 2026-10-12
 
 0.4.0-beta.1 was tagged but not released: its check of Paths on a real

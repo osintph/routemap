@@ -22,6 +22,7 @@ SOURCE_LABELS = {
     "hoiho": "Hostname rule (CAIDA Hoiho)",
     "site-code": "Carrier site code",
     "ip-db": "IP database (fallback)",
+    "anycast": "Anycast, served from near (inferred)",
     "local": "Local / ISP network",
     "unresolved": "Not placed",
 }
@@ -29,6 +30,7 @@ SOURCE_SHORT = {
     "hoiho": "hoiho",
     "site-code": "site-code",
     "ip-db": "ip-db",
+    "anycast": "anycast",
     "local": "local",
     "unresolved": "unresolved",
 }
@@ -79,6 +81,7 @@ LIGHT = Palette(
         "hoiho": QColor("#2f6fdf"),
         "site-code": QColor("#0f8a7e"),
         "ip-db": QColor("#c9730a"),
+        "anycast": QColor("#8a4fd8"),
         "local": QColor("#6b7480"),
         "unresolved": QColor("#a3abb5"),
     },
@@ -106,6 +109,7 @@ DARK = Palette(
         "hoiho": QColor("#6fa0ff"),
         "site-code": QColor("#3cc3b4"),
         "ip-db": QColor("#f0a440"),
+        "anycast": QColor("#b48cff"),
         "local": QColor("#9aa4ae"),
         "unresolved": QColor("#5d6b79"),
     },

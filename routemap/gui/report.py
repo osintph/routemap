@@ -270,7 +270,7 @@ def write_pdf(path: str, route: dict, *, target: str, trace_text: str, tool_labe
         if len(h.get("addresses") or []) > 1:
             address += f" (+{len(h['addresses']) - 1})"
         detail = (((insight or {}).get("online") or {}).get("hops") or {}).get(str(h["hop"])) or {}
-        src = theme.SOURCE_SHORT.get(h.get("source"), "")
+        src = mapview.anycast_label(h) if h.get("source") == "anycast" else theme.SOURCE_SHORT.get(h.get("source"), "")
         if h.get("source") == "ip-db":
             src += " DB-IP" if h.get("ip_provider") == "dbip" else " RIPEstat"
         rows.append([str(h["hop"]), mapview.place_label(h) if h.get("masked") else (h.get("place") or "not placed"),
@@ -355,14 +355,18 @@ def _paths_section(flow: "_Flow", route: dict) -> None:
     disc = route.get("paths") or {}
     paths = disc.get("paths") or []
     flow.heading(f"Paths: at least {len(paths)} · {service.paths_method(disc)}")
-    from routemap.gui.hoptable import (differs_text, flows_cell, path_differences, path_notes, rtt_cell, target_cell,
-                                       target_column)
-    differences = path_differences(paths)
+    from routemap.gui.hoptable import (differs_text, flows_cell, path_differences, path_notes, rtt_cell,
+                                       shared_differences, target_cell, target_column)
+    shared, differences = shared_differences(path_differences(paths))
+    if shared:
+        flow.text("All the paths found, where they split: " + differs_text(shared) + ". Each row lists the rest.",
+                  8.5, gap=1)
     rows = []
     for p in paths:
         rows.append([p.get("id") or "?", flows_cell(p, disc),
-                     differs_text(differences.get(p.get("id")) or []) or "the same as the others",
-                     rtt_cell(p), target_cell(p, disc)])
+                     differs_text(differences.get(p.get("id")) or [])
+                     or ("only the hops above" if shared else "the same as the others"),
+                     rtt_cell(p, disc), target_cell(p, disc)])
     flow.table(["Path", "Flows", "Differs at", "RTT to target", target_column(disc)], rows,
                [12, 18, 90, 25, 28], align_right={1, 3})
     method = service.paths_method(disc)

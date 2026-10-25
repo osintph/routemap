@@ -83,6 +83,10 @@ In the config folder (macOS `~/Library/Application Support/routemap/`, Windows
 
 - `settings.json`: your settings, including the origin and your RIPE Atlas key
   if you entered one (readable only by your user where the OS allows).
+  `settings.previous.json` is the same file as the version before an upgrade
+  left it. A `settings.json.unreadable` or `history.json.unreadable` is a file
+  the app could not read, set aside instead of written over; delete it once
+  you no longer need it.
 - `cache.sqlite3`: Hoiho answers for router hostnames, and `ipgeo-cache.sqlite3`:
   IP database answers for public hop addresses, each kept 30 days by default.
   Clear both in Settings or with `routemap cache clear`.

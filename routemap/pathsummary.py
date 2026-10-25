@@ -88,12 +88,14 @@ def target_summary(discovery: dict) -> str:
     """Per path, in the words of the path list: "10 of 10 answered: A C E J-M
     O P · 5 of 10 answered: B · not reached: D F-I N" (TCP), or loss to the
     target (ICMP: "0% loss: A B · 10% loss: C")."""
-    from routemap.gui.hoptable import letters
+    from routemap.gui.hoptable import answered_none, letters
     paths = discovery.get("paths") or []
     tcp = discovery.get("method") == "tcp-paris"
     buckets: dict[str, list[str]] = {}
     for p in paths:
-        if not p.get("reached"):
+        if answered_none(p, discovery):
+            label = f"0 of {p.get('sent')} answered" if tcp else "100% loss"
+        elif not p.get("reached"):
             label = "not reached"
         elif not p.get("sent"):
             label = "not measured"

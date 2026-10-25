@@ -146,14 +146,14 @@ class PathsPanel(_Collapsible):
         self.setVisible(bool(discovery))
         if not discovery:
             return
-        from routemap.gui.hoptable import (differs_text, flows_cell, path_differences, rtt_cell, split_text,
-                                           target_cell, target_column)
+        from routemap.gui.hoptable import (answered_none, differs_text, flows_cell, path_differences, rtt_cell,
+                                           split_text, target_cell, target_column)
         self.list.setHeaderLabels(["Path", "Flows", "Splits from", "RTT to target", target_column(discovery)])
         differences = path_differences(paths)
         for index, p in enumerate(paths):
             item = QTreeWidgetItem([p.get("id") or "?", flows_cell(p, discovery), split_text(paths, index),
-                                    rtt_cell(p), target_cell(p, discovery, short=True)])
-            if not p.get("reached"):
+                                    rtt_cell(p, discovery), target_cell(p, discovery, short=True)])
+            if not p.get("reached") and not answered_none(p, discovery):
                 item.setToolTip(4, html.escape(target_cell(p, discovery)))
             full = differs_text(differences.get(p.get("id")) or [], "<br>")
             if full:

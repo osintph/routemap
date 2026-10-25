@@ -175,7 +175,9 @@ def paths_lines(disc: dict | None, *, trace_resolved: dict | None = None, ports:
         else:
             out.append(f"Routers on this network do not answer TCP probes beyond hop {n - 1}; Paths cannot map "
                        "past it here; Trace (ICMP) can.")
-    short = [p for p in late if (p.get("sent") or 0) and (p.get("lost") or 0)]
+    from routemap.gui.hoptable import answered_none
+    short = [p for p in paths if (p in late and (p.get("sent") or 0) and (p.get("lost") or 0))
+             or answered_none(p, disc)]
     if len(short) == 1:
         p = short[0]
         out.append(f"Path {p.get('id')}: the target answered {p['sent'] - p['lost']} of {p['sent']} attempts; "
@@ -186,7 +188,7 @@ def paths_lines(disc: dict | None, *, trace_resolved: dict | None = None, ports:
         span = f"{got[0]}" if got[0] == got[-1] else f"{got[0]} to {got[-1]}"
         out.append(f"On {len(short)} paths the target answered {span} of {sent} attempts each; some servers "
                    "answer fewer after the discovery's probes.")
-    unreached = [p for p in paths if not p.get("reached")]
+    unreached = [p for p in paths if not p.get("reached") and not answered_none(p, disc)]
     if unreached and ports and ports.get("address") == resolved.get("address"):
         port = next((r for r in ports.get("results") or [] if r["port"] == (disc.get("port") or 443)), None) \
             or next(iter(ports.get("results") or []), None)

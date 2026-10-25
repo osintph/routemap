@@ -1467,9 +1467,11 @@ placed from offline data only.</p>
 automatic update check.</p>
 <p>Questions about privacy: <a href="mailto:support@getroutemap.app">support@getroutemap.app</a>.</p>
 <h3>What stays on this machine</h3>
-<p>In your config folder: settings, the Hoiho, IP database and RIPE detail answer caches
-(clearable), the DB-IP Lite files and, if it is on, the history of the last 50 traces
-(clearable). Exports go only to the file you choose.</p>
+<p>In your config folder: settings (and, after an upgrade, the file as the previous version
+left it), the Hoiho, IP database and RIPE detail answer caches (clearable), the DB-IP Lite
+files and, if it is on, the history of the last 50 traces (clearable). A settings or history
+file the app could not read is set aside there, never written over. Exports go only to the
+file you choose.</p>
 """
 
 
