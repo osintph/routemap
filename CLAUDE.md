@@ -85,7 +85,8 @@ handful of build-time literals that cannot import it are listed in
 - Commit identity `osintph <sb@osintph.info>`. Linear history, no merge
   commits. Annotated tags `vX.Y.Z`.
 - CHANGELOG is Keep a Changelog, `## [x.y.z] - YYYY-MM-DD`, ASCII hyphen.
-- Release titles are the commit subject verbatim.
+- Release titles are the annotated tag's message (the release workflow sets
+  them from it, e.g. "Route Map 0.5.0-beta.2").
 
 ## Standing orders (all my repos)
 
