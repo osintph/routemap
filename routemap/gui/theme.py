@@ -23,6 +23,7 @@ SOURCE_LABELS = {
     "site-code": "Carrier site code",
     "ip-db": "IP database (fallback)",
     "anycast": "Anycast, served from near (inferred)",
+    "neighbours": "Inferred from neighbours",
     "local": "Local / ISP network",
     "unresolved": "Not placed",
 }
@@ -31,6 +32,7 @@ SOURCE_SHORT = {
     "site-code": "site-code",
     "ip-db": "ip-db",
     "anycast": "anycast",
+    "neighbours": "inferred from neighbours",
     "local": "local",
     "unresolved": "unresolved",
 }
@@ -82,6 +84,7 @@ LIGHT = Palette(
         "site-code": QColor("#0f8a7e"),
         "ip-db": QColor("#c9730a"),
         "anycast": QColor("#8a4fd8"),
+        "neighbours": QColor("#4f6d8a"),
         "local": QColor("#6b7480"),
         "unresolved": QColor("#a3abb5"),
     },
@@ -110,6 +113,7 @@ DARK = Palette(
         "site-code": QColor("#3cc3b4"),
         "ip-db": QColor("#f0a440"),
         "anycast": QColor("#b48cff"),
+        "neighbours": QColor("#9ab4cf"),
         "local": QColor("#9aa4ae"),
         "unresolved": QColor("#5d6b79"),
     },

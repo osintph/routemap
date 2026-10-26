@@ -63,6 +63,11 @@ def is_country_only(hop: dict) -> bool:
     return hop.get("precision") == "country"
 
 
+def is_inferred(hop: dict) -> bool:
+    """Placed from the hops either side, not by a source (engine 0.8.0): drawn hollow."""
+    return hop.get("source") == "neighbours"
+
+
 def route_groups(route: dict) -> list[dict]:
     """Placed hops as map points: unwrapped, grouped, gaps marked.
 
@@ -95,14 +100,15 @@ def route_groups(route: dict) -> list[dict]:
                 lon += 360
         key = (round(lat, 3), round(lon, 3))
         country = is_country_only(hop)
+        inferred = is_inferred(hop)
         last = groups[-1] if groups else None
-        if (last is not None and not gap and last["country_only"] == country
+        if (last is not None and not gap and last["country_only"] == country and last["inferred"] == inferred
                 and (round(last["lat"], 3), round(last["lon"], 3)) == key):
             last["hops"].append(hop)
         else:
             groups.append({"hops": [hop], "lat": lat, "lon": lon, "source": hop.get("source"),
                            "gap_before": gap and bool(groups), "country_only": country,
-                           "silent": False,
+                           "inferred": inferred, "silent": False,
                            "at_origin": origin_key is not None and key == origin_key and not country})
         gap = False
         prev_lon = lon
@@ -112,7 +118,7 @@ def route_groups(route: dict) -> list[dict]:
         lon = anchor["lon"] if anchor else origin.get("lon")
         if lat is not None:
             groups.append({"hops": trailing, "lat": lat, "lon": lon, "source": "unresolved",
-                           "gap_before": True, "country_only": False, "silent": True,
+                           "gap_before": True, "country_only": False, "inferred": False, "silent": True,
                            "at_origin": False})
     return groups
 
@@ -618,7 +624,8 @@ def draw_route(scene: QGraphicsScene, route: dict, palette: theme.Palette,
                 caption = destination_label
             color = palette.sources.get(group["source"], palette.sources["unresolved"])
             marker = MarkerItem(label, color, palette, caption=caption, tooltip=tip, size=size,
-                                hollow=group["country_only"], silent=group["silent"], hops=hops)
+                                hollow=group["country_only"] or group["inferred"], silent=group["silent"],
+                                hops=hops)
         marker.order = group["hops"][0]["hop"] + (1000 if group["silent"] else 0)
         if marks:
             mark = next((marks[h] for h in hops if h in marks), None)
@@ -1065,12 +1072,14 @@ class MapView(QGraphicsView):
             dot = plain()
             dot.setFixedSize(10, 10)
             color = (self.palette_.sources["ip-db"] if kind == "country"
+                     else self.palette_.sources["neighbours"] if kind == "inferred"
                      else self.palette_.route_gap)
             style = "dashed" if kind == "silent" else "solid"
             dot.setStyleSheet(f"background: transparent; border: 2px {style} {color.name()};"
                               " border-radius: 5px;")
             line.addWidget(dot)
             line.addWidget(plain("Country only (centroid)" if kind == "country"
+                                  else theme.SOURCE_LABELS["neighbours"] if kind == "inferred"
                                   else "Not placed (yet)"))
             line.addStretch(1)
             self.legend_layout.addWidget(row)
@@ -1220,6 +1229,8 @@ class MapView(QGraphicsView):
             extra = []
             if any(is_country_only(h) for h in hops):
                 extra.append("country")
+            if any(is_inferred(h) for h in hops):
+                extra.append("inferred")
             if any(g["silent"] for g in route_groups(self.route)):
                 extra.append("silent")
             self._fill_legend(used, extra, rtt=any(h.get("min_rtt_ms") is not None for h in hops),
