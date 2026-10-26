@@ -367,6 +367,7 @@ class HopModel(QAbstractTableModel):
         palette = theme.current()
         self.icons = {k: _dot(v) for k, v in palette.sources.items()}
         self.icons["country"] = _dot(palette.sources["ip-db"], hollow=True)
+        self.icons["neighbours"] = _dot(palette.sources["neighbours"], hollow=True)
         self.endResetModel()
 
     def rowCount(self, parent=QModelIndex()):

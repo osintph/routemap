@@ -452,7 +452,7 @@ class GlobeView(QWidget):
             if self.marks and not ghost:
                 mark = next((self.marks[h] for h in hops if h in self.marks), None)
             rect = self._pill(p, QPointF(x, y), label, color, pal, origin=origin_flag, caption=caption,
-                              hollow=group["country_only"], silent=group["silent"],
+                              hollow=group["country_only"] or group.get("inferred", False), silent=group["silent"],
                               selected=bool(self.selected_hops & set(hops)) and not ghost,
                               ghost=ghost, mark=mark, size=size)
             if not ghost:
@@ -671,6 +671,8 @@ def _legend_rows(route: dict, pal: theme.Palette, quiet_ms: float, hot_ms: float
     rows += [("dot", s) for s in used]
     if any(h.get("precision") == "country" for h in hops):
         rows.append(("ring", (pal.sources["ip-db"], "Country only (centroid)")))
+    if any(h.get("source") == "neighbours" for h in hops):
+        rows.append(("ring", (pal.sources["neighbours"], theme.SOURCE_LABELS["neighbours"])))
     if any(g["silent"] for g in route_groups(route)):
         rows.append(("ring", (pal.route_gap, "Not placed (yet)")))
     if any(h.get("min_rtt_ms") is not None for h in hops):

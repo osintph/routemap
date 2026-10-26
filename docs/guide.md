@@ -85,6 +85,7 @@ the marker has the same colour:
 | `ip-db (RIPEstat, online)` | The same, answered by RIPEstat online, because DB-IP Lite City is not installed or did not know the address. |
 | `ip-db, country only` | The database knew only the country. The marker is hollow, sits in the country, and the map does not zoom out for it. |
 | `anycast, served from near X` | The destination only. It answered faster than the place the database registers it at allows (bbc.com's Fastly address, registered in Montreal, answers from Manila in 5 ms), so it is served from a node near you: placed at the largest city reachable in the RTT it added past the last placed hop before it, and the summary says "likely anycast". An inference, not a measured place. |
+| `inferred from neighbours` | No source placed it (no hostname rule; the database's place is ruled out by the RTT), but the hops either side are placed in one city, so it is shown there with a hollow marker. An inference from the path, not an answer about the router: Arelion's link to Plus.line (62.115.153.153, `plusline-ic-...twelve99-cust.net`) between two Frankfurt hops. |
 | `local` | Your own network or your ISP's carrier NAT. Never looked up anywhere. |
 | `unresolved` | Not placed: it did not answer, or no source placed it within the physics bound. The **Unplaced** panel says why. |
 

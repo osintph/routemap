@@ -33,6 +33,12 @@ uses [Semantic Versioning](https://semver.org/).
   Hop 11 to heise.de read "62.115.153.153, ffm-b16-link, not placed": the
   name was another router's, and that router is in Frankfurt by Arelion's
   site code (routemap-engine 0.8.0).
+- **Hops inferred from their neighbours.** A hop no source places, between
+  two hops placed in one city, is shown in that city with Source "inferred
+  from neighbours" and a hollow marker, in the window, the PDF and the JSON
+  (source `neighbours`). Arelion's link to Plus.line, 62.115.153.153, sits
+  between two Frankfurt hops and has no site code; DB-IP's Chicago is ruled
+  out by the RTT (routemap-engine 0.8.0).
 - **PDF: the Paths table prints the differences all the paths share once,**
   above the table, and each row only its own.
 - **The site's figure check and Open Graph renders no longer touch the
