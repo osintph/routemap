@@ -314,14 +314,19 @@ def picture(name: str, ext: str, width: str, height: str, cls: str, alt: str) ->
 
 
 def alternativeto_badge() -> str:
-    """AlternativeTo's badge as they give it, with the image served from this
+    """AlternativeTo's badge as they give it, with the images served from this
     site (assets/badges/, fetched once from alternativeto.net; site/README.md)
-    so the page loads nothing from another host."""
+    so the page loads nothing from another host: their light badge in light
+    mode, their dark one in dark mode (signed off 26 Oct 2026). site.js sets
+    the media of the dark source when the visitor overrides the theme."""
+    light = img_url("/assets/badges/alternativeto-compact-light.svg")
+    dark = img_url("/assets/badges/alternativeto-compact-dark.svg")
     return (f'<p class="alternativeto"><a href="{html.escape(L["alternativeto"])}" target="_blank" rel="noopener">\n'
-            f'  <img src="{img_url("/assets/badges/alternativeto-compact-color.svg")}"\n'
+            f'  <picture><source data-scheme="dark" media="(prefers-color-scheme: dark)" srcset="{dark}">\n'
+            f'  <img src="{light}"\n'
             '       alt="Route Map | AlternativeTo"\n'
-            '       width="244" height="79"\n'
-            '       style="width: 244px; height: 79px;" />\n'
+            '       width="244" height="83"\n'
+            '       style="width: 244px; height: 83px;" /></picture>\n'
             '</a></p>')
 
 
@@ -628,12 +633,6 @@ def page(path: str, title: str, body: str, description: str, *, wide: bool = Fal
 {consent_banner()}</body>
 </html>
 """
-    # Cloudflare's Email Obfuscation turns every email link into a
-    # /cdn-cgi/l/email-protection href, which crawlers then count as a broken
-    # page on every page. Its documented page markup leaves an address as it
-    # is (developers.cloudflare.com/waf/tools/scrape-shield/email-address-obfuscation/);
-    # the setting itself stays on.
-    doc = re.sub(r'(<a href="mailto:[^"]+">[^<]*</a>)', r"<!--email_off-->\1<!--/email_off-->", doc)
     target = OUT / "404.html" if path == "/404" else OUT / path.strip("/") / "index.html"
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(doc, encoding="utf-8")

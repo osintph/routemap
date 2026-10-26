@@ -253,7 +253,8 @@ def test_previews_are_1200_by_630_and_exist():
 def test_screenshots_come_in_modern_formats_with_a_fallback_and_their_files_exist():
     out = _built()
     home = (out / "index.html").read_text(encoding="utf-8")
-    pictures = re.findall(r"<picture>.*?</picture>", home, re.S)
+    # Screenshots; the AlternativeTo badge is an SVG in a <picture> of its own.
+    pictures = [p for p in re.findall(r"<picture>.*?</picture>", home, re.S) if "/assets/img/" in p]
     assert pictures
     for pic in pictures:
         assert 'type="image/avif"' in pic and 'type="image/webp"' in pic
@@ -350,9 +351,7 @@ def test_no_google_in_any_page_and_analytics_only_when_configured(tmp_path):
     privacy_plain = (plain / "privacy" / "index.html").read_text(encoding="utf-8")
     assert 'id="google-analytics"' in privacy_ga and 'id="google-analytics"' not in privacy_plain
     for text in (privacy_ga, privacy_plain):
-        main = text.split("<main", 1)[1].replace("<!-- ", "")
-        main = main.replace("<!--email_off-->", "").replace("<!--/email_off-->", "")   # Cloudflare's, kept on purpose
-        assert "<!--" not in main, "no condition markers left"
+        assert "<!--" not in text.split("<main", 1)[1].replace("<!-- ", ""), "no condition markers left"
         assert "sets no cookies; the light" not in text
         assert 'href="https://db-ip.com">IP Geolocation by DB-IP</a>' in text, "CC BY attribution"
         assert "daily visitor hash" in text and "30 days" in text
@@ -418,12 +417,10 @@ def test_audit_fixes_of_26_october():
     assert "&gt;\"" not in changelog and "credits&gt" not in changelog
     ids = re.findall(r'id="([^"]+)"', changelog)
     assert len(ids) == len(set(ids)), "the changelog's anchors are unique"
-    # No internal link to Cloudflare's email-protection path; each address is left as it is.
+    # Plain email links (Cloudflare's Email Obfuscation rewrites them at the edge, accepted 26 Oct 2026).
     for page in out.rglob("*.html"):
         text = page.read_text(encoding="utf-8")
-        assert "/cdn-cgi/" not in text, page
-        for link in re.findall(r'<a href="mailto:[^"]+">[^<]*</a>', text):
-            assert f"<!--email_off-->{link}<!--/email_off-->" in text, (page, link)
+        assert "/cdn-cgi/" not in text and "email_off" not in text, page
     robots = (out / "robots.txt").read_text()
     assert "Disallow: /dl/" in robots and "Sitemap: https://getroutemap.app/sitemap.xml" in robots
     testing = (out / "docs" / "testing" / "index.html").read_text(encoding="utf-8")
@@ -451,4 +448,21 @@ def test_the_comparison_pages_are_linked_and_listed():
         page = (out / path).read_text(encoding="utf-8")
         assert 'href="https://alternativeto.net/software/route-map/about/?utm_source=badge&amp;utm_medium=referral" ' \
                'target="_blank" rel="noopener"' in page
-        assert re.search(r'src="/assets/badges/alternativeto-compact-color\.svg\?v=[0-9a-f]{10}"', page)
+        assert re.search(r'src="/assets/badges/alternativeto-compact-light\.svg\?v=[0-9a-f]{10}"', page)
+        assert re.search(r'<source data-scheme="dark" media="\(prefers-color-scheme: dark\)" '
+                         r'srcset="/assets/badges/alternativeto-compact-dark\.svg\?v=[0-9a-f]{10}">', page)
+
+
+def test_the_screenshots_online_details_asked_only_about_public_addresses():
+    """tests/fixtures/gui/heise_online.json (site/shots/make_shots.py --record):
+    every address it holds an answer for is public; the saved traces' first
+    hops are documentation addresses, which the app never looks up."""
+    import ipaddress
+    data = _json.loads((ROOT / "tests" / "fixtures" / "gui" / "heise_online.json").read_text(encoding="utf-8"))
+    asked = [k.split("resource=", 1)[1].split("&")[0] for k in data["entries"] if "resource=" in k]
+    addresses = [a for a in asked if not a.startswith("AS")]
+    assert addresses
+    for a in addresses:
+        net = ipaddress.ip_network(a, strict=False)
+        assert net.is_global, a
+    assert data["fetched_at"].startswith("2026-")

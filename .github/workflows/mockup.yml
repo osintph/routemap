@@ -50,6 +50,12 @@ jobs:
         run: |
           python -m routemap.gui.mockup --out shots-windows-native \
             || QT_QPA_PLATFORM=offscreen python -m routemap.gui.mockup --out shots-windows-offscreen
+      - name: Site image (Windows, native platform)
+        # The screenshots page's Windows image, from the saved trace and its
+        # cached online details (site/shots/make_shots.py); nothing is traced.
+        if: runner.os == 'Windows'
+        shell: bash
+        run: python site/shots/make_shots.py --windows shots-site-windows
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: mockup-${{ runner.os }}

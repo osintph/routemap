@@ -4,32 +4,32 @@
 origin set in Settings; the first hops (the home network and the ISP) carry documentation addresses.
 The images follow this site's light or dark mode, as the app follows the system.</p>
 <figure class="shot">
-  [[pic window jpg 1600 1000 bare|Route Map {{tag}} on macOS with a saved trace from Manila to heise.de: the map, the route summary and the hop table with each hop's place and source]]
-  <figcaption><strong>macOS.</strong> Sixteen hops: the home network and the ISP, then Hong Kong, Singapore, Paris and Frankfurt on Arelion's backbone (AS1299), placed by carrier site code, then Plus.line in Germany (AS12306). Lines warm with the RTT each step added; the summary has the AS path, the countries and the RTT per hop against the physics floor.</figcaption>
+  [[pic window jpg 1600 1000 bare|Route Map {{tag}} on macOS with a saved trace from Manila to heise.de: the map, the route summary with RIPE data, and the hop table with each hop's place, source, ASN and RPKI (RIPEstat and RIPE Atlas data of 26 Oct 2026)]]
+  <figcaption><strong>macOS.</strong> Sixteen hops: the home network and the ISP, then Hong Kong, Singapore, Paris and Frankfurt on Arelion's backbone (AS1299), placed by carrier site code, then Plus.line in Germany (AS12306). Lines warm with the RTT each step added; the summary has the AS path with RPKI, the countries, a RIPE Atlas baseline, the RIS view and the BGP updates of the last 48 hours.</figcaption>
 </figure>
 <figure class="shot">
   [[pic probes png 1510 754 bare|The DNS and Ports sections for the same trace: the system resolver's and 9.9.9.9's A and AAAA answers with times and TTLs, and ports 443 and 80 open, 443 with its TLS handshake time, the others filtered]]
   <figcaption><strong>DNS timing and port tests.</strong> The lookup of heise.de through the system resolver and an added resolver, with each answer's time and TTL; ports 443 and 80 open with their connect times, the others filtered.</figcaption>
 </figure>
 <figure class="shot">
-  [[pic agent jpg 1600 1000 bare|A synthetic trace from a remote agent named fra-vps in Frankfurt to heise.de: the first five hops, the server provider's own routers, listed as hidden with no address, name or place, and the route drawn from Frankfurt]]
+  [[pic agent jpg 1600 1000 bare|A synthetic trace from a remote agent named fra-vps in Frankfurt to heise.de: the first five hops, the server provider's own routers, listed as hidden with no address, name or place, and the route drawn from Frankfurt (RIPEstat and RIPE Atlas data of 26 Oct 2026)]]
   <figcaption><strong>A remote agent</strong> (a synthetic trace). Run from a server over your own ssh and drawn from where the server is; the provider's first hops are hidden.</figcaption>
 </figure>
 <figure class="shot">
-  [[pic globe jpg 1600 1000 bare|The same route on the globe]]
+  [[pic globe jpg 1600 1000 bare|The same route on the globe (RIPEstat and RIPE Atlas data of 26 Oct 2026)]]
   <figcaption><strong>Globe.</strong> Centred on the route; drag to turn it.</figcaption>
 </figure>
 <figure class="shot">
-  [[pic compare jpg 1600 1000 bare|The trace compared with an earlier saved run to heise.de, the earlier path faint and dashed, and the summary saying hop 8 is no longer in Marseille]]
+  [[pic compare jpg 1600 1000 bare|The trace compared with an earlier saved run to heise.de, the earlier path faint and dashed, and the summary saying hop 8 is no longer in Marseille (RIPEstat and RIPE Atlas data of 26 Oct 2026)]]
   <figcaption><strong>Compare two runs.</strong> Against an earlier run: the same path through Hong Kong, Singapore and Paris, except that hop 8 now answers from Singapore instead of Marseille.</figcaption>
 </figure>
 <figure class="shot narrow">
-  [[pic windows png 1028 749 bare|Route Map {{tag}} on Windows with the same saved trace from Manila to heise.de: the history, the map and the hop table]]
+  [[pic windows png 1028 749 bare|Route Map {{tag}} on Windows with the same saved trace from Manila to heise.de: the map, the route summary and the hop table (RIPEstat and RIPE Atlas data of 26 Oct 2026)]]
   <figcaption><strong>Windows</strong> (light theme), rendered by the app on a Windows runner from the same saved trace.</figcaption>
 </figure>
 <div class="pair">
   <figure class="shot paper">
-    [[pic pdf-page1 jpg 1240 1754 bare|Page one of the PDF report: the trace details, the map, the route summary and the hop table]]
+    [[pic pdf-page1 jpg 1240 1754 bare|Page one of the PDF report: the trace details, the map, the route summary and the hop table (RIPEstat and RIPE Atlas data of 26 Oct 2026)]]
     <figcaption><strong>PDF report</strong>, page one: the map, the route summary and the hop table with ASN and RPKI. Later pages: DNS and ports when tested, the comparison, the unplaced hops with their reasons, how each location was decided, and the raw trace as an appendix.</figcaption>
   </figure>
   <figure class="shot">
@@ -38,7 +38,7 @@ The images follow this site's light or dark mode, as the app follows the system.
   </figure>
 </div>
 <figure class="shot">
-  [[pic rule1-sources png 1510 984 bare|The hop table's Location, Source, ASN and RPKI columns]]
+  [[pic rule1-sources png 1510 984 bare|The hop table's Location, Source, ASN and RPKI columns (RIPEstat and RIPE Atlas data of 26 Oct 2026)]]
   <figcaption><strong>The Source column</strong>: local for the home network, an IP database for the ISP and the German hops, site codes for Arelion's backbone, and a hollow marker where the database knows only the country.</figcaption>
 </figure>
 </article>

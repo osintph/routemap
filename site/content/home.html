@@ -8,7 +8,7 @@
   {{downloads}}
   <p class="oss"><span class="badge">Free and open source, AGPL-3.0</span>
   <a class="source" href="{{repository}}">github.com/osintph/routemap</a></p>
-  [[pic window jpg 1600 1000 hero|Route Map {{tag}} with a saved trace from Manila to heise.de: great-circle lines through Hong Kong, Singapore, Marseille and Paris to Frankfurt, coloured by the round-trip time each step added; beside the map the AS path and the countries crossed; below, the hop table with each hop's place and source]]
+  [[pic window jpg 1600 1000 hero|Route Map {{tag}} with a saved trace from Manila to heise.de: great-circle lines through Hong Kong, Singapore, Marseille and Paris to Frankfurt, coloured by the round-trip time each step added; beside the map the AS path with RPKI badges, the countries crossed, a RIPE Atlas baseline, the RIS view and 48 hours of BGP updates; below, the hop table with ASN and RPKI (RIPEstat and RIPE Atlas data of 26 Oct 2026)]]
   <p class="crop-note">A saved trace from Manila to heise.de, drawn by the app itself. The first hops, the home network and the ISP, are documentation addresses.</p>
 </section>
 
@@ -28,7 +28,7 @@
       and falls back to an IP database only when the name says nothing: DB-IP Lite on your
       machine, or RIPEstat online.</p>
     </div>
-    [[pic rule1-sources png 1510 984 crop|The hop table: hops 1 to 3 local and 4 and 5 the ISP; hops 6 to 11 placed by carrier site code in Hong Kong, Singapore, Paris and Frankfurt on Arelion's network, AS1299; hops 12 to 16 placed by an IP database in France and Germany, two of them to the country only]]
+    [[pic rule1-sources png 1510 984 crop|The hop table: hops 1 to 3 local and 4 and 5 the ISP; hops 6 to 11 placed by carrier site code in Hong Kong, Singapore, Paris and Frankfurt on Arelion's network, AS1299; hops 12 to 16 placed by an IP database in France and Germany, two of them to the country only, with each hop's ASN and RPKI state (RIPEstat and RIPE Atlas data of 26 Oct 2026)]]
   </div>
 
   <div class="rule">
@@ -67,11 +67,11 @@
   Trace again and the app compares the two runs.</p>
   <div class="pair even">
     <figure class="shot">
-      [[pic globe jpg 1600 1000 bare|The same route on the globe, with the route summary and the hop table beside it]]
+      [[pic globe jpg 1600 1000 bare|The same route on the globe, with the route summary and the hop table beside it (RIPEstat and RIPE Atlas data of 26 Oct 2026)]]
       <figcaption><strong>Globe</strong>, centred on the route; drag to turn it.</figcaption>
     </figure>
     <figure class="shot">
-      [[pic compare jpg 1600 1000 bare|The trace compared with an earlier saved run, the earlier path faint and dashed, and the summary saying hop 8 is no longer in Marseille]]
+      [[pic compare jpg 1600 1000 bare|The trace compared with an earlier saved run, the earlier path faint and dashed, and the summary saying hop 8 is no longer in Marseille (RIPEstat and RIPE Atlas data of 26 Oct 2026)]]
       <figcaption><strong>Trace again and compare</strong>: the same path through Hong Kong, Singapore and Paris, except that hop 8 now answers from Singapore instead of Marseille.</figcaption>
     </figure>
   </div>
@@ -125,7 +125,7 @@
   another country. The server needs routemap-engine for the user you log in as. Its first hops are
   the provider's own routers, so they are hidden by default.
   <a href="/docs/guide/#remote-agents">Remote agents</a>.</p>
-  [[pic agent jpg 1600 1000 |A synthetic trace from a remote agent named fra-vps in Frankfurt to heise.de: the first five hops, the server provider's own routers, listed as hidden with no address, name or place, and the route drawn from Frankfurt]]
+  [[pic agent jpg 1600 1000 |A synthetic trace from a remote agent named fra-vps in Frankfurt to heise.de: the first five hops, the server provider's own routers, listed as hidden with no address, name or place, and the route drawn from Frankfurt (RIPEstat and RIPE Atlas data of 26 Oct 2026)]]
   [[pic statusbar png 3200 44 crop strip|The status bar: origin Manila, PH, set in Settings; the trace tool's settings traceroute -m 30 -q 3 -w 1; and checks for DNS, the trace, PTR, Hoiho and the IP database]]
 
   <h3 id="labels">The source labels</h3>
