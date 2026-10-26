@@ -74,7 +74,7 @@ jobs:
           gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json tagName,publishedAt,assets > release.json
           gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern SHA256SUMS --dir sums
           python site/build.py --tag "$TAG" --release-json release.json --sums sums/SHA256SUMS
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: site
           path: site/build/

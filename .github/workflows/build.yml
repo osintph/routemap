@@ -271,12 +271,12 @@ jobs:
           # "~" into "."), which breaks SHA256SUMS and every link to the file.
           bad=$(ls out | grep -vE '^[A-Za-z0-9._+-]+$' || true)
           [ -z "$bad" ] || { echo "::error::release file names GitHub would change: $bad"; exit 1; }
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: routemap-${{ matrix.target }}
           path: out/*
           retention-days: 3
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: smoke-${{ matrix.target }}
@@ -343,7 +343,7 @@ jobs:
           [ "$code" -le 1 ] || exit "$code"
           [ "$code" -eq 0 ] || echo "::warning::pip-audit lists known vulnerabilities in the SBOM"
           python -c 'import json, sys; d = json.load(open(sys.argv[1])); assert d["bomFormat"] == "CycloneDX" and d["components"]' "out/routemap-$V-sbom.cdx.json"
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: routemap-sbom
           path: out/*
