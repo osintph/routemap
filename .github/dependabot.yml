@@ -1,23 +1,67 @@
-# Weekly update proposals for every hash lock and every pinned action
-# (hardening 5). Each arrives as a pull request with the new versions and
-# hashes, runs the tests, and needs the CLA check like any other; nothing is
-# merged without review. The locks are compiled by requirements/compile.sh
-# (and requirements/app.txt with its own command); recompile the others after
-# merging an update to app.txt so their constraints follow.
+# Weekly update proposals, grouped so a week brings a few pull requests,
+# not one per package (proposal, 26 Oct 2026). Security updates still come
+# at once, one grouped pull request per directory. Version updates wait 7
+# days after a release, so a yanked or broken release is skipped. Packages
+# inside the app (requirements/app.txt) come in their own group, because
+# they need a release; everything else is build, site or test tooling.
+# Nothing is merged without review, and the locks are recompiled with
+# requirements/compile.sh (app.txt with its own command) after a merge.
 version: 2
 updates:
   - package-ecosystem: pip
     directory: /requirements
     schedule:
       interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: Asia/Manila
     open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
+    groups:
+      security:
+        applies-to: security-updates
+        patterns: ["*"]
+      app:
+        applies-to: version-updates
+        patterns: ["routemap-engine", "pyside6*", "shiboken6", "cryptography", "cffi", "pycparser",
+                   "maxminddb", "dnspython", "httpx", "httpcore", "h11", "anyio", "idna", "certifi",
+                   "typing-extensions"]
+      tooling:
+        applies-to: version-updates
+        patterns: ["*"]
+        exclude-patterns: ["routemap-engine", "pyside6*", "shiboken6", "cryptography", "cffi", "pycparser",
+                           "maxminddb", "dnspython", "httpx", "httpcore", "h11", "anyio", "idna", "certifi",
+                           "typing-extensions"]
+        update-types: [minor, patch]
   - package-ecosystem: pip
     directory: /site
     schedule:
       interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: Asia/Manila
     open-pull-requests-limit: 2
+    cooldown:
+      default-days: 7
+    groups:
+      site-security:
+        applies-to: security-updates
+        patterns: ["*"]
+      site:
+        applies-to: version-updates
+        patterns: ["*"]
+        update-types: [minor, patch]
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
-    open-pull-requests-limit: 5
+      day: monday
+      time: "09:00"
+      timezone: Asia/Manila
+    open-pull-requests-limit: 2
+    cooldown:
+      default-days: 7
+    groups:
+      actions:
+        patterns: ["*"]
