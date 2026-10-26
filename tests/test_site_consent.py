@@ -88,7 +88,10 @@ def sites(tmp_path_factory):
 def browser():
     with playwright_api.sync_playwright() as p:
         try:
-            b = p.chromium.launch(headless=True, **({} if BROWSER == "chromium" else {"channel": BROWSER}))
+            # No keychain: a render needs no stored passwords, and on macOS a fresh
+            # profile otherwise creates its Safe Storage key (as site/check/figures.py).
+            b = p.chromium.launch(headless=True, args=["--password-store=basic", "--use-mock-keychain"],
+                                  **({} if BROWSER == "chromium" else {"channel": BROWSER}))
         except Exception as exc:  # noqa: BLE001
             if REQUIRED:
                 raise

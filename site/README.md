@@ -61,7 +61,8 @@ own type and colours by `og/make_og.py`, which renders them with Chrome; rerun i
 after changing their wording or the fonts. The images are committed, so a site
 build needs neither Chrome nor the script.
 
-Both Chrome renders (`og/make_og.py` and the figure check, `check/figures.py`)
+Both Chrome renders (`og/make_og.py` and the figure check, `check/figures.py`),
+and the consent banner test (`tests/test_site_consent.py`, through Playwright),
 start headless Chrome with `--password-store=basic` and `--use-mock-keychain`:
 a render needs no stored passwords, and on macOS a fresh profile otherwise asks
 the keychain for a "Chrome Safe Storage" key, which in a non-interactive run
