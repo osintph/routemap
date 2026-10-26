@@ -244,8 +244,19 @@ def path_notes(discovery: dict) -> list[str]:
         notes.append(f"More paths were found than the {len(discovery.get('paths') or [])} listed"
                      + (f"; {hidden} flows took them." if hidden else "."))
     if discovery.get("local_failures"):
-        notes.append(f"{discovery['local_failures']} probes could not be sent by this computer; they are not "
-                     "counted as loss.")
+        # Why, by error name and code (engine 0.8.1; an older engine gives no reasons).
+        reasons = sorted((discovery.get("local_failure_reasons") or {}).items(), key=lambda kv: (-kv[1], kv[0]))
+        why = ""
+        if len(reasons) == 1:
+            why = f" ({reasons[0][0]})"
+        elif reasons:
+            why = " (" + ", ".join(f"{name}: {n}" for name, n in reasons) + ")"
+        notes.append(f"{discovery['local_failures']} probes could not be sent by this computer{why}; they are "
+                     "not counted as loss.")
+    restarted = discovery.get("flows_restarted") or 0
+    if restarted:
+        notes.append(f"{restarted} flow{'s were' if restarted != 1 else ' was'} probed again from hop 1 on a new "
+                     f"source port (another program took {'their ports' if restarted != 1 else 'its port'}).")
     return notes
 
 

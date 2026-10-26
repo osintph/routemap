@@ -619,7 +619,8 @@ class SettingsDialog(QDialog):
         layout.addWidget(self.agent_result)
         layout.addWidget(_note(
             "An agent is a server you can already reach with ssh from this computer, with routemap-engine "
-            f"0.8 installed for that user (<code>pip install routemap-engine</code>). {DISPLAY_NAME} runs one "
+            f"0.8 installed for that user (<code>pip install routemap-engine</code>; 0.8.1 or later for Paths on "
+            f"a Windows server). {DISPLAY_NAME} runs one "
             "command there per trace, with your own ssh client, its keys and its config, and stores only the "
             "name and destination: keys, passwords and host keys stay with ssh. Nothing runs unless you "
             "click: one connection per trace, never retried. Test connection makes one connection and runs "
