@@ -4,6 +4,32 @@ All notable changes to this project are documented here. The format is based
 on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 uses [Semantic Versioning](https://semver.org/).
 
+## [0.5.0-beta.2] - 2026-10-26
+
+A security update; nothing else changes. The engine is still
+routemap-engine 0.8.0.
+
+### Security
+- **certifi 2026.10.19** in the app (was 2026.7.22), for
+  [GHSA-6q48-6c7w-9gw2](https://github.com/advisories/GHSA-6q48-6c7w-9gw2):
+  the list of certificate authorities the app trusts no longer has
+  emSign ECC Root CA - G3, whose intermediate CAs had their private keys
+  compromised. The app checks every HTTPS connection it makes against this
+  list: online lookups, the DB-IP download and the update check.
+
+### Changed
+- Build, site and test tools, none of them in the app: Pillow 13.0.0 (41
+  advisories) for the site's images and its tests; brotli 1.2.1
+  ([GHSA-9v8h-qqgm-4m35](https://github.com/advisories/GHSA-9v8h-qqgm-4m35))
+  for the font test; filelock 4.2.1
+  ([GHSA-v4x8-3wr5-3wq8](https://github.com/advisories/GHSA-v4x8-3wr5-3wq8),
+  [GHSA-9vhv-jxww-xfm5](https://github.com/advisories/GHSA-9vhv-jxww-xfm5),
+  [GHSA-567q-5qvw-pf92](https://github.com/advisories/GHSA-567q-5qvw-pf92))
+  for the tool that writes each release's SBOM; setuptools 84.1.0
+  ([GHSA-xmj3-9gf7-h52w](https://github.com/advisories/GHSA-xmj3-9gf7-h52w))
+  for the build. The GitHub Actions that upload, download and set up Python
+  move to their newest patch releases, pinned by commit.
+
 ## [0.5.0-beta.1] - 2026-10-26
 
 "Investigate": DNS timing, port tests and traces from your own servers. The
