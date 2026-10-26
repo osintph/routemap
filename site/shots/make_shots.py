@@ -4,21 +4,32 @@ traces (tests/fixtures/gui/; the first hops are documentation addresses), never
 from a live trace.
 
     QT_QPA_PLATFORM=offscreen QT_SCALE_FACTOR=2 python site/shots/make_shots.py [OUT]
+    python site/shots/make_shots.py --record      # once: fetch the online details
+
+The route summary shows real public data: RIPEstat (prefixes, RPKI, the RIS
+view, BGP updates) and RIPE Atlas (the typical latency) for the saved traces'
+public hops, fetched once with --record into tests/fixtures/gui/heise_online.json
+and rendered from that file with the clock set to the fetch time and no network
+at all, so the images can be made again and come out the same. The first hops
+are documentation addresses, which the app never looks up.
 
 Writes NAME-light.EXT and NAME-dark.EXT into site/assets/img/ (or OUT): the
 window views at 1600 x 1000 (rendered at twice that and scaled down), the crops
 at twice their size on screen. The origin is "Manila, PH", set in Settings.
-The Windows-native image is not made here: it comes from the mockup workflow's
-Windows runner (.github/workflows/mockup.yml), which renders the same fixture.
+The Windows-native image is made on the mockup workflow's Windows runner
+(.github/workflows/mockup.yml) with --windows OUT: the window view, light, at
+the runner's own scale, from the same saved trace and online details.
 The PDF page needs poppler's pdftoppm.
 """
 from __future__ import annotations
 
+import asyncio
 import datetime as _dt
 import json
 import pathlib
 import subprocess
 import sys
+import time
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
@@ -29,12 +40,88 @@ from PySide6.QtWidgets import QApplication  # noqa: E402
 
 from routemap_engine import diff as route_diff  # noqa: E402
 
-from routemap import config, insight  # noqa: E402
+import httpx  # noqa: E402
+from routemap_engine import baseline, ripe  # noqa: E402
+
+from routemap import config, insight, service  # noqa: E402
 from routemap.gui import mapview, mockup, report, theme  # noqa: E402
 
 ORIGIN = (14.6, 121.0, "Manila, PH")
 SIZE = QSize(1600, 1000)
 FIX = ROOT / "tests" / "fixtures" / "gui"
+ONLINE = FIX / "heise_online.json"
+# The routes whose route summary shows online details.
+ONLINE_ROUTES = ("heise_ecmp_route", "agent_route", "amazon_route")
+
+
+class JsonCache:
+    """The engine's Cache protocol over a dict, saved as JSON (the clients'
+    own cache keys and entries, untouched)."""
+
+    def __init__(self, entries: dict | None = None):
+        self.entries = dict(entries or {})
+
+    def get(self, key):
+        return self.entries.get(key)
+
+    def set(self, key, value):
+        self.entries[key] = value
+
+
+class Offline(httpx.AsyncBaseTransport):
+    """No network while rendering: an answer missing from the fixture fails."""
+
+    async def handle_async_request(self, request):
+        raise httpx.ConnectError(f"not in {ONLINE.name}: {request.url}")
+
+
+def online_details(route: dict, cache: JsonCache, when: _dt.datetime, transport=None) -> dict:
+    """insight.online for *route*, its clients on *cache*, at *when*."""
+    settings = config.Settings(online_lookups=True)
+    ins = insight.offline(route, settings)
+    clock = when.timestamp
+    stat = ripe.RipeStat(user_agent=service.user_agent(), sourceapp=service.SOURCEAPP, cache=cache,
+                         transport=transport, now=(clock if transport else time.time))
+    atlas = baseline.Baseline(user_agent=service.user_agent(), cache=cache, transport=transport,
+                              now=(clock if transport else time.time))
+    asyncio.run(insight.online(route, ins, settings, user_agent=service.user_agent(),
+                               sourceapp=service.SOURCEAPP, now=when, stat=stat, atlas=atlas))
+    return ins
+
+
+def record() -> int:
+    """Fetch the online details once and keep every answer in the fixture."""
+    cache, when = JsonCache(), _dt.datetime.now(_dt.timezone.utc).replace(microsecond=0)
+    for name in ONLINE_ROUTES:
+        ins = online_details(with_origin(fixture(name)["route"]), cache, when)
+        status = ins["online"]["status"]
+        print(name, status, ins["online"].get("errors") or "")
+        if status != "done":
+            raise SystemExit(f"{name}: online details {status}; nothing written")
+    ONLINE.write_text(json.dumps({
+        "_note": "RIPEstat and RIPE Atlas answers for the public hops of heise_ecmp_route.json, "
+                 "agent_route.json and amazon_route.json, as the app's own clients fetched and cached them (site/shots/"
+                 "make_shots.py --record). The first hops are documentation addresses and were not "
+                 "looked up. Public routing data, not about the tester.",
+        "fetched_at": when.isoformat(), "entries": cache.entries}, indent=1, sort_keys=True), encoding="utf-8")
+    print(f"{len(cache.entries)} answers written to {ONLINE}")
+    return 0
+
+
+def summary(route: dict) -> dict:
+    """The route summary from the fixture's answers, or offline if the route has none."""
+    data = json.loads(ONLINE.read_text(encoding="utf-8"))
+    when = _dt.datetime.fromisoformat(data["fetched_at"])
+    ins = online_details(route, JsonCache(data["entries"]), when, transport=Offline())
+    if ins["online"]["status"] != "done" or ins["online"].get("errors"):
+        raise SystemExit(f"online details {ins['online']['status']}: {ins['online'].get('errors')}; "
+                         "run --record again")
+    return ins
+
+
+def data_date() -> str:
+    when = _dt.datetime.fromisoformat(json.loads(ONLINE.read_text(encoding="utf-8"))["fetched_at"])
+    return when.strftime("%-d %b %Y")
 
 
 def fixture(name: str) -> dict:
@@ -46,13 +133,6 @@ def scheme(app, dark: bool) -> None:
     theme.apply(app, "dark" if dark else "light")
 
 
-def summary(route: dict) -> dict:
-    ins = insight.offline(route, config.Settings(online_lookups=False))
-    # Rendered offline, and it says so: no RIPEstat or Atlas data is invented.
-    ins["online"] = {"status": insight.OFF}
-    return ins
-
-
 def window(route: dict, target: str, argv: list[str], trace_text: str, **kw):
     w = mockup.MainWindow()
     w.resize(SIZE)
@@ -61,7 +141,9 @@ def window(route: dict, target: str, argv: list[str], trace_text: str, **kw):
     w.show()
     w.show_result(route, target, argv, trace_text=trace_text, **kw)
     w.history_dock.hide()
-    w.insight.show_summary(route, summary(route))
+    ins = summary(route)
+    w.insight.show_summary(route, ins, origin_cc="PH")
+    w.table.set_hops(route.get("hops") or [], ins["online"].get("hops") or {}, None, None)
     w.table.setFocus()
     mockup._settle(w)
     w.map.fit_route()
@@ -89,7 +171,29 @@ def area(w, child) -> QRect:
     return QRect(top_left, child.size())
 
 
+def windows(out: pathlib.Path) -> int:
+    """The Windows-native window view (run on Windows, no scale factor)."""
+    out.mkdir(parents=True, exist_ok=True)
+    app = QApplication.instance() or QApplication([])
+    mockup.MANILA = ORIGIN
+    scheme(app, False)
+    heise = fixture("heise_ecmp_route")
+    w = window(with_origin(heise["route"]), "heise.de", mockup._argv("heise.de"), heise["trace_text"])
+    w.resize(QSize(1280, 800))
+    mockup._settle(w, 6)
+    w.map.fit_route()
+    mockup._settle(w, 10)
+    grab(w).save(str(out / "windows-light.png"))
+    w.close()
+    print(f"written {out / 'windows-light.png'}")
+    return 0
+
+
 def main(argv: list[str]) -> int:
+    if argv[:1] == ["--record"]:
+        return record()
+    if argv[:1] == ["--windows"]:
+        return windows(pathlib.Path(argv[1]))
     out = pathlib.Path(argv[0]) if argv else ROOT / "site" / "assets" / "img"
     out.mkdir(parents=True, exist_ok=True)
     app = QApplication.instance() or QApplication([])
@@ -155,8 +259,9 @@ def main(argv: list[str]) -> int:
         w = window(new, "heise.de", argv_heise, heise["trace_text"])
         change = route_diff.diff_routes(old, new)
         w.map.set_comparison(old, change["new_marks"])
-        w.table.set_hops(new["hops"], {}, change["new_marks"], None)
-        w.insight.show_summary(new, summary(new), diff=change, diff_label="the earlier run")
+        ins = summary(new)
+        w.insight.show_summary(new, ins, origin_cc="PH", diff=change, diff_label="the earlier run")
+        w.table.set_hops(new["hops"], ins["online"].get("hops") or {}, change["new_marks"], None)
         mockup._settle(w, 6)
         w.map.fit_route()
         mockup._settle(w, 10)

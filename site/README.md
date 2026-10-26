@@ -62,11 +62,12 @@ poppler's `pdftoppm`. The build writes AVIF and WebP copies at several widths in
 them in `<picture>` with the original as the fallback (needs Pillow, pinned in
 `requirements.txt`).
 
-The AlternativeTo badge in `assets/badges/alternativeto-compact-color.svg` is
-AlternativeTo's own `badge-compact-color.svg`, fetched once on 26 October 2026 from
-https://alternativeto.net/static/badges/badge-compact-color.svg (SHA-256 begins
-`a84a12df6aff9750`) and served from this site, so no page loads anything from
-another host; the link around it is AlternativeTo's, as they give it.
+The AlternativeTo badges in `assets/badges/` are AlternativeTo's own
+`badge-compact-light.svg` (shown in light mode) and `badge-compact-dark.svg` (dark
+mode), fetched once on 26 October 2026 from
+https://alternativeto.net/static/badges/ (SHA-256 begins `9654f168140d74b1` and `3eca20cb831190b3`)
+and served from this site, so no page loads anything from another host; the link
+around them is AlternativeTo's, as they give it.
 
 The Open Graph previews in `assets/og/` (1200 x 630) are drawn from the site's
 own type and colours by `og/make_og.py`, which renders them with Chrome; rerun it
