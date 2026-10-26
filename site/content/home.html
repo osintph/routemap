@@ -98,6 +98,14 @@
   directions side by side, aligned by network. It publishes your public IP address as the
   measurement's target, so it asks first. Traces, Paths and Watch run over IPv4 or IPv6.
   <a href="/docs/guide/#paths">Paths</a>, <a href="/docs/guide/#reverse-trace">reverse trace</a>.</p>
+  <p>Every trace times its <strong>DNS lookup</strong>, through your system resolver and any
+  resolvers you add, and says which address it traced. <strong>Ports</strong> tries one connection
+  to each of a few TCP ports on that address (open, closed or filtered, with TLS handshake time): a
+  reachability check for one target, not a port scanner. A <strong>remote agent</strong> is a
+  server you already reach with ssh: Route Map runs one trace there over your own ssh and maps it
+  from the server, with the server provider's first hops hidden.
+  <a href="/docs/guide/#dns-timing">DNS timing</a>, <a href="/docs/guide/#port-tests">port tests</a>,
+  <a href="/docs/guide/#remote-agents">remote agents</a>.</p>
   [[pic statusbar png 2880 54 crop strip|The status bar: origin Manila, NCR, PH, set in Settings; the built-in prober's settings icmp -m 30 -q 3 -w 1; and checks for the trace, PTR, Hoiho and the IP database]]
 
   <h3 id="labels">The source labels</h3>
@@ -106,6 +114,8 @@
     <dt><span class="dot site"></span><code>site-code</code></dt><dd>The hostname carries a carrier's own site code, from the bundled table.</dd>
     <dt><span class="dot ipdb"></span><code>ip-db</code></dt><dd>An IP database placed it, DB-IP Lite on your machine or RIPEstat online (the label says which): a hint, since backbone addresses often sit where the prefix was registered.</dd>
     <dt><span class="dot ipdb hollow"></span><code>ip-db, country only</code></dt><dd>Only the country is known; hollow marker, kept out of the map's fit.</dd>
+    <dt><span class="dot anycast"></span><code>anycast</code></dt><dd>The destination answered faster than the place it is registered at allows, so it is served from near you: placed at the largest city the time reaches. An inference.</dd>
+    <dt><span class="dot inferred"></span><code>inferred from neighbours</code></dt><dd>No source placed it, but the hops either side are in one city; hollow marker. An inference.</dd>
     <dt><span class="dot local"></span><code>local</code></dt><dd>Your network or your ISP's carrier NAT; never looked up anywhere.</dd>
   </dl>
 
@@ -119,6 +129,9 @@
       <tr><td>Two country codes and an anchor name</td><td>RIPE Atlas</td><td>after each trace, for the typical latency; public data</td></tr>
       <tr><td>A download request</td><td>DB-IP</td><td>only when you choose to download DB-IP Lite</td></tr>
       <tr><td>Reverse DNS queries</td><td>your own resolver</td><td>for public hops without a name</td></tr>
+      <tr><td>The target's name, A and AAAA</td><td>your system resolver, and the resolvers you add</td><td>each trace; added resolvers only while Online lookups are on</td></tr>
+      <tr><td>One TCP connection per port</td><td>the traced address</td><td>only when you test ports (or turn on ports with every trace)</td></tr>
+      <tr><td>One ssh session</td><td>your own server</td><td>only when you trace from a remote agent; it may ask RIPEstat for its own place</td></tr>
       <tr><td>Your public IP</td><td>RIPEstat</td><td>only while no origin is set in Settings</td></tr>
       <tr><td>Target, key, your network's AS</td><td>RIPE Atlas</td><td>only for an Atlas trace, with your own key; public</td></tr>
     </tbody>

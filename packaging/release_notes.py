@@ -44,7 +44,9 @@ REST = """- **macOS 12+**: open the `.dmg` for your Mac (`macos-arm64` for Apple
 
 **Upgrade**: install the new version over the old one (the Windows installer,
 the package manager or the new DMG); settings, history and downloaded databases
-stay. Help > Check for Updates links the right file for your system.
+stay, and the settings file the old version left is kept as
+`settings.previous.json` beside it. Help > Check for Updates links the right
+file for your system.
 
 **Uninstall**: Windows, Settings > Apps > Route Map > Uninstall; macOS, move
 Route Map to the Trash; Linux, `sudo apt remove routemap` or `sudo dnf remove
