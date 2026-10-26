@@ -4,49 +4,99 @@ All notable changes to this project are documented here. The format is based
 on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 uses [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.5.0-beta.1] - 2026-10-26
 
-### Fixed
+"Investigate": DNS timing, port tests and traces from your own servers. The
+engine is routemap-engine 0.8.0, which has its own list.
 
-- **An upgrade keeps every setting.** On a Mac the 0.5.0-beta.1 test build
-  started with no origin, Online lookups off, no history and no city
-  database, though 0.4.0-beta.2 had all of them. The settings file an older
-  version left is now kept as `settings.previous.json` before anything is
-  saved over it; a settings or history file that is there and cannot be read
-  is set aside (`.unreadable`) instead of being replaced by defaults, and the
-  window says so. A test reads the file 0.4.0-beta.2 writes with every field
-  changed, and the macOS build reads it from a fresh home folder. The test
-  suite no longer writes to the real config folder (a test module unpacked
-  the ASN database there while being collected), and a run that does fails.
-- **Anycast destinations are placed.** bbc.com's Fastly address answered in
-  5 to 10 ms from Manila and is registered in Montreal: the summary said
-  "likely anycast, served from near Quezon City" while the table said "not
-  placed" and the map drew it hollow. It is now placed, Source "anycast,
-  served from near Quezon City, NCR, PH", counted from the last placed hop
-  before it (routemap-engine 0.8.0).
-- **Paths: "not reached" only when no path reached the target.** With the
-  target reached at full TTL on 2 of 16 paths, the other 14 (ten attempts
-  each, none answered) said "not reached; last answer hop 13". They now say
-  "0 of 10", and the notes count them with the paths the target answered
-  fewer times.
-- **A hop several routers answered shows the router its name belongs to.**
-  Hop 11 to heise.de read "62.115.153.153, ffm-b16-link, not placed": the
-  name was another router's, and that router is in Frankfurt by Arelion's
-  site code (routemap-engine 0.8.0).
+### Added
+- **DNS timing.** Every trace times the lookup of its target, A and AAAA,
+  through your system resolver and through each resolver you add in
+  Settings > Probes (IP addresses only, none by default), with the response
+  code, whether the answer is authoritative and its TTL; "not stated" where
+  a resolver does not say whether it answered from its cache. The summary
+  names the address traced and the system resolver's time; a DNS section
+  above the hop table, in the PDF and in the JSON lists every lookup. Added
+  resolvers are asked only while Online lookups are on, and not with
+  `--offline`. Settings > Probes can time the lookup once per Live cycle
+  (off by default).
+- **One resolution per trace.** The target is resolved once and the trace,
+  Paths and the port test go to that address; traceroute, tracert and mtr
+  are given the address, so the address shown is the one traced.
+- **Port tests** (Ports next to Paths, `routemap TARGET --ports [LIST]`):
+  one TCP connection to each port in Settings > Probes (443, 80, 22, 25, 53
+  and 3389 by default) on the traced address, open (with connect time),
+  closed or filtered, with a TLS handshake time for 443 and the ports
+  marked; certificates are not checked. At most 32 ports, 4 at a time, no
+  ranges: a reachability check for one target, not a port scanner. Next to
+  a Paths run, an open port 443 says the target is up and the routers in
+  between are what is silent. Off with every trace by default.
+- **Remote agents** (Settings > Agents, the From list next to Trace,
+  `routemap TARGET --from AGENT`): one Trace, Paths or port test run on a
+  server you already reach with ssh, over your own ssh (`-T`,
+  `BatchMode=yes`, a 15 s connect timeout, one connection, never retried,
+  never in the background), mapped from the server. The server needs
+  routemap-engine 0.8.0 for its user (`pip install routemap-engine`); Test
+  connection reports its version and what it can probe. The server
+  provider's first hops are hidden by default (no address, name or place),
+  in the result, every export and the lines shown while it runs; Show first
+  hops shows them. The agent is placed by a city you give, or from its
+  public IP by a RIPEstat lookup made on the server. Placing the hops and
+  every lookup happen on your computer. Ctrl+C on a remote run closes the
+  ssh session at once (exit code 130).
+- **Paths**: the discovery stops after 5 silent hops (was 3), then asks the
+  target at full TTL on each of the paths found, reached or not; a path answered
+  only then is shown reached with its silent stretch marked. The heading
+  says why the discovery ended and which address it probed. Over TCP
+  (Windows), a hop where no TCP probe was answered gets one ICMP echo, and
+  the heading says when the routers there do not answer TCP probes, or when
+  the target answers ICMP but its TCP service only at full TTL (a firewall
+  or load balancer in front of it is likely). When the target answered on
+  some path, a path whose attempts all went unanswered shows "0 of 10"
+  ("some servers answer fewer after the discovery's probes"); "not reached"
+  means no path reached the target.
+- **Anycast destinations are placed.** A destination that answered faster
+  than its registered place allows is placed near you, Source "anycast,
+  served from near X", counted from the last placed hop before it: bbc.com's
+  Fastly address, registered in Montreal and answering in 8 ms from Manila,
+  is placed near Quezon City. The summary uses the same words.
 - **Hops inferred from their neighbours.** A hop no source places, between
   two hops placed in one city, is shown in that city with Source "inferred
   from neighbours" and a hollow marker, in the window, the PDF and the JSON
-  (source `neighbours`). Arelion's link to Plus.line, 62.115.153.153, sits
-  between two Frankfurt hops and has no site code; DB-IP's Chicago is ruled
-  out by the RTT (routemap-engine 0.8.0).
-- **PDF: the Paths table prints the differences all the paths share once,**
+  (source `neighbours`): Arelion's link to Plus.line, 62.115.153.153, between
+  two Frankfurt hops, which DB-IP puts in Chicago.
+- **Settings are kept across upgrades.** Before a new version saves over
+  the settings an older one left, it keeps them as `settings.previous.json`;
+  a settings or history file that cannot be read is set aside
+  (`.unreadable`), never replaced by defaults, and the window and the CLI
+  say so. The macOS build is checked to read 0.4.0-beta.2's settings from a
+  fresh home folder.
+- CLI: `--dns`, `--resolver ADDR`, `--no-dns`, `--ports [LIST]`,
+  `--from AGENT`.
+
+### Changed
+- **Export format 5** (the traced address, DNS lookups, port results and
+  the agent). Formats 1 to 4 still open; 0.4.0-beta.2 says "Made by a newer
+  Route Map" when it meets one.
+- The PNG title names the traced address and the DNS time; it never shows
+  port results.
+- The PDF Paths table prints the differences all the paths share once,
   above the table, and each row only its own.
-- **The site's figure check and Open Graph renders no longer touch the
-  macOS keychain.** `site/check/figures.py`, `site/og/make_og.py` and the
-  consent banner test start headless Chrome with `--password-store=basic`
-  and `--use-mock-keychain`;
-  without them a test run from a non-interactive context showed a "Keychain
-  Not Found" dialog for every page rendered.
+- Classifiers for Python 3.11, 3.12 and 3.13.
+
+### Fixed
+- **A hop several routers answered shows the router its name belongs to.**
+  Hop 11 to heise.de read "62.115.153.153, ffm-b16-link, not placed": the
+  name was another router's, which is in Frankfurt by Arelion's site code.
+- **The test suite never writes to the real config folder.** The isolation
+  starts before any test is collected (a test module unpacked the ASN
+  database there while being collected), and a run that changes the real
+  folder fails.
+- **The site's figure check, Open Graph renders and consent banner test no
+  longer touch the macOS keychain**: headless Chrome starts with
+  `--password-store=basic` and `--use-mock-keychain`; without them a test
+  run from a non-interactive context showed a "Keychain Not Found" dialog
+  for every page rendered.
 
 ## [0.4.0-beta.2] - 2026-10-12
 
