@@ -36,8 +36,9 @@ uses [Semantic Versioning](https://semver.org/).
 - **PDF: the Paths table prints the differences all the paths share once,**
   above the table, and each row only its own.
 - **The site's figure check and Open Graph renders no longer touch the
-  macOS keychain.** `site/check/figures.py` and `site/og/make_og.py` start
-  headless Chrome with `--password-store=basic` and `--use-mock-keychain`;
+  macOS keychain.** `site/check/figures.py`, `site/og/make_og.py` and the
+  consent banner test start headless Chrome with `--password-store=basic`
+  and `--use-mock-keychain`;
   without them a test run from a non-interactive context showed a "Keychain
   Not Found" dialog for every page rendered.
 
