@@ -198,20 +198,28 @@ def _text(page: str) -> str:
 
 def test_structured_data_states_only_what_the_page_shows():
     out = _built()
-    for path, oses in (("index.html", "Windows, macOS, Linux"),
-                       ("download/index.html", "Windows 10, Windows 11, macOS 12 or later, Linux (x86_64)")):
+    apps = []
+    for path in ("index.html", "download/index.html"):
         page = (out / path).read_text(encoding="utf-8")
         app = next(o for o in _ld(page) if o["@type"] == "SoftwareApplication")
-        assert app["name"] == "Route Map" and app["offers"]["price"] == "0" and app["operatingSystem"] == oses
-        assert app["applicationCategory"] == "UtilitiesApplication" and app["publisher"]["name"] == "OSINTPH"
+        apps.append(app)
+        assert app["name"] == "Route Map" and app["offers"]["price"] == "0"
+        assert app["operatingSystem"] == "Windows 10, Windows 11, macOS 12 or later, Linux (x86_64)"
+        assert app["applicationCategory"] == "UtilitiesApplication"
+        assert app["publisher"] == app["author"] == {"@id": "https://getroutemap.app/#osintph"}
         text = _text(page)
         assert app["softwareVersion"] in text and "OSINTPH" in text and "ree" in text   # Free / free
         assert "aggregateRating" not in app and "review" not in app, "no invented ratings"
+    # One definition of the application on both pages (Ahrefs, 26 Oct 2026: same @id, two strings).
+    assert apps[0] == apps[1]
     home = _ld((out / "index.html").read_text(encoding="utf-8"))
-    assert any(o["@type"] == "Organization" and o["name"] == "OSINTPH" for o in home)
+    org = next(o for o in home if o["@type"] == "Organization")
+    assert org["name"] == "OSINTPH" and org["url"] == "https://osintph.info"
+    assert org["sameAs"] == ["https://github.com/osintph"] and org["@id"] == "https://getroutemap.app/#osintph"
     guide = (out / "docs" / "guide" / "index.html").read_text(encoding="utf-8")
     crumbs = next(o for o in _ld(guide) if o["@type"] == "BreadcrumbList")["itemListElement"]
     assert [c["name"] for c in crumbs] == ["Docs", "User guide"] and crumbs[0]["item"].endswith("/docs/")
+    assert all(c.get("item", "").startswith("https://getroutemap.app/") for c in crumbs), "every step has its URL"
     assert 'aria-label="Breadcrumb"' in guide, "the breadcrumb in the markup is also on the page"
 
 
@@ -342,7 +350,9 @@ def test_no_google_in_any_page_and_analytics_only_when_configured(tmp_path):
     privacy_plain = (plain / "privacy" / "index.html").read_text(encoding="utf-8")
     assert 'id="google-analytics"' in privacy_ga and 'id="google-analytics"' not in privacy_plain
     for text in (privacy_ga, privacy_plain):
-        assert "<!--" not in text.split("<main", 1)[1].replace("<!-- ", ""), "no condition markers left"
+        main = text.split("<main", 1)[1].replace("<!-- ", "")
+        main = main.replace("<!--email_off-->", "").replace("<!--/email_off-->", "")   # Cloudflare's, kept on purpose
+        assert "<!--" not in main, "no condition markers left"
         assert "sets no cookies; the light" not in text
         assert 'href="https://db-ip.com">IP Geolocation by DB-IP</a>' in text, "CC BY attribution"
         assert "daily visitor hash" in text and "30 days" in text
@@ -375,3 +385,70 @@ def test_download_page_links_sha256sums_ed25519(tmp_path):
         assert f'href="/dl/{tag}/{name}"' in page, name
     assert "github.com/osintph/routemap/releases/download" not in page
 
+
+
+def test_each_page_kind_has_its_structured_data():
+    """The types the Ahrefs audit of 26 Oct 2026 asked for, and the FAQ as
+    FAQPage with one question per level-2 heading of docs/faq.md."""
+    out = _built()
+    kinds = {"docs/faq": "FAQPage", "docs/troubleshooting": "TechArticle", "support": "ContactPage",
+             "about": "AboutPage", "docs": "CollectionPage", "screenshots": "ImageGallery",
+             "docs/guide": "TechArticle", "docs/cli": "TechArticle", "docs/testing": "TechArticle",
+             "docs/limitations": "TechArticle", "docs/reading-a-traceroute": "TechArticle",
+             "visual-traceroute": "TechArticle"}
+    for path, kind in kinds.items():
+        nodes = _ld((out / path / "index.html").read_text(encoding="utf-8"))
+        assert any(n["@type"] == kind for n in nodes), (path, [n["@type"] for n in nodes])
+    faq = next(n for n in _ld((out / "docs/faq/index.html").read_text(encoding="utf-8")) if n["@type"] == "FAQPage")
+    questions = [line[3:].strip() for line in (ROOT / "docs" / "faq.md").read_text().splitlines()
+                 if line.startswith("## ")]
+    assert [q["name"] for q in faq["mainEntity"]] == questions
+    assert all(q["acceptedAnswer"]["text"] for q in faq["mainEntity"])
+
+
+def test_audit_fixes_of_26_october():
+    out = _built()
+    # A link written in angle brackets is a link, not "...credits&gt" (the 0.2.0-beta.6 entry).
+    sys.path.insert(0, str(ROOT / "site"))
+    import build
+    assert build.inline("x (<https://atlas.ripe.net/docs/getting-started/credits>).") == \
+        'x (<a href="https://atlas.ripe.net/docs/getting-started/credits">' \
+        'https://atlas.ripe.net/docs/getting-started/credits</a>).'
+    changelog = (out / "changelog" / "index.html").read_text(encoding="utf-8")
+    assert "&gt;\"" not in changelog and "credits&gt" not in changelog
+    ids = re.findall(r'id="([^"]+)"', changelog)
+    assert len(ids) == len(set(ids)), "the changelog's anchors are unique"
+    # No internal link to Cloudflare's email-protection path; each address is left as it is.
+    for page in out.rglob("*.html"):
+        text = page.read_text(encoding="utf-8")
+        assert "/cdn-cgi/" not in text, page
+        for link in re.findall(r'<a href="mailto:[^"]+">[^<]*</a>', text):
+            assert f"<!--email_off-->{link}<!--/email_off-->" in text, (page, link)
+    robots = (out / "robots.txt").read_text()
+    assert "Disallow: /dl/" in robots and "Sitemap: https://getroutemap.app/sitemap.xml" in robots
+    testing = (out / "docs" / "testing" / "index.html").read_text(encoding="utf-8")
+    assert 'href="https://getroutemap.app/download/"' not in testing and 'href="/download/"' in testing
+    support = (out / "support" / "index.html").read_text(encoding="utf-8")
+    assert "pay-list" not in support and 'href="/donate/"' in support
+
+
+def test_the_comparison_pages_are_linked_and_listed():
+    out = _built()
+    sitemap = (out / "sitemap.xml").read_text()
+    home = (out / "index.html").read_text(encoding="utf-8")
+    for path in ("/compare/", "/visualroute-alternative/", "/open-visual-traceroute-alternative/",
+                 "/visual-traceroute/"):
+        assert f"<loc>https://getroutemap.app{path}</loc>" in sitemap, path
+        page = (out / path.strip("/") / "index.html").read_text(encoding="utf-8")
+        assert f'<link rel="canonical" href="https://getroutemap.app{path}">' in page
+        assert 'href="/download/' in page or 'href="/dl/' in page, path
+    assert '<a href="/compare/">Compare</a>' in home and 'href="/visual-traceroute/">visual traceroute</a>' in home
+    for path in ("visualroute-alternative", "open-visual-traceroute-alternative"):
+        page = (out / path / "index.html").read_text(encoding="utf-8")
+        assert 'href="/visual-traceroute/"' in page and 'id="sources"' in page
+    # The badge is AlternativeTo's link with the image served from this site.
+    for path in ("index.html", "about/index.html"):
+        page = (out / path).read_text(encoding="utf-8")
+        assert 'href="https://alternativeto.net/software/route-map/about/?utm_source=badge&amp;utm_medium=referral" ' \
+               'target="_blank" rel="noopener"' in page
+        assert re.search(r'src="/assets/badges/alternativeto-compact-color\.svg\?v=[0-9a-f]{10}"', page)

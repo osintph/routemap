@@ -240,6 +240,13 @@ code.sha { display: block; margin-top: var(--s1); font-size: 0.72rem; background
 .doc-index { list-style: none; padding: 0; border-top: 1px solid var(--rule); }
 .doc-index li { padding: var(--s4) 0; border-bottom: 1px solid var(--rule); display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: var(--s4); max-width: none; }
 .doc-index a { font-weight: 600; }
+.compare-index { list-style: none; padding: 0; border-top: 1px solid var(--rule); margin: var(--s5) 0 var(--s6); }
+.compare-index li { padding: var(--s4) 0; border-bottom: 1px solid var(--rule); display: grid; gap: var(--s1); max-width: none; }
+.compare-index a { font-weight: 600; }
+.compare-index span { color: var(--muted); }
+.rules-lead { max-width: 62ch; margin: 0 0 var(--s6); }
+.alternativeto { margin: var(--s5) 0 0; }
+.alternativeto img { display: block; max-width: 100%; height: auto; }
 
 /* Screenshots */
 .gallery-page { display: grid; gap: var(--s7); }
@@ -285,8 +292,8 @@ button { font-family: var(--text); }
 .crumbs { font-size: 0.92rem; color: var(--muted); margin: 0 0 var(--s3); }
 .crumbs a { color: var(--muted); }
 .wordmark img { width: 24px; height: 24px; }
-table.compare th[scope="row"] { font-weight: 600; color: var(--ink); white-space: nowrap; }
+table.compare th[scope="row"] { font-weight: 600; color: var(--ink); min-width: 9em; }
 table.compare td:nth-child(2) { color: var(--ink); }
 table.compare sup a { text-decoration: none; }
-.sources { font-size: 0.9rem; color: var(--muted); }
+.sources { font-size: 0.9rem; color: var(--muted); overflow-wrap: anywhere; }
 picture { display: block; }

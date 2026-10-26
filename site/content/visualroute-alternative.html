@@ -1,0 +1,56 @@
+<article class="prose wide-prose">
+<nav class="crumbs" aria-label="Breadcrumb"><a href="/compare/">Compare</a> <span aria-hidden="true">&rsaquo;</span> <span aria-current="page">VisualRoute alternative</span></nav>
+<h1>VisualRoute alternative: Route Map, free and open source</h1>
+<p class="lead">Route Map is a free, open source visual traceroute for Windows, macOS and Linux.
+It places each router by its operator's own hostname first, checks every placement against the
+round trip, and shows where each hop's location came from. No account, no telemetry.</p>
+{{downloads}}
+<h2 id="visualroute">About VisualRoute</h2>
+<p>VisualRoute is a commercial traceroute tool from Visualware Inc. It runs on 64-bit Windows 10
+and 11<sup><a href="#source-4">4</a></sup> and is sold as a perpetual licence in Personal, Advanced,
+Business and SupportPro editions, priced through a configurator on its pricing page, with optional
+annual support and a 15-day trial<sup><a href="#source-1">1</a>,<a href="#source-2">2</a></sup>.
+The current release is 15.0a; its release notes give no date<sup><a href="#source-3">3</a></sup>.</p>
+<h2 id="table">Side by side</h2>
+<p>"Not stated" means VisualRoute's own pages do not say, not that it lacks the feature. Edition
+names say where its pricing page lists a feature.</p>
+<div class="table-wrap"><table class="compare">
+<thead><tr><th scope="col"></th><th scope="col">Route Map {{tag}}</th><th scope="col">VisualRoute 15.0a</th></tr></thead>
+<tbody>
+<tr><th scope="row">Price</th><td>Free</td><td>Perpetual licence, price from Visualware's configurator; 15-day trial<sup><a href="#source-1">1</a>,<a href="#source-2">2</a></sup></td></tr>
+<tr><th scope="row">Licence</th><td>Open source, AGPL-3.0</td><td>Proprietary: "All rights reserved", no licence named<sup><a href="#source-1">1</a></sup></td></tr>
+<tr><th scope="row">Platforms</th><td>Windows 10 and 11, macOS 12 or later, Linux x86_64, with native installers</td><td>64-bit Windows 10 or 11<sup><a href="#source-4">4</a></sup></td></tr>
+<tr><th scope="row">How a hop gets its place</th><td>The router's hostname first (CAIDA Hoiho, carrier site codes), then DB-IP Lite on your machine or RIPEstat online</td><td>Not stated; its pages speak of IP location reporting and geolocation<sup><a href="#source-2">2</a>,<a href="#source-5">5</a></sup></td></tr>
+<tr><th scope="row">Physics check</th><td>Every placement checked against the round trip; rejections shown with the reason</td><td>Not stated</td></tr>
+<tr><th scope="row">Source shown per hop</th><td>Yes</td><td>Not stated</td></tr>
+<tr><th scope="row">AS path and RPKI</th><td>AS path offline from DB-IP Lite ASN; RPKI per AS from RIPEstat</td><td>Whois and network provider reporting; RPKI not stated<sup><a href="#source-2">2</a></sup></td></tr>
+<tr><th scope="row">Continuous monitoring</th><td>Watch, mtr style, with a ping plot</td><td>Yes, Advanced and up<sup><a href="#source-2">2</a></sup></td></tr>
+<tr><th scope="row">Multipath discovery</th><td>Paths: Paris traceroute with the multipath detection algorithm</td><td>OmniPath, Business and up<sup><a href="#source-2">2</a>,<a href="#source-5">5</a></sup></td></tr>
+<tr><th scope="row">Reverse trace</th><td>From a RIPE Atlas probe near the target back to you, with your own Atlas key</td><td>Traceroute from Visualware server locations, Business and up; a trace back to you is not stated<sup><a href="#source-2">2</a></sup></td></tr>
+<tr><th scope="row">DNS timing</th><td>Yes</td><td>DNS response testing, Advanced and up<sup><a href="#source-2">2</a></sup></td></tr>
+<tr><th scope="row">Port tests</th><td>Yes, at most 32 ports; a reachability check, not a scanner</td><td>Application port testing and probing, Business and up<sup><a href="#source-2">2</a></sup></td></tr>
+<tr><th scope="row">Remote agents</th><td>Your own servers, over your own ssh</td><td>Remote agents, SupportPro<sup><a href="#source-2">2</a></sup></td></tr>
+<tr><th scope="row">Exports</th><td>PNG, PDF, JSON</td><td>Not stated</td></tr>
+<tr><th scope="row">Telemetry</th><td>None</td><td>Not stated</td></tr>
+<tr><th scope="row">Submarine cables</th><td><strong>No</strong>: the cable data is sold under licence</td><td>Not stated</td></tr>
+<tr><th scope="row">Exchange points</th><td><strong>No</strong>: PeeringDB's terms do not allow bundling its list</td><td>Not stated</td></tr>
+</tbody></table></div>
+<h2 id="not">What Route Map does not do</h2>
+<p>Route Map draws no submarine cables and labels no exchange points: the cable data is sold
+under licence, and PeeringDB's terms do not allow bundling its prefix list. Its Windows and macOS
+builds are not code-signed yet. It traces from your computer or from a server you already reach
+with ssh, and runs no measurement servers of its own. Its port test is a reachability check, not
+a port scanner.</p>
+<p>See also: <a href="/open-visual-traceroute-alternative/">Route Map and Open Visual Traceroute</a>,
+and <a href="/visual-traceroute/">what a visual traceroute shows, and where most of them go wrong</a>.</p>
+<h2 id="sources">Sources</h2>
+<ol class="sources">
+<li id="source-1"><a href="https://visualroute.visualware.com/">visualroute.visualware.com</a>, read 26 October 2026</li>
+<li id="source-2"><a href="https://visualroute.visualware.com/pricing">visualroute.visualware.com/pricing</a>, read 26 October 2026</li>
+<li id="source-3"><a href="https://visualroute.visualware.com/support/newrelease">visualroute.visualware.com/support/newrelease</a>, read 26 October 2026</li>
+<li id="source-4"><a href="https://visualroute.visualware.com/support/requirements">visualroute.visualware.com/support/requirements</a>, read 26 October 2026</li>
+<li id="source-5"><a href="https://visualroute.visualware.com/features/">visualroute.visualware.com/features/</a>, read 26 October 2026</li>
+</ol>
+<p>If something here is wrong or out of date, tell us at <a href="mailto:{{contact}}">{{contact}}</a>
+and we will correct it.</p>
+</article>

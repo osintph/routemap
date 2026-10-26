@@ -36,7 +36,8 @@
   Online lookups are on.
 - **Anycast is a likelihood.** "Likely anycast" means the destination answered
   too fast for where it is registered, or belongs to a large content network;
-  the served-from city is the largest one the RTT can reach.
+  the served-from city is the largest one reachable in the round trip the
+  destination added past the last placed hop before it.
 - **The typical latency is between countries**, from the nearest RIPE Atlas
   anchors to the origin and the destination; small countries with no anchor
   have no baseline.
