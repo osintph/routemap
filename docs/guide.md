@@ -254,7 +254,12 @@ administrator rights are needed anywhere.
 **Method.** On macOS and Linux, Paths sends ICMP probes (ICMPv6 over IPv6). On
 Windows it sends TCP probes to port 443 instead, one connection attempt per
 probe, with the source port as the flow, and a router's answer is read from
-Windows itself (Windows 10 version 2004 or later). Windows' own ICMP function
+Windows itself (Windows 10 version 2004 or later). Each flow's source port is
+one Windows assigns, kept for the flow's later probes, so a port another
+program holds is never asked for; if another program takes a flow's port in
+between, the flow gets one new port and is probed again from hop 1. A probe this computer could not send is not
+counted as loss: the note under the Paths list says how many, and why (for
+example `WSAEACCES 10013`). Windows' own ICMP function
 picks each probe's identifier and sequence number, so it cannot keep a flow on
 one path; TCP can. A probe that reaches the target is a normal connection,
 closed at once. Load balancers spread TCP and ICMP by different fields, so the
@@ -334,7 +339,9 @@ you can see the route from a data centre or another country.
 
 On the server, install the engine for the user you log in as:
 `pip install routemap-engine` (Python 3.11 or later), then check it with
-`routemap-engine agent 1 hello`. In **Settings > Agents**, add the server by a
+`routemap-engine agent 1 hello`. A Windows server needs 0.8.1 or later for
+Paths, which fixed probes whose port another program held (`pip install -U
+routemap-engine`). In **Settings > Agents**, add the server by a
 name and its SSH destination (a Host from your `~/.ssh/config`, or
 `user@host`) and choose where it is on the map: **from the agent's public IP**
 (a RIPEstat lookup made on the server, so RIPEstat sees the server's address;

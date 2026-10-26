@@ -4,6 +4,33 @@ All notable changes to this project are documented here. The format is based
 on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 uses [Semantic Versioning](https://semver.org/).
 
+## [0.5.0-beta.3] - 2026-10-26
+
+Paths on Windows. The engine is routemap-engine 0.8.1, which has its own
+list.
+
+### Fixed
+- **Paths on Windows when a probe's port is taken.** Each Paths flow had a
+  fixed source port between 40000 and 50009, a range that overlaps the
+  ports Windows hands out to other programs' connections, and Windows
+  refuses a port another program holds (WSAEACCES 10013). That flow's
+  probes never left the computer, its paths were missing, and 20 refusals
+  in a row ended the run with "this computer refused to send probes". Each
+  flow now uses a port Windows assigns and keeps it for its later probes;
+  if another program takes it in between, the flow gets one new port and
+  is probed again from hop 1. Whether the port ranges Hyper-V, WSL 2 or
+  Docker Desktop reserve cause the same refusal is not known; a range
+  reserved with netsh did not.
+
+### Changed
+- **The Paths note says why a probe could not be sent**, by error name and
+  code ("20 probes could not be sent by this computer (WSAEACCES 10013)"),
+  in the window, the CLI and the PDF, and names a flow probed again on a
+  new port. The JSON has `local_failure_reasons` and `flows_restarted`
+  under `route.paths`.
+- Settings > Agents and the guide: a Windows server needs routemap-engine
+  0.8.1 or later for Paths.
+
 ## [0.5.0-beta.2] - 2026-10-26
 
 A security update; nothing else changes. The engine is still
