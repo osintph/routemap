@@ -119,6 +119,19 @@ Path discovery on Linux needs unprivileged ICMP sockets for the user you log
 in as (`net.ipv4.ping_group_range`). Trace still works there with
 `traceroute` or `mtr`. Route Map does not change a server's settings.
 
+## Paths says probes could not be sent by this computer
+
+A probe this computer refused to send is not counted as loss: the note under
+the Paths list says how many, and why, by the error's name and code, and a
+run that met 20 in a row stops with "this computer refused to send probes"
+and the commonest error. On Windows, `WSAEACCES 10013` means the probe's port
+was held by another program. Since 0.5.0-beta.3 each Paths flow uses a port
+Windows assigns, so this should not happen; a flow whose port another program
+takes in between gets a new one and is probed again from hop 1, and the note
+says so. On a Windows agent, update its engine: `pip install -U
+routemap-engine` (0.8.1 or later). Other codes name the cause, for example
+`WSAENETUNREACH 10051` when this computer has no route to the target.
+
 ## Ports says "filtered" for ports I know are open
 
 Filtered means nothing answered: a firewall on the way, at the target or on
