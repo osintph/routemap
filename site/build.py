@@ -48,7 +48,7 @@ LATEST = ""   # the release tag the site describes; set in main()
 ASSET_VERSION = {}
 
 NAV = [("/download/", "Download"), ("/docs/", "Docs"), ("/screenshots/", "Screenshots"),
-       ("/changelog/", "Changelog"), ("/support/", "Support"), ("/about/", "About")]
+       ("/compare/", "Compare"), ("/changelog/", "Changelog"), ("/support/", "Support"), ("/about/", "About")]
 
 # Repository documents that have a page here; any other relative link goes to GitHub.
 LOCAL_DOCS = {"PRIVACY.md": "/privacy/", "CODE_SIGNING_POLICY.md": "/code-signing/",
@@ -84,6 +84,9 @@ def slug(text: str) -> str:
 
 
 def _link(url: str) -> str:
+    # A document read on GitHub links this site in full; on the site it is one of its own pages.
+    if url.startswith(S["url"] + "/"):
+        url = url[len(S["url"]):]
     base, _, anchor = url.partition("#")
     name = base.rsplit("/", 1)[-1]
     if name in LOCAL_DOCS:
@@ -100,11 +103,22 @@ def inline(text: str) -> str:
         if part.startswith("`") and part.endswith("`") and len(part) > 1:
             out.append(f"<code>{html.escape(part[1:-1])}</code>")
             continue
+        # <https://...> is a link written in angle brackets: taken out before
+        # escaping, or the bare-URL rule below would take "&gt" into the link
+        # (the 0.2.0-beta.6 changelog entry linked ".../credits&gt").
+        autolinks: list[str] = []
+
+        def keep(m):
+            autolinks.append(m.group(1))
+            return f"\x00{len(autolinks) - 1}\x00"
+        part = re.sub(r"<(https://[^\s<>]+)>", keep, part)
         t = html.escape(part, quote=False)
         t = re.sub(r"\[([^\]]+)\]\(([^)]+)\)",
                    lambda m: f'<a href="{html.escape(_link(m.group(2)))}">{m.group(1)}</a>', t)
-        t = re.sub(r"(?<![\w/\"=>])(https://[^\s<)]+[^\s<).,;:])",
+        t = re.sub(r"(?<![\w/\"=>])(https://(?:[^\s<)&]|&amp;)*[^\s<).,;:&])",
                    lambda m: f'<a href="{m.group(1)}">{m.group(1)}</a>', t)
+        t = re.sub(r"\x00(\d+)\x00", lambda m: f'<a href="{html.escape(autolinks[int(m.group(1))])}">'
+                   f'{html.escape(autolinks[int(m.group(1))])}</a>', t)
         t = re.sub(r"(?<![\w.@/>])([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[a-z]{2,})(?![\w.])",
                    r'<a href="mailto:\1">\1</a>', t)
         t = re.sub(r"\*\*([^*]+)\*\*", r"<strong>\1</strong>", t)
@@ -113,8 +127,12 @@ def inline(text: str) -> str:
     return "".join(out)
 
 
-def markdown(text: str, *, drop_title: bool = True) -> str:
+def markdown(text: str, *, drop_title: bool = True, versioned_ids: bool = False) -> str:
+    """*versioned_ids*: a level-3 heading's id starts with the level-2 heading's
+    version, so the changelog's "Added" under each release is its own anchor
+    (0-5-0-beta-1-added), not one id repeated on the page."""
     lines = text.replace("\r\n", "\n").split("\n")
+    section = ""
     i = 1 if drop_title and lines and lines[0].startswith("# ") else 0
     out: list[str] = []
     para: list[str] = []
@@ -140,7 +158,13 @@ def markdown(text: str, *, drop_title: bool = True) -> str:
         if m:
             flush()
             level = min(len(m.group(1)), 4)
-            out.append(f'<h{level} id="{slug(m.group(2))}">{inline(m.group(2))}</h{level}>')
+            ident = slug(m.group(2))
+            if versioned_ids and level == 2:
+                v = re.match(r"\[([^\]]+)\]", m.group(2))
+                section = slug(v.group(1)) if v else ident
+            elif versioned_ids and level > 2 and section:
+                ident = f"{section}-{ident}"
+            out.append(f'<h{level} id="{ident}">{inline(m.group(2))}</h{level}>')
             i += 1
             continue
         if line.startswith("|"):
@@ -289,8 +313,21 @@ def picture(name: str, ext: str, width: str, height: str, cls: str, alt: str) ->
     return f'<figure class="shot {html.escape(cls.strip())}">{img}</figure>'
 
 
+def alternativeto_badge() -> str:
+    """AlternativeTo's badge as they give it, with the image served from this
+    site (assets/badges/, fetched once from alternativeto.net; site/README.md)
+    so the page loads nothing from another host."""
+    return (f'<p class="alternativeto"><a href="{html.escape(L["alternativeto"])}" target="_blank" rel="noopener">\n'
+            f'  <img src="{img_url("/assets/badges/alternativeto-compact-color.svg")}"\n'
+            '       alt="Route Map | AlternativeTo"\n'
+            '       width="244" height="79"\n'
+            '       style="width: 244px; height: 79px;" />\n'
+            '</a></p>')
+
+
 def content(name: str) -> str:
     text = expand((SITE / "content" / name).read_text(encoding="utf-8"))
+    text = text.replace("{{alternativeto_badge}}", alternativeto_badge())
     # <!--ga-->...<!--/ga--> only with Google Analytics configured, <!--no-ga-->...<!--/no-ga--> only without.
     keep, drop = ("ga", "no-ga") if GA_ID else ("no-ga", "ga")
     text = re.sub(rf"<!--{drop}-->.*?<!--/{drop}-->\n?", "", text, flags=re.S)
@@ -319,24 +356,94 @@ def jsonld(*objects: dict) -> str:
                    + "</script>\n" for o in objects)
 
 
+ORG_ID = f"{S['url']}/#osintph"
+APP_ID = f"{S['url']}/#app"
+# The one operatingSystem string, as the download page states it.
+OPERATING_SYSTEMS = "Windows 10, Windows 11, macOS 12 or later, Linux (x86_64)"
+
+
 def organization() -> dict:
-    """OSINTPH, named in every page's footer ("Built by OSINTPH")."""
-    return {"@type": "Organization", "@id": f"{S['url']}/#osintph", "name": L["builder_name"], "url": L["builder"]}
+    """OSINTPH, named in every page's footer ("Built by OSINTPH"), in full once
+    (on the home page); every other node refers to it by @id. No logo: OSINTPH
+    publishes none larger than its 32 px favicon, and Google asks for 112 px
+    at least (developers.google.com/search/docs/appearance/structured-data/logo)."""
+    return {"@context": "https://schema.org", "@type": "Organization", "@id": ORG_ID, "name": L["builder_name"],
+            "url": L["builder"], "sameAs": [L["github_org"]]}
 
 
-def software(rel: "Release", operating_systems: str) -> dict:
+def org_ref() -> dict:
+    return {"@id": ORG_ID}
+
+
+def git_dates(paths: list[str]) -> tuple[str, str]:
+    """(first, last) commit dates of *paths*, or ("", "") without the history
+    (a shallow clone), so no page claims a date it cannot back."""
+    import subprocess
+    shallow = subprocess.run(["git", "-C", str(ROOT), "rev-parse", "--is-shallow-repository"],
+                             capture_output=True, text=True)
+    if shallow.returncode != 0 or shallow.stdout.strip() != "false":
+        return "", ""
+    dates = subprocess.run(["git", "-C", str(ROOT), "log", "--format=%cI", "--", *paths],
+                           capture_output=True, text=True).stdout.split()
+    return (dates[-1], dates[0]) if dates else ("", "")
+
+
+def article(kind: str, path: str, headline: str, sources: list[str], description: str) -> dict:
+    """A TechArticle, AboutPage, ContactPage, CollectionPage or ImageGallery for
+    *path*, dated by its sources' commits, by OSINTPH."""
+    first, last = git_dates(sources)
+    node = {"@context": "https://schema.org", "@type": kind, "@id": f"{S['url']}{path}#page",
+            "url": f"{S['url']}{path}", "name": headline, "description": description, "publisher": org_ref()}
+    if kind == "TechArticle":
+        node.update(headline=headline, author=org_ref())
+    if first:
+        node.update(datePublished=first, dateModified=last)
+    return node
+
+
+def breadcrumbs(*steps: tuple[str, str]) -> dict:
+    """Every step with its URL (the last one too: Google takes item on each)."""
+    return {"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [
+        {"@type": "ListItem", "position": i, "name": name, "item": f"{S['url']}{path}"}
+        for i, (name, path) in enumerate(steps, start=1)]}
+
+
+def software(rel: "Release") -> dict:
     """Route Map as a SoftwareApplication, with what the page states: free, the
     platforms, the current version, the licence and where to download it.
     Google shows a software rich result only with a rating or review, which the
     project does not have, so this describes the app without asking for one
     (developers.google.com/search/docs/appearance/structured-data/software-app)."""
-    return {"@context": "https://schema.org", "@type": "SoftwareApplication", "@id": f"{S['url']}/#app",
+    return {"@context": "https://schema.org", "@type": "SoftwareApplication", "@id": APP_ID,
             "name": S["product"], "url": f"{S['url']}/", "description": S["description"],
-            "applicationCategory": "UtilitiesApplication", "operatingSystem": operating_systems,
+            "applicationCategory": "UtilitiesApplication", "operatingSystem": OPERATING_SYSTEMS,
             "softwareVersion": rel.tag.lstrip("v"), "downloadUrl": f"{S['url']}/download/",
             "license": f"{L['repository']}/blob/main/LICENSE", "isAccessibleForFree": True,
             "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"},
-            "publisher": organization()}
+            "author": org_ref(), "publisher": org_ref()}
+
+
+def faq_page(markdown_text: str) -> dict:
+    """FAQPage from docs/faq.md: each level-2 heading is a question, the text
+    under it up to the next heading its answer (as the page shows it)."""
+    items, question, answer = [], None, []
+
+    def close():
+        if question:
+            text = re.sub(r"<[^>]+>", "", markdown("\n".join(answer), drop_title=False))
+            items.append({"@type": "Question", "name": question,
+                          "acceptedAnswer": {"@type": "Answer", "text": html.unescape(" ".join(text.split()))}})
+    for line in markdown_text.splitlines():
+        if line.startswith("## "):
+            close()
+            question, answer = line[3:].strip(), []
+        elif line.startswith("# "):
+            continue
+        elif question is not None:
+            answer.append(line)
+    close()
+    return {"@context": "https://schema.org", "@type": "FAQPage", "@id": f"{S['url']}/docs/faq/#page",
+            "mainEntity": items}
 
 
 # The title and meta description each page shows in search results, written for
@@ -346,8 +453,8 @@ def software(rel: "Release", operating_systems: str) -> dict:
 # /snippet). None keeps the page's own description.
 SEARCH = {
     "/": ("{p}: free, open source visual traceroute on a world map",
-          "See a traceroute on a world map. {p} places each router by its hostname and checks it against the "
-          "round-trip time. Free and open source for Windows, macOS and Linux."),
+          "A visual traceroute on a world map: {p} places each router by its hostname, checks it against the "
+          "round trip and shows how. Free and open source."),
     "/download/": ("Download {p} for Windows, macOS and Linux",
                    "Free download of {p}, a visual traceroute: Windows installer, macOS DMG for Apple silicon and "
                    "Intel, Linux .deb, .rpm and AppImage, with signed checksums."),
@@ -367,8 +474,8 @@ SEARCH = {
                    "Short answers about {p}: why Windows and macOS warn on first start, what it costs, where "
                    "locations come from, what it sends, and pasted traces."),
     "/docs/troubleshooting/": ("{p} troubleshooting: Defender, Gatekeeper and traces",
-                               "Fixes for common {p} problems: Defender or SmartScreen on Windows, Gatekeeper on "
-                               "macOS, traces that do not start, and an origin that is wrong behind a VPN."),
+                               "Fixes for {p} problems: Defender and SmartScreen on Windows, Gatekeeper on macOS, "
+                               "traces that do not start, and a wrong origin behind a VPN."),
     "/docs/limitations/": ("What {p} cannot do (yet)",
                            "The limits of {p} and of traceroute itself: unsigned builds, how good an IP database "
                            "location is, and what a trace cannot show."),
@@ -378,18 +485,33 @@ SEARCH = {
     "/screenshots/": ("{p} screenshots: map, globe, comparison and exports",
                       "{p} on macOS and Windows in light and dark: the map, the globe, comparing two runs, the hop "
                       "table, and the PNG and PDF exports."),
-    "/compare/": ("{p} and commercial visual traceroute tools",
-                  "How {p} differs from paid visual traceroute tools: price, platforms, source code, and how each "
-                  "hop gets its location. Facts with sources."),
+    "/compare/": ("{p} compared with VisualRoute and Open Visual Traceroute",
+                  "How {p} compares with VisualRoute and Open Visual Traceroute: price, licence, platforms, how "
+                  "each places a hop, and what each can and cannot do."),
+    "/visualroute-alternative/": ("VisualRoute alternative: {p}, free and open source",
+                                  "{p} is a free, open source alternative to VisualRoute for Windows, macOS and "
+                                  "Linux: hostname-first hop placement, checked by physics, no account."),
+    "/open-visual-traceroute-alternative/": ("Open Visual Traceroute alternative: {p}, native and open source",
+                                             "Open Visual Traceroute last shipped macOS and Linux builds in January "
+                                             "2022. {p} is free, open source, current, with native installers for "
+                                             "all three."),
+    "/visual-traceroute/": ("What a visual traceroute shows, and where most of them go wrong",
+                            "What a visual traceroute adds to a traceroute, why most put backbone routers in the "
+                            "wrong city, and how {p} checks each hop against the round trip."),
     "/about/": ("About {p} and OSINTPH",
-                "Who builds {p} and why, its sister tool in FalconEye, and how to get in touch."),
+                "{p} is a free, open source visual traceroute built by OSINTPH under the AGPL-3.0, with its "
+                "engine, routemap-engine, published separately on PyPI."),
     "/support/": ("{p} support: questions and bug reports",
-                  "Get help with {p}, report a bug or a wrong placement, or support the project."),
+                  "Help with {p}: the documentation, GitHub Issues for bugs and ideas, support@getroutemap.app, "
+                  "and OSINTPH on Matrix as @osintph:matrix.org."),
     "/donate/": ("Donate to {p}", None),
     "/privacy/": ("{p} privacy: what the app sends and to whom", None),
-    "/code-signing/": ("{p} code signing policy", None),
+    "/code-signing/": ("{p} code signing policy",
+                       "{p}'s code signing policy: which Windows files are signed, with whose certificate, how a "
+                       "release is built and signed, and who can sign."),
     "/changelog/": ("{p} changelog: what changed in each release",
-                    "Every {p} release and what changed in it, newest first."),
+                    "Every {p} release since the first beta and what it added, changed and fixed, with the engine "
+                    "version each one ships and its download links."),
 }
 
 
@@ -495,7 +617,7 @@ def page(path: str, title: str, body: str, description: str, *, wide: bool = Fal
     {html.escape(S['product'])} is free and open source under the
     <a href="{L['repository']}/blob/main/LICENSE">GNU AGPL-3.0</a>.</p>
     <p class="links"><a href="{L['repository']}">Source on GitHub</a>
-    <a href="/compare/">Compared with paid tools</a>
+    <a href="/compare/">Compare</a>
     <a href="/privacy/">Privacy</a> <a href="/code-signing/">Code signing policy</a>
     <a href="/release-key.asc">Release key</a> <a href="/.well-known/security.txt">security.txt</a>{cookie_settings_link()}
     <a href="mailto:{S['contact']}">{S['contact']}</a></p>
@@ -506,6 +628,12 @@ def page(path: str, title: str, body: str, description: str, *, wide: bool = Fal
 {consent_banner()}</body>
 </html>
 """
+    # Cloudflare's Email Obfuscation turns every email link into a
+    # /cdn-cgi/l/email-protection href, which crawlers then count as a broken
+    # page on every page. Its documented page markup leaves an address as it
+    # is (developers.cloudflare.com/waf/tools/scrape-shield/email-address-obfuscation/);
+    # the setting itself stays on.
+    doc = re.sub(r'(<a href="mailto:[^"]+">[^<]*</a>)', r"<!--email_off-->\1<!--/email_off-->", doc)
     target = OUT / "404.html" if path == "/404" else OUT / path.strip("/") / "index.html"
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(doc, encoding="utf-8")
@@ -515,6 +643,14 @@ def prose(title: str, inner: str, lead: str = "") -> str:
     lead_html = f'<p class="lead">{lead}</p>' if lead else ""
     return f'<article class="prose"><h1>{html.escape(title)}</h1>{lead_html}{inner}</article>'
 
+
+# The comparison pages: /compare/ is their index (signed off 26 Oct 2026:
+# no redirect, so the URL that already has the impressions keeps them).
+COMPARE_PAGES = [("/compare/", "compare.html", "Compare"),
+                 ("/visualroute-alternative/", "visualroute-alternative.html", "VisualRoute alternative"),
+                 ("/open-visual-traceroute-alternative/", "open-visual-traceroute-alternative.html",
+                  "Open Visual Traceroute alternative"),
+                 ("/visual-traceroute/", "visual-traceroute.html", "What a visual traceroute shows")]
 
 DOC_PAGES = [("/docs/guide/", "guide.md", "User guide"), ("/docs/cli/", "cli.md", "Command line"),
              ("/docs/faq/", "faq.md", "Questions"),
@@ -531,17 +667,19 @@ def doc_nav(current: str) -> str:
 
 
 def doc_page(path: str, source: pathlib.Path, title: str, description: str, lead: str = "",
-             aside: str = "") -> None:
-    crumbs, structured = "", ""
+             aside: str = "", kind: str = "TechArticle") -> None:
+    crumbs = ""
+    rel_source = source.relative_to(ROOT).as_posix()
+    text = source.read_text(encoding="utf-8")
+    nodes = [faq_page(text) if kind == "FAQPage" else article(kind, path, title, [rel_source], description)]
     if path.startswith("/docs/") and path != "/docs/":
         # Shown on the page and described for search with the same two steps
         # (developers.google.com/search/docs/appearance/structured-data/breadcrumb).
         crumbs = (f'<nav class="crumbs" aria-label="Breadcrumb"><a href="/docs/">Docs</a> '
                   f'<span aria-hidden="true">&rsaquo;</span> <span aria-current="page">{html.escape(title)}</span></nav>')
-        structured = jsonld({"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [
-            {"@type": "ListItem", "position": 1, "name": "Docs", "item": f"{S['url']}/docs/"},
-            {"@type": "ListItem", "position": 2, "name": title}]})
-    body = prose(title, markdown(source.read_text(encoding="utf-8")), lead)
+        nodes.append(breadcrumbs(("Docs", "/docs/"), (title, path)))
+    structured = jsonld(*nodes)
+    body = prose(title, markdown(text), lead)
     if crumbs:
         body = body.replace('<article class="prose">', f'<article class="prose">{crumbs}', 1)
     if aside:
@@ -656,8 +794,9 @@ def build_home(rel: Release) -> None:
     body = content("home.html").replace("{{downloads}}", download_buttons(rel)) \
                                .replace("{{tag}}", html.escape(rel.tag))
     page("/", S["product"], body, S["description"], wide=True,
-         structured=jsonld(software(rel, "Windows, macOS, Linux"),
-                           {"@context": "https://schema.org", **organization()}))
+         structured=jsonld(software(rel), organization(),
+                           {"@context": "https://schema.org", "@type": "WebSite", "@id": f"{S['url']}/#site",
+                            "url": f"{S['url']}/", "name": S["product"], "publisher": org_ref()}))
 
 
 def build_download(rel: Release) -> None:
@@ -711,7 +850,7 @@ checks it before it installs anything.</p>
          "Windows installer, macOS DMG, Linux .deb, .rpm and AppImage, with SHA-256 checksums "
          "signed by the release key.",
          og=OG_DOWNLOAD,
-         structured=jsonld(software(rel, "Windows 10, Windows 11, macOS 12 or later, Linux (x86_64)")))
+         structured=jsonld(software(rel)))
 
 
 def qr_svg(text: str, label: str) -> str:
@@ -751,9 +890,11 @@ def build_support() -> None:
     page("/donate/", "Donate", prose(f"Support {S['product']}", donation_block()),
          f"Donate to {S['product']}: Ko-fi, PayPal, Bitcoin or Monero. Donations pay for code signing, "
          "hosting, the RIPE Atlas probe and maintenance time.")
-    body = prose("Support", content("support.html").replace("{{donations}}", donation_block()))
-    page("/support/", "Support", body,
-         f"Get help with {S['product']}, report a bug, or support the project with a donation.")
+    body = prose("Support", content("support.html"))
+    description = f"Get help with {S['product']}, report a bug, or support the project with a donation."
+    page("/support/", "Support", body, description,
+         structured=jsonld(article("ContactPage", "/support/", f"{S['product']} support",
+                                   PAGE_SOURCES["/support/"], description)))
 
 
 def build_docs() -> None:
@@ -766,9 +907,11 @@ def build_docs() -> None:
               "Hops, round-trip times and stars: what each line of a traceroute means."]
     index = "".join(f'<li><a href="{p}">{t}</a><span>{b}</span></li>'
                     for (p, _f, t), b in zip(DOC_PAGES, blurbs))
-    page("/docs/", "Docs", prose("Documentation", f'<ul class="doc-index">{index}</ul>'),
-         f"{S['product']} documentation: user guide, command line, questions, troubleshooting, limitations "
-         "and testing a beta.", og=OG_DOCS)
+    docs_description = (f"{S['product']} documentation: user guide, command line, questions, troubleshooting, "
+                        "limitations and testing a beta.")
+    page("/docs/", "Docs", prose("Documentation", f'<ul class="doc-index">{index}</ul>'), docs_description,
+         og=OG_DOCS, structured=jsonld(article("CollectionPage", "/docs/", f"{S['product']} documentation",
+                                               PAGE_SOURCES["/docs/"], docs_description)))
     descriptions = {
         "guide.md": f"How to install and use {S['product']}: first trace, source labels, exports, paste mode, settings and RIPE Atlas.",
         "cli.md": f"{S['product']} command-line reference: commands, options, exit codes and examples.",
@@ -779,17 +922,30 @@ def build_docs() -> None:
         "reading-a-traceroute.md": "What each line of a traceroute means.",
     }
     for path, name, title in DOC_PAGES:
-        doc_page(path, ROOT / "docs" / name, title, descriptions[name], aside=doc_nav(path))
+        doc_page(path, ROOT / "docs" / name, title, descriptions[name], aside=doc_nav(path),
+                 kind="FAQPage" if name == "faq.md" else "TechArticle")
 
 
 def build_static_pages(rel: Release) -> None:
-    page("/screenshots/", "Screenshots", content("screenshots.html"),
-         f"Screenshots of {S['product']} {rel.tag}: light and dark, macOS and Windows, PNG and PDF exports.",
-         wide=True)
-    page("/compare/", "Compared with paid tools", content("compare.html"),
-         "How Route Map differs from paid visual traceroute tools.")
-    page("/about/", "About", prose(f"About {S['product']}", content("about.html")),
-         f"Who builds {S['product']} and why: OSINTPH, the FalconEye Route Map tab, and how to get in touch.")
+    shots = f"Screenshots of {S['product']} {rel.tag}: light and dark, macOS and Windows, PNG and PDF exports."
+    page("/screenshots/", "Screenshots", content("screenshots.html").replace("{{tag}}", html.escape(rel.tag)),
+         shots, wide=True,
+         structured=jsonld(article("ImageGallery", "/screenshots/", f"{S['product']} screenshots",
+                                   PAGE_SOURCES["/screenshots/"], shots)))
+    for path, name, title in COMPARE_PAGES:
+        crumbs = [("Compare", "/compare/")] + ([(title, path)] if path != "/compare/" else [])
+        body = content(name).replace("{{downloads}}", download_buttons(rel)).replace("{{tag}}", html.escape(rel.tag))
+        search_title, search_description = SEARCH[path]
+        nodes = [article("TechArticle" if path == "/visual-traceroute/" else "WebPage", path,
+                         search_title.format(p=S["product"]), PAGE_SOURCES[path],
+                         search_description.format(p=S["product"]))]
+        if len(crumbs) > 1:
+            nodes.append(breadcrumbs(*crumbs))
+        page(path, title, body, search_description.format(p=S["product"]), structured=jsonld(*nodes))
+    about = f"Who builds {S['product']} and why: OSINTPH, the FalconEye Route Map tab, and how to get in touch."
+    page("/about/", "About", prose(f"About {S['product']}", content("about.html")), about,
+         structured=jsonld(article("AboutPage", "/about/", f"About {S['product']}", PAGE_SOURCES["/about/"],
+                                   about)))
     page("/privacy/", "Privacy",
          prose("Privacy", markdown((ROOT / "PRIVACY.md").read_text(encoding="utf-8")) + content("privacy-site.html"),
                content("privacy-lead.html")),
@@ -797,7 +953,7 @@ def build_static_pages(rel: Release) -> None:
          "records: visits and downloads" + (", and Google Analytics only with your consent." if GA_ID else "."))
     doc_page("/code-signing/", ROOT / "CODE_SIGNING_POLICY.md", "Code signing policy",
              f"How {S['product']} Windows releases are code-signed, and by whom.")
-    changelog = markdown((ROOT / "CHANGELOG.md").read_text(encoding="utf-8"))
+    changelog = markdown((ROOT / "CHANGELOG.md").read_text(encoding="utf-8"), versioned_ids=True)
     changelog = re.sub(r"<p>All notable changes.*?</p>", "", changelog, flags=re.S)
     changelog = re.sub(r'<h2 id="unreleased">Unreleased</h2>\s*', "", changelog)
     page("/changelog/", "Changelog", prose("Changelog", changelog,
@@ -822,10 +978,13 @@ PAGE_SOURCES = {
     "/docs/troubleshooting/": ["docs/troubleshooting.md"], "/docs/limitations/": ["docs/limitations.md"],
     "/docs/testing/": ["docs/testing.md"], "/docs/reading-a-traceroute/": ["docs/reading-a-traceroute.md"],
     "/compare/": ["site/content/compare.html"],
+    "/visualroute-alternative/": ["site/content/visualroute-alternative.html"],
+    "/open-visual-traceroute-alternative/": ["site/content/open-visual-traceroute-alternative.html"],
+    "/visual-traceroute/": ["site/content/visual-traceroute.html", "site/assets/img"],
     "/changelog/": ["CHANGELOG.md"], "/privacy/": ["PRIVACY.md", "site/content/privacy-site.html",
                                                   "site/content/privacy-lead.html"],
     "/code-signing/": ["CODE_SIGNING_POLICY.md"], "/about/": ["site/content/about.html"],
-    "/support/": ["site/content/support.html", "site/donate"], "/donate/": ["site/donate"],
+    "/support/": ["site/content/support.html"], "/donate/": ["site/donate"],
 }
 
 
@@ -860,7 +1019,7 @@ def build_files(release: "Release") -> None:
         f"Encryption: {S['url']}/release-key.asc\n"
         f"Preferred-Languages: en\n"
         f"Canonical: {S['url']}/.well-known/security.txt\n", encoding="utf-8")
-    (OUT / "robots.txt").write_text(f"User-agent: *\nAllow: /\nSitemap: {S['url']}/sitemap.xml\n",
+    (OUT / "robots.txt").write_text(f"User-agent: *\nAllow: /\nDisallow: /dl/\nSitemap: {S['url']}/sitemap.xml\n",
                                     encoding="utf-8")
     (OUT / "site.webmanifest").write_text(json.dumps({
         "name": S["product"], "short_name": S["product"], "start_url": "/",

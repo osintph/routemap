@@ -24,14 +24,16 @@ maintenance time.
 
 From the router's hostname first: CAIDA's Hoiho rules and carriers' own site
 codes. Only if the hostname says nothing does it fall back to an IP geolocation
-database (RIPEstat), and that answer must still pass the round-trip check. The
+database: DB-IP Lite City on your machine first, then RIPEstat online for the
+addresses DB-IP Lite does not place. That answer must still pass the round-trip
+check. The
 Source column and the marker colour say which. See
 [reading the result](guide.md#reading-the-result).
 
 ## What does it send, and to whom?
 
 Only what [PRIVACY.md](../PRIVACY.md) lists: public router hostnames to CAIDA
-Hoiho, public hop addresses to RIPEstat, reverse DNS queries and the target's
+Hoiho, public hop addresses DB-IP Lite does not place to RIPEstat, reverse DNS queries and the target's
 own lookup to your resolver (and to any resolver you add in Settings >
 Probes), and, only if you have not set your location, your public IP to
 RIPEstat. Private and carrier-NAT addresses are never looked up. Each source

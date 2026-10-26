@@ -1,9 +1,10 @@
 # The project site (getroutemap.app)
 
-`python site/build.py` builds it into `site/build/`; `.github/workflows/site.yml`
-deploys it. Branding, links, contact and donations are in `site.toml`; page
-text comes from the repository's own documents and `content/`; screenshots
-are in `assets/shots/` as light and dark pairs taken from the real app.
+`python site/build.py` builds it into `site/build/`; the "Project site" job of
+`.github/workflows/build.yml` deploys it after a release. Branding, links,
+contact and donations are in `site.toml`; page text comes from the repository's
+own documents and `content/`; screenshots are in `assets/img/` as light and
+dark pairs, rendered by the app itself (see Images and previews).
 
 **Style.** This must read as the product page of a tool that network and
 security people trust, so it must never look like a template: no grids of
@@ -51,10 +52,21 @@ family or a font service URL appears in the stylesheet or a built page.
 ## Images and previews
 
 Screenshots go into `assets/img/` as `NAME-light.EXT` and `NAME-dark.EXT` (or one
-`NAME.EXT`). The build writes AVIF and WebP copies at several widths into
+`NAME.EXT`). They are rendered by the app's own code from saved, sanitized traces
+(`tests/fixtures/gui/`, first hops as documentation addresses), never from a live
+trace: `QT_QPA_PLATFORM=offscreen QT_SCALE_FACTOR=2 python site/shots/make_shots.py`
+writes every one but the Windows-native image, which comes from the mockup
+workflow's Windows runner (`.github/workflows/mockup.yml`), and the PDF page needs
+poppler's `pdftoppm`. The build writes AVIF and WebP copies at several widths into
 `assets/img/v/` with the source's content hash in each name, and the pages offer
 them in `<picture>` with the original as the fallback (needs Pillow, pinned in
 `requirements.txt`).
+
+The AlternativeTo badge in `assets/badges/alternativeto-compact-color.svg` is
+AlternativeTo's own `badge-compact-color.svg`, fetched once on 26 October 2026 from
+https://alternativeto.net/static/badges/badge-compact-color.svg (SHA-256 begins
+`a84a12df6aff9750`) and served from this site, so no page loads anything from
+another host; the link around it is AlternativeTo's, as they give it.
 
 The Open Graph previews in `assets/og/` (1200 x 630) are drawn from the site's
 own type and colours by `og/make_og.py`, which renders them with Chrome; rerun it

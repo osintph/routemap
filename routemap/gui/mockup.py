@@ -29,7 +29,7 @@ from routemap.gui.mainwindow import MainWindow
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 FIXTURES = ROOT / "tests" / "fixtures" / "gui"
-MANILA = (14.6, 121.0, "Manila, NCR, PH")
+MANILA = (14.6, 121.0, "Manila, PH")    # the site's screenshots name the origin so
 WINDOW = QSize(1440, 900)
 
 

@@ -8,12 +8,14 @@
   {{downloads}}
   <p class="oss"><span class="badge">Free and open source, AGPL-3.0</span>
   <a class="source" href="{{repository}}">github.com/osintph/routemap</a></p>
-  [[pic window jpg 1600 1000 hero|Route Map 0.2.0-beta.3 with a live trace from Manila to heise.de: great-circle lines through Stockholm and Frankfurt to Stuttgart, coloured by the round-trip time each step added; beside the map the AS path with RPKI badges, the countries crossed, a RIPE Atlas baseline, the RIS view and 48 hours of BGP updates; below, the hop table with ASN and RPKI, and the details of hop 7 in Stockholm]]
-  <p class="crop-note">A live trace from Manila to heise.de with the built-in prober, origin set in Settings. The first six hops, the home network and the ISP, are shown with documentation addresses.</p>
+  [[pic window jpg 1600 1000 hero|Route Map {{tag}} with a saved trace from Manila to heise.de: great-circle lines through Hong Kong, Singapore, Marseille and Paris to Frankfurt, coloured by the round-trip time each step added; beside the map the AS path and the countries crossed; below, the hop table with each hop's place and source]]
+  <p class="crop-note">A saved trace from Manila to heise.de, drawn by the app itself. The first hops, the home network and the ISP, are documentation addresses.</p>
 </section>
 
 <section class="rules" aria-labelledby="rules">
   <h2 id="rules">How it places a hop</h2>
+  <p class="rules-lead">Most of what a <a href="/visual-traceroute/">visual traceroute</a> shows depends on
+  where it puts each router, and that is where most of them go wrong.</p>
 
   <div class="rule">
     <div class="rule-text">
@@ -26,7 +28,7 @@
       and falls back to an IP database only when the name says nothing: DB-IP Lite on your
       machine, or RIPEstat online.</p>
     </div>
-    [[pic rule1-sources png 1286 764 crop|The hop table: hops 1 to 3 local and 4 to 6 the ISP; hops 7 to 9 placed by carrier site code in Stockholm and Frankfurt on Arelion's network, AS1299 with valid RPKI; hop 10 not placed; hops 11 to 15 placed by an IP database in France and Germany, AS1299 and AS12306]]
+    [[pic rule1-sources png 1510 984 crop|The hop table: hops 1 to 3 local and 4 and 5 the ISP; hops 6 to 11 placed by carrier site code in Hong Kong, Singapore, Paris and Frankfurt on Arelion's network, AS1299; hops 12 to 16 placed by an IP database in France and Germany, two of them to the country only]]
   </div>
 
   <div class="rule">
@@ -36,10 +38,12 @@
       allows about <strong>100 km</strong>: a hop that answers in <strong>5 ms</strong> is within
       about <strong>500 km</strong>, plus 300 km of slack for an approximate origin. Any placement
       farther than that is rejected, whatever its source, and the reason is shown. So is a
-      database answer that would need a detour the round trip did not pay for.</p>
+      database answer that would need a detour the round trip did not pay for. A destination that
+      answers faster than its registered place allows, as anycast networks do, is placed where the
+      round trip past the last placed hop reaches, and labelled "served from near" that city.</p>
     </div>
-    [[pic rule2-rejected png 2330 180 crop wide|The Unplaced panel for a live trace to www.spiegel.de: hop 9, link11-ic-369430.ip.twelve99-cust.net, location impossible for RTT: 10,744 km away but the round trip allows at most 3,054 km; hop 11 rejected the same way]]
-    <p class="crop-note">The IP database puts hop 9 in France, 10,744 km from Manila. It answered in 27 ms, which allows at most 3,054 km, so the placement is rejected.</p>
+    [[pic rule2-rejected png 1280 716 crop|The hover card for hops 7 and 8 of a saved trace to heise.de: hop 8 answered from two routers; mei-b6-link.ip.twelve99.net in Marseille is ruled out, 10,849 km away while the fastest probe allows 6,130 km, and sng-b6-link.ip.twelve99.net in Singapore is used]]
+    <p class="crop-note">Hop 8 answered from two routers. The name of one says Marseille, 10,849 km from Manila; its fastest probe came back in 58 ms, which allows at most 6,130 km, so that place is ruled out and the other router's Singapore is used.</p>
   </div>
 
   <div class="rule">
@@ -49,7 +53,7 @@
       hollow. A hop that cannot be placed stays in the table and in the Unplaced panel, with the
       reason it is not on the map.</p>
     </div>
-    [[pic rule3-unplaced png 1354 436 crop|The Unplaced panel for a live trace to amazon.com: hop 6 and hops 12 to 30 did not answer, so there is nothing to locate]]
+    [[pic rule3-unplaced png 1510 436 crop|The Unplaced panel for a saved trace to amazon.com: hops 9, 10 and 12 did not answer, so there is nothing to locate, and hops 16 to 18, the last of the trace, never replied]]
   </div>
 </section>
 
@@ -63,12 +67,12 @@
   Trace again and the app compares the two runs.</p>
   <div class="pair even">
     <figure class="shot">
-      [[pic globe jpg 1600 1000 bare|The same route on the globe, centred on the path from Manila to Frankfurt, with the RTT chart and hop 7's details beside it]]
+      [[pic globe jpg 1600 1000 bare|The same route on the globe, with the route summary and the hop table beside it]]
       <figcaption><strong>Globe</strong>, centred on the route; drag to turn it.</figcaption>
     </figure>
     <figure class="shot">
-      [[pic compare jpg 1600 1000 bare|Today's live run compared with the run of 3 October: the earlier path through Hong Kong, Singapore, Marseille and Paris faint and dashed, and the summary saying the route now goes through Stockholm]]
-      <figcaption><strong>Trace again and compare</strong>: two days later the route went through Stockholm instead of Hong Kong, Singapore, Marseille and Paris.</figcaption>
+      [[pic compare jpg 1600 1000 bare|The trace compared with an earlier saved run, the earlier path faint and dashed, and the summary saying hop 8 is no longer in Marseille]]
+      <figcaption><strong>Trace again and compare</strong>: the same path through Hong Kong, Singapore and Paris, except that hop 8 now answers from Singapore instead of Marseille.</figcaption>
     </figure>
   </div>
   <p>No submarine cables or exchange points yet: the cable data is sold under licence, and
@@ -93,20 +97,36 @@
   <p><strong>Paths</strong> finds the paths a load balancer spreads your traffic over; some may stay hidden. It uses
   Paris traceroute and the multipath detection algorithm's stopping rule, and gives each path its
   own latency and loss: on the map one colour per path, in the table a row per router where they
-  part ways. At most 20 probes a second and 1,500 in all. <strong>Reverse trace</strong> asks a
+  part ways. It stops after 5 silent hops, as scamper and RIPE Atlas do, then asks the target once
+  more at full TTL on each path found. On Windows it probes over TCP; a hop that answers no TCP
+  probe gets one ICMP echo, and the heading says whether the routers there do not answer TCP or
+  the target answers ICMP while its TCP service stays silent. At most 20 probes a second and 1,500
+  in all. <strong>Reverse trace</strong> asks a
   RIPE Atlas probe near the target to trace back to you, with your own Atlas key, and shows both
   directions side by side, aligned by network. It publishes your public IP address as the
   measurement's target, so it asks first. Traces, Paths and Watch run over IPv4 or IPv6.
   <a href="/docs/guide/#paths">Paths</a>, <a href="/docs/guide/#reverse-trace">reverse trace</a>.</p>
-  <p>Every trace times its <strong>DNS lookup</strong>, through your system resolver and any
-  resolvers you add, and says which address it traced. <strong>Ports</strong> tries one connection
-  to each of a few TCP ports on that address (open, closed or filtered, with TLS handshake time): a
-  reachability check for one target, not a port scanner. A <strong>remote agent</strong> is a
-  server you already reach with ssh: Route Map runs one trace there over your own ssh and maps it
-  from the server, with the server provider's first hops hidden.
-  <a href="/docs/guide/#dns-timing">DNS timing</a>, <a href="/docs/guide/#port-tests">port tests</a>,
-  <a href="/docs/guide/#remote-agents">remote agents</a>.</p>
-  [[pic statusbar png 2880 54 crop strip|The status bar: origin Manila, NCR, PH, set in Settings; the built-in prober's settings icmp -m 30 -q 3 -w 1; and checks for the trace, PTR, Hoiho and the IP database]]
+  <p><strong>DNS timing.</strong> Every trace times the lookup of its target, A and AAAA, through
+  your system resolver and any resolvers you add, and shows it with the trace: the address traced,
+  each answer's time, whether the resolver says it is authoritative, and its TTL. Route Map resolves
+  the name once and traces that address, so the address shown is the one traced. Plain DNS is not
+  encrypted: only the resolvers you list are asked, and with Online lookups off only your system
+  resolver. <a href="/docs/guide/#dns-timing">DNS timing</a>.</p>
+  <p><strong>Ports</strong> tries one TCP connection to each port you choose on the traced address,
+  443, 80, 22, 25, 53 and 3389 by default and at most 32, and reports each as open with its connect
+  time, closed or filtered, with the TLS handshake time for 443. It is a reachability check for one
+  target, not a port scanner: no ranges, four at a time. Next to Paths, an open port 443 says the
+  target is up and the routers in between are what is silent.
+  <a href="/docs/guide/#port-tests">Port tests</a>.</p>
+  [[pic probes png 1510 754 crop|The DNS and Ports sections above the hop table for a saved trace to heise.de: the system resolver's A and AAAA answers with their times and TTLs, and ports 443 and 80 open with their connect times, 443 with its TLS handshake time, the others filtered]]
+  <p>A <strong>remote agent</strong> is a server you already reach with ssh. Route Map runs one
+  command there for each trace over your own ssh client, with no daemon on the server and no keys
+  kept by the app, and maps the result from the server: Trace, Paths or Ports from a data centre or
+  another country. The server needs routemap-engine for the user you log in as. Its first hops are
+  the provider's own routers, so they are hidden by default.
+  <a href="/docs/guide/#remote-agents">Remote agents</a>.</p>
+  [[pic agent jpg 1600 1000 |A synthetic trace from a remote agent named fra-vps in Frankfurt to heise.de: the first five hops, the server provider's own routers, listed as hidden with no address, name or place, and the route drawn from Frankfurt]]
+  [[pic statusbar png 3200 44 crop strip|The status bar: origin Manila, PH, set in Settings; the trace tool's settings traceroute -m 30 -q 3 -w 1; and checks for DNS, the trace, PTR, Hoiho and the IP database]]
 
   <h3 id="labels">The source labels</h3>
   <dl class="labels">
@@ -114,7 +134,7 @@
     <dt><span class="dot site"></span><code>site-code</code></dt><dd>The hostname carries a carrier's own site code, from the bundled table.</dd>
     <dt><span class="dot ipdb"></span><code>ip-db</code></dt><dd>An IP database placed it, DB-IP Lite on your machine or RIPEstat online (the label says which): a hint, since backbone addresses often sit where the prefix was registered.</dd>
     <dt><span class="dot ipdb hollow"></span><code>ip-db, country only</code></dt><dd>Only the country is known; hollow marker, kept out of the map's fit.</dd>
-    <dt><span class="dot anycast"></span><code>anycast</code></dt><dd>The destination answered faster than the place it is registered at allows, so it is served from near you: placed at the largest city the time reaches. An inference.</dd>
+    <dt><span class="dot anycast"></span><code>anycast</code></dt><dd>The destination answered faster than its registered place allows, so it is served from near you: placed where the round trip past the last placed hop reaches. An inference.</dd>
     <dt><span class="dot inferred"></span><code>inferred from neighbours</code></dt><dd>No source placed it, but the hops either side are in one city; hollow marker. An inference.</dd>
     <dt><span class="dot local"></span><code>local</code></dt><dd>Your network or your ISP's carrier NAT; never looked up anywhere.</dd>
   </dl>
@@ -129,9 +149,10 @@
       <tr><td>Two country codes and an anchor name</td><td>RIPE Atlas</td><td>after each trace, for the typical latency; public data</td></tr>
       <tr><td>A download request</td><td>DB-IP</td><td>only when you choose to download DB-IP Lite</td></tr>
       <tr><td>Reverse DNS queries</td><td>your own resolver</td><td>for public hops without a name</td></tr>
-      <tr><td>The target's name, A and AAAA</td><td>your system resolver, and the resolvers you add</td><td>each trace; added resolvers only while Online lookups are on</td></tr>
-      <tr><td>One TCP connection per port</td><td>the traced address</td><td>only when you test ports (or turn on ports with every trace)</td></tr>
-      <tr><td>One ssh session</td><td>your own server</td><td>only when you trace from a remote agent; it may ask RIPEstat for its own place</td></tr>
+      <tr><td>ICMP probes; on Windows TCP connection attempts to port 443, plus one ICMP echo per hop that did not answer TCP</td><td>the target and the routers on the way</td><td>each Paths run, at most 20 a second and 1,500 in all; the same lookups as one trace</td></tr>
+      <tr><td>The target's name</td><td>your system resolver, and the resolvers you add in Settings › Probes (none by default), nowhere else</td><td>each trace; plain DNS is not encrypted; with Online lookups off, only the system resolver, which the trace needs</td></tr>
+      <tr><td>One TCP connection attempt per chosen port (at most 32), and for TLS ports a TLS ClientHello with the target's name</td><td>the traced address</td><td>only when you click Ports, or turn on Test these ports with every trace</td></tr>
+      <tr><td>One ssh connection, with your own ssh client</td><td>the server you named in Settings › Agents, which sends the probes</td><td>only when you trace from an agent; "From the agent's public IP" makes the server look itself up at RIPEstat, so RIPEstat sees the server's address; "City" makes no lookup</td></tr>
       <tr><td>Your public IP</td><td>RIPEstat</td><td>only while no origin is set in Settings</td></tr>
       <tr><td>Target, key, your network's AS</td><td>RIPE Atlas</td><td>only for an Atlas trace, with your own key; public</td></tr>
     </tbody>
@@ -146,6 +167,7 @@
     <p>Route Map is free. Donations pay for {{donate_pays_for}}.</p>
     <p class="pay-inline"><a href="{{donate_kofi}}">Ko-fi</a> <a href="{{donate_paypal}}">PayPal</a>
     <a href="/donate/">Bitcoin and Monero</a></p>
+    {{alternativeto_badge}}
   </div>
   <div class="maker">
     <p class="eyebrow">Built by</p>
