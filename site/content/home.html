@@ -90,8 +90,8 @@
   The same engine powers the Route Map tab in OSINTPH's <a href="{{falconeye}}">FalconEye</a>.</p>
   <p><strong>Watch</strong> keeps tracing, mtr style: every hop once a second, with loss, latency
   and jitter per hop, a ping plot for the hop you select and the destination, and a note whenever
-  the path changes. Loss that only a router's own replies show is marked as rate limiting, and a
-  computer that sleeps leaves a gap, not loss. It never probes faster than mtr's defaults and stops
+  the path changes. Loss that only a router's own replies show is marked as rate limiting, a
+  computer that sleeps leaves a gap, not loss, and a change of its clock is not a gap. It never probes faster than mtr's defaults and stops
   by itself after an hour; export the session as PDF or JSON and compare it like any trace.
   <a href="/docs/guide/#continuous-mode">How it works</a>.</p>
   <p><strong>Paths</strong> finds the paths a load balancer spreads your traffic over; some may stay hidden. It uses

@@ -55,7 +55,9 @@ Yes: **Watch**, or `routemap --watch TARGET`, probes every hop once a second,
 mtr style, with per-hop loss, latency and jitter, a ping plot and the path
 changes. It never goes faster than mtr's own defaults (one cycle a second, at
 most 30 probes a second) and stops by itself after an hour unless you choose
-longer, 8 hours at most. See the [guide](guide.md#continuous-mode).
+longer, 8 hours at most. If the computer sleeps, the missed time is a gap,
+never loss; a change of the system clock is not a gap. See the
+[guide](guide.md#continuous-mode).
 
 ## Is Ports a port scanner?
 

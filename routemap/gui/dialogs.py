@@ -706,7 +706,9 @@ class SettingsDialog(QDialog):
             f"{int(_live.DURATION_MAX // 3600)} hours at most."))
         layout.addWidget(_note(
             "If the computer sleeps or the app is suspended, the missed time is a gap in the plot "
-            "and the statistics, never loss, and the session notes it."))
+            "and the statistics, never loss, and the session notes it. A change of the system clock "
+            "(a time sync, or setting it by hand) is not a gap: the cycle is kept and the note says "
+            "the clock changed."))
         layout.addWidget(_note(
             f"Stored sessions take at most <b>{mb} MB</b> together; past that the oldest sessions are "
             "dropped first. Single traces are not affected."))

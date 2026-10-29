@@ -231,6 +231,7 @@ def argv(value) -> list[str] | None:
 SESSION_HOPS = 30
 SESSION_CHANGES = 1000
 SESSION_GAPS = 1000
+SESSION_CLOCK_STEPS = 1000
 SESSION_RAW = 1800 * 2           # raw samples per hop (30 minutes at the 1 s floor), with slack
 SESSION_BUCKETS = 8 * 60 + 10    # one-minute buckets over the 8-hour maximum
 CHANGE_KINDS = ("address", "appeared", "disappeared", "destination")
@@ -324,6 +325,10 @@ def session(data) -> dict | None:
     for g in (data.get("gaps") if isinstance(data.get("gaps"), list) else [])[:SESSION_GAPS]:
         if isinstance(g, dict) and _iso(g.get("from")) and _iso(g.get("to")):
             gaps.append({"from": g["from"], "to": g["to"], "seconds": _num(g.get("seconds"), 0, 10**7)})
+    clock_steps = []
+    for c in (data.get("clock_steps") if isinstance(data.get("clock_steps"), list) else [])[:SESSION_CLOCK_STEPS]:
+        if isinstance(c, dict) and _iso(c.get("at")) and _num(c.get("seconds"), -10**7, 10**7) is not None:
+            clock_steps.append({"at": c["at"], "seconds": c["seconds"]})
     samples_in = data.get("samples") if isinstance(data.get("samples"), dict) else {}
     per_hop = samples_in.get("hops") if isinstance(samples_in.get("hops"), dict) else {}
     samples = {}
@@ -354,7 +359,8 @@ def session(data) -> dict | None:
             "cycles": _int(data.get("cycles"), 0, 10**7) or 0,
             "stopped_by": data.get("stopped_by") if data.get("stopped_by") in STOPPED_BY else None,
             "reached_hop": _int(data.get("reached_hop"), 1, 255),
-            "hops": hops, "changes": changes, "gaps": gaps,
+            "hops": hops, "changes": changes, "gaps": gaps, "clock_steps": clock_steps,
+            "clock_fallback": text(data.get("clock_fallback"), 200),
             "resets": [r for r in (data.get("resets") if isinstance(data.get("resets"), list) else [])[:100]
                        if _iso(r)],
             "samples": {"resolution_s": _num(samples_in.get("resolution_s"), 1, 60) or 1.0,

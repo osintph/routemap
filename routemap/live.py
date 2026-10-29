@@ -16,6 +16,7 @@ session into what the app shows and saves:
 from __future__ import annotations
 
 import copy
+import time
 
 from routemap_engine import geo, watch
 from routemap_engine.parse import Hop
@@ -40,6 +41,7 @@ def snapshot(session: watch.Session, paused: bool = False) -> dict:
         "interval": session.options.interval, "duration": session.options.duration,
         "reached_hop": session.reached_hop, "hops": hops, "loss": geo.loss_verdict(hops),
         "changes": [dict(c) for c in session.changes], "gaps": [dict(g) for g in session.gaps],
+        "clock_steps": [dict(c) for c in session.clock_steps], "clock_fallback": session.clock_fallback,
         "resets": list(session.resets), "stopped_by": session.stopped_by, "paused": paused,
         "live": {n: list(s.live) for n, s in session.samples.items()},
     }
@@ -154,7 +156,47 @@ def table_text(snap: dict, places: dict[int, str] | None = None) -> str:
     notes.append(f"Path changes: {len(changes)}." if changes else "Path changes: none.")
     if snap.get("gaps"):
         notes.append(f"Gaps (sleep or suspend, not counted): {len(snap['gaps'])}.")
+    if snap.get("clock_steps"):
+        notes.append(f"Clock changes (cycles kept): {len(snap['clock_steps'])}.")
+    if snap.get("clock_fallback"):
+        notes.append(describe_clock_fallback(snap["clock_fallback"]))
     return "\n".join(rows + [" ".join(notes)])
+
+
+def _num(v) -> bool:
+    return isinstance(v, (int, float)) and not isinstance(v, bool)
+
+
+def gap_span(gap: dict, started: float) -> tuple[float, float] | None:
+    """Where a gap sits on the plot, in seconds from the start. A live session
+    (engine 0.8.2) gives it on the plot's own clock, which a change of the
+    system clock does not move; a saved one has only wall clock times."""
+    if _num(gap.get("t_from")) and _num(gap.get("t_to")):
+        return gap["t_from"], gap["t_to"]
+    if _num(gap.get("from")) and _num(gap.get("to")):
+        return gap["from"] - started, gap["to"] - started
+    return None
+
+
+def change_t(change: dict, started: float) -> float | None:
+    """Where a path change sits on the plot, as gap_span."""
+    if _num(change.get("t")):
+        return change["t"]
+    return change["at"] - started if _num(change.get("at")) else None
+
+
+def describe_clock_step(step: dict) -> str:
+    """One sentence for a cycle in which the system clock was changed (a time
+    sync or by hand): kept, because the computer did not sleep."""
+    at, seconds = step.get("at"), step.get("seconds")
+    when = time.strftime("%H:%M:%S", time.localtime(at)) if isinstance(at, (int, float)) else "?"
+    by = f" ({seconds:+.0f} s)" if isinstance(seconds, (int, float)) else ""
+    return f"Clock changed at {when}{by}; this cycle was kept."
+
+
+def describe_clock_fallback(reason: str) -> str:
+    """The session could not tell sleep from a clock change (engine 0.8.2)."""
+    return f"Clock check off: {reason}, so a change of the system clock may show as a gap."
 
 
 def describe_change(change: dict) -> str:
@@ -201,6 +243,7 @@ def saved_snapshot(session: dict) -> dict:
     started = _epoch(session.get("started")) or 0.0
     changes = [dict(c, at=_epoch(c.get("at"))) for c in session.get("changes") or []]
     gaps = [{"from": _epoch(g.get("from")), "to": _epoch(g.get("to"))} for g in session.get("gaps") or []]
+    steps = [{"at": _epoch(c.get("at")), "seconds": c.get("seconds")} for c in session.get("clock_steps") or []]
     hops = session.get("hops") or []
     return {"target": session.get("target"), "address": session.get("address"),
             "cycles": session.get("cycles", 0), "started": started, "now": _epoch(session.get("ended")) or started,
@@ -208,5 +251,7 @@ def saved_snapshot(session: dict) -> dict:
             "reached_hop": session.get("reached_hop"), "hops": hops,
             "loss": session.get("loss") or geo.loss_verdict(hops),
             "changes": changes, "gaps": [g for g in gaps if g["from"] is not None and g["to"] is not None],
+            "clock_steps": [c for c in steps if c["at"] is not None],
+            "clock_fallback": session.get("clock_fallback"),
             "resets": session.get("resets") or [], "stopped_by": session.get("stopped_by") or "user",
             "paused": False, "live": live}

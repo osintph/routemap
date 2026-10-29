@@ -4,6 +4,39 @@ All notable changes to this project are documented here. The format is based
 on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 uses [Semantic Versioning](https://semver.org/).
 
+## [0.5.0-beta.4] - 2026-10-29
+
+Watch and a change of the system clock. The engine is routemap-engine
+0.8.2, which has its own list.
+
+### Fixed
+- **Watch dropped a healthy cycle when the system clock changed**
+  ([routemap-engine#24](https://github.com/osintph/routemap-engine/issues/24),
+  reported on Bluesky by sasame-mcp.bsky.social). A time sync or setting
+  the clock by hand while probing ran normally was recorded as a sleep gap,
+  and that cycle was left out of the statistics. A gap is now only sleep,
+  suspend or a stopped app, measured on a clock that keeps counting while
+  the computer sleeps; the cycle is kept. Placement and the map were never
+  affected.
+
+### Changed
+- **Clock changes are said where gaps are**: the live note and the PDF
+  ("Clock changed at 14:02:07 (+5 s); this cycle was kept."), a "Clock
+  changes" row in the PDF, and a note under the CLI table. The live plot
+  runs on the same clock as the gap check, so a kept clock change leaves no
+  blank stretch and no overlap; exported sample times stay on the wall
+  clock.
+- **"Clock check off"**: where that clock cannot be read, the session falls
+  back to the older check (a clock change may then show as a gap) and says
+  so once, with the reason, in the live note, the PDF, the CLI and the JSON.
+- The JSON session has `clock_steps` (`at`, `seconds`; negative when the
+  clock was set back) and `clock_fallback` (null, or the reason). The export
+  stays format version 5; older versions of Route Map ignore both.
+- The guide, `docs/cli.md`, the FAQ, the limitations, troubleshooting, the
+  in-app Live help and the site say what a gap is and that a clock change
+  is not one. `docs/cli.md` and the guide said Watch's JSON was format
+  version 4; it is 5.
+
 ## [0.5.0-beta.3] - 2026-10-26
 
 Paths on Windows. The engine is routemap-engine 0.8.1, which has its own
