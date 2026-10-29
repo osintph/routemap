@@ -132,6 +132,18 @@ says so. On a Windows agent, update its engine: `pip install -U
 routemap-engine` (0.8.1 or later). Other codes name the cause, for example
 `WSAENETUNREACH 10051` when this computer has no route to the target.
 
+## Watch shows a gap, or "Clock changed", or "Clock check off"
+
+A **gap** is time the computer slept, was suspended, or the app was stopped
+(for example by a debugger): those cycles are left out, never counted as
+loss. **"Clock changed at 14:02:07 (+5 s); this cycle was kept."** means the
+system clock was set (a time sync, or by hand) while probing carried on; it
+is not a gap and nothing is left out. Before 0.5.0-beta.4 such a change could
+show as a gap. **"Clock check off"** means this computer's clock that counts
+through sleep could not be read, so the session uses the older check and a
+clock change may show as a gap; the reason follows in the note. Nothing needs
+fixing for a trace to be right; if it persists, report it with the reason.
+
 ## Ports says "filtered" for ports I know are open
 
 Filtered means nothing answered: a firewall on the way, at the target or on

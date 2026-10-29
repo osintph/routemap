@@ -45,9 +45,16 @@ routemap --version
 | `--ports [LIST]` | test TCP ports on the target, one connection attempt each: the list given (`443,80,22`) or the one in Settings; at most 32, no ranges. Put it after the target. With `--paths`, the port test is printed after the paths |
 | `--from AGENT` | run the trace (or `--paths`, `--ports`) on a remote agent from Settings > Agents, over your own ssh, one connection; not with `--watch` or `--reverse` |
 
-With `--watch`, `--json` prints the export (format version 4, with the
+With `--watch`, `--json` prints the export (format version 5, with the
 session) on stdout when the session ends, and the table goes to stderr. On a
-terminal the table redraws in place; piped, it prints once at the end. Values
+terminal the table redraws in place; piped, it prints once at the end. Under
+the table are the notes: path changes, gaps (sleep or suspend, not counted),
+clock changes (cycles kept) and, when sleep and a change of the system clock
+could not be told apart, "Clock check off" with the reason. In the session,
+`gaps` lists each gap (`from`, `to`, `seconds`), `clock_steps` each change of
+the system clock whose cycle was kept (`at`, and `seconds`, negative when the
+clock was set back), and `clock_fallback` is null or the reason the clock
+check was off. Values
 outside the limits are refused with the reason; the limits are those of
 Settings > Live (see the [guide](guide.md#continuous-mode)).
 

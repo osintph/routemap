@@ -25,6 +25,7 @@ import argparse
 import asyncio
 import datetime as _dt
 import json
+import logging
 import os
 import re
 import sys
@@ -213,6 +214,9 @@ def cmd_watch(args) -> int:
                       + live.table_text(snap) + "\n")
             out.flush()
 
+    # The engine logs a clock fallback once; here the table's note says it, so
+    # Python's last-resort handler must not print it a second time.
+    logging.getLogger("routemap_engine.watch").addHandler(logging.NullHandler())
     w = watch.Watch(target, options, on_cycle=on_cycle)
     result = {}
 

@@ -472,7 +472,8 @@ def _session_section(flow: "_Flow", route: dict, session: dict) -> None:
         ["Loss", snap["loss"].get("text", "")],
         ["Path changes", str(len(snap["changes"])) if snap["changes"] else "none"],
         ["Gaps", (f"{len(snap['gaps'])} (sleep or suspend; not counted as loss)" if snap["gaps"] else "none")],
-    ], [28, 150], size=8.5)
+    ] + ([["Clock changes", f"{len(snap['clock_steps'])} (cycles kept)"]] if snap.get("clock_steps") else [])
+      + ([["Clock check", "off (see below)"]] if snap.get("clock_fallback") else []), [28, 150], size=8.5)
     merged = _live.merge_hops(route.get("hops") or [], snap["hops"])
     rows, muted = [], set()
     for n, h in enumerate(merged):
@@ -493,6 +494,10 @@ def _session_section(flow: "_Flow", route: dict, session: dict) -> None:
         a = _dt.datetime.fromtimestamp(g["from"]).astimezone().strftime("%H:%M:%S")
         b = _dt.datetime.fromtimestamp(g["to"]).astimezone().strftime("%H:%M:%S")
         flow.text(f"Gap {a} to {b}: the computer slept or the app was suspended; not counted as loss.", 8)
+    for c in snap.get("clock_steps") or []:
+        flow.text(_live.describe_clock_step(c), 8)
+    if snap.get("clock_fallback"):
+        flow.text(_live.describe_clock_fallback(snap["clock_fallback"]), 8)
     from routemap.gui.livepanel import PingPlot
     flow.heading("RTT over the session, per hop")
     for h in merged:

@@ -390,13 +390,20 @@ reported as a change.
 do not share is ICMP rate limiting, greyed with its note; only the loss at the
 destination is real. If the computer sleeps or the app is suspended, the missed
 time is a gap in the plot and the statistics, never loss, and the session notes
-it.
+it. A change of the system clock (a time sync, or setting the clock by hand) is
+not a gap: the cycle is kept, the plot runs on without a jump, and the note
+says so, for example "Clock changed at 14:02:07 (+5 s); this cycle was kept."
+Route Map tells sleep from a clock change with a clock that keeps counting
+while the computer sleeps. Linux, macOS and Windows all have one; if it cannot
+be read, the note says "Clock check off" with the reason, and a clock change
+may then show as a gap.
 
 **Pause** (P, when the cursor is not in a text field), **Stop** (Ctrl+.) and
 **Reset counters** (a button and a Trace menu item, with no shortcut) control a
 running session. A stopped session stays on screen: export it as PDF (the table,
-the changes, the gaps and one plot per hop for the whole session) or JSON
-(format version 4, with the statistics, the plot data and the changes), compare
+the changes, the gaps, the clock changes and one plot per hop for the whole
+session) or JSON (format version 5, with the statistics, the plot data, the
+changes, the gaps, `clock_steps` and `clock_fallback`), compare
 it with another run as with any trace, or reopen it from History or File >
 Open Trace.
 

@@ -49,6 +49,11 @@
   for it, and neither is RIPE Atlas.
 - One probe per hop per cycle, so ECMP siblings show up over several cycles,
   not in one.
+- Sleep is told apart from a change of the system clock by a clock that keeps
+  counting through sleep (CLOCK_BOOTTIME on Linux, CLOCK_MONOTONIC on macOS,
+  the monotonic clock on Windows). If that clock cannot be read, the session
+  says "Clock check off" with the reason, and a clock change can show as a
+  gap. Either way nothing is counted as loss.
 
 ## Paths
 

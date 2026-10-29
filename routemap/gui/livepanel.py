@@ -224,8 +224,9 @@ class PingPlot(QWidget):
         shade = QColor(pal.border)
         shade.setAlpha(110)
         for g in (self.snap or {}).get("gaps") or []:
-            if isinstance(g.get("from"), (int, float)) and isinstance(g.get("to"), (int, float)):
-                a, b = max(t0, g["from"] - started), min(t1, g["to"] - started)
+            span_t = live_mod.gap_span(g, started)
+            if span_t is not None:
+                a, b = max(t0, span_t[0]), min(t1, span_t[1])
                 if b > a:
                     p.fillRect(QRectF(x(a), top, max(1.0, x(b) - x(a)), h), shade)
                     p.setPen(muted)
@@ -235,13 +236,11 @@ class PingPlot(QWidget):
         for c in (self.snap or {}).get("changes") or []:
             if self.printed and c.get("hop") != self.hop:
                 continue
-            at = c.get("at")
-            if isinstance(at, (int, float)):
-                tc = at - started
-                if t0 <= tc <= t1:
-                    p.setPen(change_pen)
-                    p.drawLine(QPointF(x(tc), top), QPointF(x(tc), top + h))
-                    p.drawText(QPointF(x(tc) + 3, top + 10), f"cycle {c.get('cycle')}")
+            tc = live_mod.change_t(c, started)
+            if tc is not None and t0 <= tc <= t1:
+                p.setPen(change_pen)
+                p.drawLine(QPointF(x(tc), top), QPointF(x(tc), top + h))
+                p.drawText(QPointF(x(tc) + 3, top + 10), f"cycle {c.get('cycle')}")
 
         # A pause or a gap: samples further apart than this are not joined.
         gap_after = 3 * float((self.snap or {}).get("interval") or 1.0)
@@ -307,6 +306,10 @@ class ChangeList(QLabel):
                 b = time.strftime("%H:%M:%S", time.localtime(g["to"]))
                 lines.append(html.escape(f"Gap {a} to {b}: the computer slept or the app was suspended; "
                                          "not counted as loss."))
+        for c in ((snap or {}).get("clock_steps") or [])[-3:]:
+            lines.append(html.escape(live_mod.describe_clock_step(c)))
+        if (snap or {}).get("clock_fallback"):
+            lines.append(html.escape(live_mod.describe_clock_fallback(snap["clock_fallback"])))
         head = f"<b>Path changes: {len(changes)}</b>" if changes else "<b>Path changes: none</b>"
         self.setText(head + ("<br>" + "<br>".join(lines) if lines else ""))
         if len(changes) > self._count:
