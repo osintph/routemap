@@ -6,11 +6,11 @@ import pathlib
 import re
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-# routemap-engine 0.8.1 on PyPI, the same bytes as the GitHub release files
-# (compared by digest 2026-10-26).
-ENGINE_RELEASE = "0.8.1"
-ENGINE_HASHES = {"3d415e62954f4c11c6af45768de980c5c6ba81d78ca63ccaabab473ec1a73eb8",   # wheel
-                 "044d8720e7a99b3fe030de004eb7349649751b47e287732050ebd5e0e6ea70ef"}   # sdist
+# routemap-engine 0.8.2 on PyPI, the same bytes as the GitHub release files
+# (compared by digest 2026-10-29).
+ENGINE_RELEASE = "0.8.2"
+ENGINE_HASHES = {"9febc91c5769d80b236f3afa32c8e9c4e93522721056ac59690dd49190643ce1",   # wheel
+                 "3d3de7dfbf89e873b8e04efd6e7b592d703e09daca359a7f4e2edad8de86411a"}   # sdist
 
 
 def _lock() -> str:
