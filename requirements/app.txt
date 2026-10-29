@@ -10,7 +10,7 @@ certifi==2026.10.19 \
     # via
     #   httpcore
     #   httpx
-cffi==2.1.1 ; platform_python_implementation != 'PyPy' \
+cffi==2.1.1 \
     --hash=sha256:046bfc24911b37851ee1b51aab8bffe713d89c68c6a057b09484ce9fd5f69b4e \
     --hash=sha256:06c72bb76605a4b0cd0aad6930b69d4baf7dd5d806cfc409b824191099700e66 \
     --hash=sha256:0beceaabe56af686895136a2de78db54ecd8e4046b236b8fd6d6cb61389e9bf2 \
@@ -172,10 +172,10 @@ cryptography==50.0.2 \
     --hash=sha256:f9f6143a8c75945eb960d9eb98905a441394abfa24afaae239d514ffb2586480 \
     --hash=sha256:fa8f5efb344d6908a1ce62f4a24e2e5780f825d6f53f5f50ec5ffacac72936cb \
     --hash=sha256:fdd28f912fccfec1846a94e2e1e8f9b0012f557f0c46fe4f3eb0d7a87afcf90b
-    # via -r requirements/app.in
-dnspython==2.8.0 \
-    --hash=sha256:01d9bbc4a2d76bf0db7c1f729812ded6d912bd318d3b1cf81d30c0f845dbf3af \
-    --hash=sha256:181d3c6996452cb1189c4046c61599b84a5a86e099562ffde77d26984ff26d0f
+    # via -r app.in
+dnspython==2.9.0 \
+    --hash=sha256:9a4aedb833c3c1b49214d04d44d3032ab7a9135f7c1d29a549b4ff78fd82fda9 \
+    --hash=sha256:b44dc6b18f07a8b1c56676a19fbfdb5209415b046a9cece286baafa87ff3f7f1
     # via routemap-engine
 h11==0.16.0 \
     --hash=sha256:4e35b956cf45792e4caa5885e69fba00bdbc6ffafbfa020300e549b208ee5ff1 \
@@ -300,9 +300,9 @@ maxminddb==3.2.0 \
     --hash=sha256:fd454af7ed67069aa76c0fa9119ec9440cfd7abe7cd7aa66373ecf1f46067295 \
     --hash=sha256:fe5ffcaf17210ec2a6c46cff418199f974ba034cb2e02452615c1184d2001cb8
     # via
-    #   -r requirements/app.in
+    #   -r app.in
     #   routemap-engine
-pycparser==3.1 ; implementation_name != 'PyPy' and platform_python_implementation != 'PyPy' \
+pycparser==3.1 \
     --hash=sha256:b3fc6dec06a8b2fefa0ed4ff92285306a5e3be9987bc5603c9edbdc4e492418f \
     --hash=sha256:f09d358c840bd147b79e55f2bc494f18ea869dc897f5852a8f5766b74f787882
     # via cffi
@@ -312,7 +312,7 @@ pyside6==6.11.2 \
     --hash=sha256:3201d67e3c10be2eaedd3910ff0f02351eca7e88c95a291cde5e7f2f55ef207f \
     --hash=sha256:57fe867a6c93821a085d74e8a26f863fc2363516848181c466032595b33b1729 \
     --hash=sha256:dc6d03990489a5085842770718392ef5de36352d8f608d9a9fe03e60af4d7b66
-    # via -r requirements/app.in
+    # via -r app.in
 pyside6-addons==6.11.2 \
     --hash=sha256:354c574a839f7d0751960ba03f33bec87c95e0f2796dca3287f54d03abe97dac \
     --hash=sha256:a2ca3c73e5f060d4aca49451abd9fba68dd0e1c66ff40cea3a1fe0415def579a \
@@ -329,10 +329,10 @@ pyside6-essentials==6.11.2 \
     # via
     #   pyside6
     #   pyside6-addons
-routemap-engine==0.8.2 \
+routemap-engine[offline]==0.8.2 \
     --hash=sha256:3d3de7dfbf89e873b8e04efd6e7b592d703e09daca359a7f4e2edad8de86411a \
     --hash=sha256:9febc91c5769d80b236f3afa32c8e9c4e93522721056ac59690dd49190643ce1
-    # via -r requirements/app.in
+    # via -r app.in
 shiboken6==6.11.2 \
     --hash=sha256:4bbbd6fa4d7cff5ec5e12bc4c10e1d845fa30c89457ecb13cc64f7bddb77f6f9 \
     --hash=sha256:53659683b1f7a08e9f87eff9b1065f1ceb7110cd7a4bc09fdf5efe43d286604d \
@@ -343,7 +343,7 @@ shiboken6==6.11.2 \
     #   pyside6
     #   pyside6-addons
     #   pyside6-essentials
-typing-extensions==4.16.0 ; python_full_version < '3.15' \
+typing-extensions==4.16.0 \
     --hash=sha256:481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8 \
     --hash=sha256:dc983d19a509c94dba722ee6abd33940f7c05a89e243c47e907eb4db6f1a43e5
     # via anyio
