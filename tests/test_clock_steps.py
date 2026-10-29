@@ -5,6 +5,7 @@ CLI table, the JSON); a session that cannot tell sleep from a clock change
 says that once, in the same places. Engine sessions run on injected clocks;
 nothing is sent."""
 import json
+import logging
 import time
 from concurrent.futures import Future
 
@@ -192,7 +193,44 @@ def test_the_cli_says_once_when_the_clock_check_is_off(network, monkeypatch, cap
     assert code == 0
     assert json.loads(out)["session"]["clock_fallback"] == reason
     assert err.count(live.describe_clock_fallback(reason)) == 1
-    assert err.count(reason) == 1                       # no second copy from the engine's log line
+
+
+def test_only_the_fallback_record_is_kept_off_the_cli(network, monkeypatch, caplog):
+    """The CLI shows the engine's clock fallback as a table note, so only that
+    one log record is held back (by a filter on the engine's watch logger,
+    which acts before any handler, Python's last-resort one included); any
+    other record from the same logger, now or in a later engine, gets through."""
+    log = logging.getLogger("routemap_engine.watch")
+    real_watch = watch.Watch
+
+    def noisy(*a, **k):
+        log.warning("Watch: something else entirely")
+        return real_watch(*a, **k)
+    monkeypatch.setattr(watch, "suspend_clock", lambda: None)
+    monkeypatch.setattr(watch, "Watch", noisy)
+    with caplog.at_level("WARNING", logger="routemap_engine.watch"):
+        for _ in range(2):                                # the filter is added once, however often
+            assert cli.main(["--watch", "example.net", "--count", "2", "--interval", "0.02", "--offline"]) == 0
+    got = [r.getMessage() for r in caplog.records if r.name == "routemap_engine.watch"]
+    assert got == ["Watch: something else entirely"] * 2
+    assert log.filters.count(cli._FALLBACK_SHOWN_IN_TABLE) == 1
+    # The engine still logs it, in exactly the words the filter matches.
+    assert any(r.msg == cli._FallbackShownInTable.MESSAGE for r in _engine_records(monkeypatch))
+
+
+def _engine_records(monkeypatch):
+    """What the engine logs on a fallback, with no filter in the way."""
+    log = logging.getLogger("routemap_engine.watch")
+    monkeypatch.setattr(log, "filters", [])
+    seen = []
+    handler = logging.Handler()
+    handler.emit = seen.append
+    log.addHandler(handler)
+    try:
+        _session(monkeypatch, jumps={}, boot=_broken, cycles=2)
+    finally:
+        log.removeHandler(handler)
+    return seen
 
 
 def test_the_cli_says_nothing_about_the_clock_when_it_works(network, capsys):

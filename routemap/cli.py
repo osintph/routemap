@@ -165,6 +165,20 @@ def parse_duration(text: str) -> float:
     return float(m.group(1)) * {"": 1, "s": 1, "m": 60, "h": 3600}[m.group(2)]
 
 
+class _FallbackShownInTable(logging.Filter):
+    """The engine logs a clock fallback once (routemap-engine 0.8.2); the CLI
+    table's note says it, so that one record is not printed again by Python's
+    last-resort handler. Any other record from the logger still is."""
+
+    MESSAGE = "Watch: %s; a change of the system clock may show as a gap"
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        return record.msg != self.MESSAGE
+
+
+_FALLBACK_SHOWN_IN_TABLE = _FallbackShownInTable()
+
+
 def cmd_watch(args) -> int:
     """routemap --watch TARGET: the same session as the window's, in a terminal."""
     import threading
@@ -214,9 +228,9 @@ def cmd_watch(args) -> int:
                       + live.table_text(snap) + "\n")
             out.flush()
 
-    # The engine logs a clock fallback once; here the table's note says it, so
-    # Python's last-resort handler must not print it a second time.
-    logging.getLogger("routemap_engine.watch").addHandler(logging.NullHandler())
+    engine_log = logging.getLogger("routemap_engine.watch")
+    if _FALLBACK_SHOWN_IN_TABLE not in engine_log.filters:
+        engine_log.addFilter(_FALLBACK_SHOWN_IN_TABLE)
     w = watch.Watch(target, options, on_cycle=on_cycle)
     result = {}
 
