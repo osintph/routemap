@@ -20,7 +20,6 @@ def adapter(name, kind, up=True, addresses=("192.0.2.10",)):
 def test_only_a_tunnel_gets_a_banner(kind):
     block = {**TUNNEL, "kind": kind}
     assert netnotes.banner(block) is None
-    assert netnotes.origin_warning(block, True) is None
     assert netnotes.notice_html(block, None, origin_auto=True) == ""
     assert netnotes.plain_lines(block, None, origin_auto=True) == []
 
@@ -35,12 +34,57 @@ def test_the_banner_wording():
     assert netnotes.banner({**TUNNEL, "label": "t0"}, fresh=False).startswith("This trace went through t0.")
 
 
-def test_origin_warning_only_on_auto():
-    assert netnotes.origin_warning(TUNNEL, True) and netnotes.origin_warning(TUNNEL, False) is None
+def test_origin_warning_needs_auto_and_a_tunnel_default_route():
+    assert netnotes.origin_warning(True, True)
+    assert netnotes.origin_warning(False, True) is None
+    assert netnotes.origin_warning(True, False) is None
+
+
+def test_a_target_through_a_tunnel_with_a_direct_default_route_gets_the_banner_only():
+    """ODIN, 3-tailnet: a peer's 100.x address, no exit node, the public IP unchanged."""
+    lines = netnotes.plain_lines(TUNNEL, None, origin_auto=True, internet_tunnel=False)
+    assert len(lines) == 1 and lines[0].startswith("Traffic to this target goes through")
+    assert "Origin is on Auto" not in netnotes.notice_html(TUNNEL, None, origin_auto=True, internet_tunnel=False)
+
+
+def test_a_tunnel_default_route_warns_even_when_this_target_goes_direct():
+    block = {"kind": "physical", "label": "eth0", "selected": True, "check": "consistent"}
+    lines = netnotes.plain_lines(block, None, origin_auto=True, internet_tunnel=True)
+    assert len(lines) == 1 and lines[0].startswith("Origin is on Auto")
+    assert netnotes.LINK_ORIGIN in netnotes.notice_html(block, None, origin_auto=True, internet_tunnel=True)
+
+
+def _route_table(routes):
+    """interfaces.used_for over mocked adapters: *routes* maps a destination to the adapter it routes through."""
+    eth = I.Adapter("eth0", "eth0", "", "physical", True, 2, 2, False, ["192.0.2.10"], [], [])
+    tun = I.Adapter("t0", "t0", "", "tunnel", True, 3, 3, False, ["198.51.100.2"], [], [])
+    by_name = {"eth0": eth, "t0": tun}
+
+    def source(address):
+        if address not in routes:
+            raise OSError("no route")
+        return by_name[routes[address]].addresses[0]
+    return lambda address: I.used_for(address, list_fn=lambda: [eth, tun], source_for=source)
+
+
+@pytest.mark.parametrize("routes,want", [
+    ({"192.0.2.1": "eth0", "2001:db8::1": "eth0"}, False),   # a split tunnel: only some targets use it
+    ({"192.0.2.1": "eth0"}, False),                          # no IPv6 route at all
+    ({"192.0.2.1": "t0", "2001:db8::1": "eth0"}, True),
+    ({"192.0.2.1": "eth0", "2001:db8::1": "t0"}, True),
+    ({}, False)])
+def test_internet_via_tunnel_reads_the_route_to_the_internet(routes, want):
+    assert netnotes.internet_via_tunnel(_route_table(routes)) is want
+
+
+def test_internet_via_tunnel_asks_for_addresses_nobody_owns():
+    import ipaddress
+    from routemap_engine.netaddr import is_private_ip
+    assert all(is_private_ip(a) and ipaddress.ip_address(a) for a in netnotes.EGRESS_ADDRESSES)
 
 
 def test_the_notice_escapes_an_adapters_name_and_links_the_alternatives():
-    text = netnotes.notice_html(TUNNEL, None, origin_auto=True)
+    text = netnotes.notice_html(TUNNEL, None, origin_auto=True, internet_tunnel=True)
     assert "<tunnel>" not in text and "&lt;tunnel&gt;" in text
     for href in (netnotes.LINK_HELP, netnotes.LINK_AGENTS, netnotes.LINK_REVERSE, netnotes.LINK_ORIGIN):
         assert href in text

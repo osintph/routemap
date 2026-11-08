@@ -261,7 +261,9 @@ def cmd_watch(args) -> int:
     origin, how = _origin(args, settings)
     from routemap import netnotes
     interface = netnotes.block_of(session.interface)
-    for note in netnotes.plain_lines(interface, None, origin_auto=how == service.ORIGIN_HOW_IP):
+    auto = how == service.ORIGIN_HOW_IP
+    for note in netnotes.plain_lines(interface, None, origin_auto=auto,
+                                     internet_tunnel=auto and netnotes.internet_via_tunnel()):
         _err(f"{NAME}: {note}")
     sources_settings = settings
     if args.offline:
@@ -570,8 +572,9 @@ def cmd_trace(args) -> int:
     from routemap import netnotes
     if used is not None:
         current["interface"] = netnotes.block_of(used)
-    for note in netnotes.plain_lines(current.get("interface"), body.get("paths"),
-                                     origin_auto=how == service.ORIGIN_HOW_IP):
+    auto = how == service.ORIGIN_HOW_IP
+    for note in netnotes.plain_lines(current.get("interface"), body.get("paths"), origin_auto=auto,
+                                     internet_tunnel=auto and netnotes.internet_via_tunnel()):
         _err(f"{NAME}: {note}")
     if args.reverse:
         from routemap import insight

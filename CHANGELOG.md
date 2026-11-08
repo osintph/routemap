@@ -17,8 +17,9 @@ has its own list.
   system reports; no product names are built in. An adapter the system does not
   clearly describe is "unclassified", named only in the Interface section of the
   route summary and in exports, with no notice.
-- **An origin warning** when the origin is on Auto and a tunnel is in use, with a
-  link to Settings > Origin. The origin is never changed for you and nothing new
+- **An origin warning** when the origin is on Auto and the system's default
+  route goes through a tunnel adapter, with a link to Settings > Origin. A tunnel
+  that carries only some targets gets no warning. The origin is never changed for you and nothing new
   is looked up.
 - **Probe interface**, in Settings > Trace and as `-i`/`--interface` with
   `--list-interfaces`: Automatic (the system route) by default, then every adapter

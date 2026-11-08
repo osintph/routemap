@@ -37,8 +37,24 @@ def banner(block: dict | None, *, fresh: bool = True) -> str | None:
         "The map shows the path through it, not the direct internet path."
 
 
-def origin_warning(block: dict | None, origin_auto: bool) -> str | None:
-    if not origin_auto or not block or block.get("kind") != TUNNEL:
+# Addresses nobody owns (RFC 5737, RFC 3849). The system's route to one is its
+# internet route: the default route, or a VPN's 0.0.0.0/1 and 128.0.0.0/1 pair.
+# Asking for that route sends nothing.
+EGRESS_ADDRESSES = ("192.0.2.1", "2001:db8::1")
+
+
+def internet_via_tunnel(used_for=None) -> bool:
+    """Whether this computer's internet traffic leaves through a tunnel adapter.
+    Only then is the public IP the tunnel's exit. A route to one target through
+    a tunnel says nothing about that: a tailnet peer is reached through the
+    tunnel while the public IP stays the ISP's."""
+    from routemap_engine import interfaces
+    look = used_for or interfaces.used_for
+    return any(getattr(look(address), "kind", None) == TUNNEL for address in EGRESS_ADDRESSES)
+
+
+def origin_warning(origin_auto: bool, internet_tunnel: bool) -> str | None:
+    if not origin_auto or not internet_tunnel:
         return None
     return "Origin is on Auto, so it comes from your public IP, which is probably the tunnel or SASE exit."
 
@@ -92,13 +108,14 @@ ALTERNATIVES = "To see the internet path from outside it, run from a remote agen
 INSTEAD = "Use an ICMP Trace, a remote agent or a RIPE Atlas reverse trace instead."
 
 
-def plain_lines(block: dict | None, paths: dict | None, *, origin_auto: bool = False, fresh: bool = True) -> list[str]:
+def plain_lines(block: dict | None, paths: dict | None, *, origin_auto: bool = False, internet_tunnel: bool = False,
+                fresh: bool = True) -> list[str]:
     """Every note for this result, as text (the CLI, the PDF)."""
     out = []
     if banner(block, fresh=fresh):
         out.append(banner(block, fresh=fresh) + " " + ALTERNATIVES)
-    if origin_warning(block, origin_auto):
-        out.append(origin_warning(block, origin_auto) + " Set one with --origin or in Settings > Origin.")
+    if origin_warning(origin_auto, internet_tunnel):
+        out.append(origin_warning(origin_auto, internet_tunnel) + " Set one with --origin or in Settings > Origin.")
     if check_line(block):
         out.append(check_line(block))
     if interception_line(paths):
@@ -112,15 +129,16 @@ def _link(href: str, text: str) -> str:
     return f"<a href='{href}'>{text}</a>"
 
 
-def notice_html(block: dict | None, paths: dict | None, *, origin_auto: bool = False, fresh: bool = True) -> str:
+def notice_html(block: dict | None, paths: dict | None, *, origin_auto: bool = False, internet_tunnel: bool = False,
+                fresh: bool = True) -> str:
     """The non-blocking bar over a result, or "" when there is nothing to say."""
     out = []
     e = html.escape
     elsewhere = _link(LINK_AGENTS, "Run from an agent") + " &middot; " + _link(LINK_REVERSE, "RIPE Atlas reverse trace")
     if banner(block, fresh=fresh):
         out.append(e(banner(block, fresh=fresh)) + " " + _link(LINK_HELP, "Help") + " &middot; " + elsewhere)
-    if origin_warning(block, origin_auto):
-        out.append(e(origin_warning(block, origin_auto)) + " " + _link(LINK_ORIGIN, "Set origin…"))
+    if origin_warning(origin_auto, internet_tunnel):
+        out.append(e(origin_warning(origin_auto, internet_tunnel)) + " " + _link(LINK_ORIGIN, "Set origin…"))
     if check_line(block):
         out.append(e(check_line(block)) + " " + _link(LINK_HELP, "Help"))
     if interception_line(paths):

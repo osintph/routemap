@@ -81,3 +81,12 @@ def test_compare_with_a_newer_export_says_why(tmp_path):
     assert (f"made by a newer Route Map. This Route Map opens format {imported.FORMAT_VERSION} and older."
             in str(exc.value))
     assert "is not a route export" not in str(exc.value)
+
+
+@pytest.mark.parametrize("extra,where", [([], "out"), (["--json"], "err")])
+def test_the_header_line_ends_at_its_last_word(network, monkeypatch, capsys, extra, where):
+    monkeypatch.setattr(watch, "INTERVAL_MIN", 0.01)
+    assert cli.main(["--watch", "example.net", "--count", "1", "--interval", "0.02", "--offline", *extra]) == 0
+    captured = capsys.readouterr()
+    header = next(line for line in getattr(captured, where).splitlines() if " watch to " in line)
+    assert header.endswith(" or 1 cycles (Ctrl+C stops)")

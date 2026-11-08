@@ -129,7 +129,10 @@ def test_the_bypass_notice_shows_once(window, monkeypatch):
 
 def test_refresh_notices_warns_about_the_origin_only_for_a_new_run(window):
     c = _controller(window, config.Settings())
-    c.current = {"route": {"hops": []}, "interface": {"kind": "tunnel", "label": "t0"}}
+    c.current = {"route": {"hops": []}, "interface": {"kind": "tunnel", "label": "t0"}, "internet_tunnel": False}
+    c._refresh_notices(fresh=True)
+    assert "goes through t0" in window.notice.text() and "Origin is on Auto" not in window.notice.text()
+    c.current["internet_tunnel"] = True
     c._refresh_notices(fresh=True)
     assert "Origin is on Auto" in window.notice.text()
     c._refresh_notices(fresh=False)

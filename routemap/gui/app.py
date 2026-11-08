@@ -248,7 +248,8 @@ class Controller(QObject):
             self.watcher = w
             session = w.run()
             return {"snapshot": live.snapshot(session), "session": session.to_dict(),
-                    "interface": netnotes.block_of(session.interface)}
+                    "interface": netnotes.block_of(session.interface),
+                    "internet_tunnel": netnotes.internet_via_tunnel()}
 
         task = Task(job, self)
         task.hop.connect(self._watch_cycle)
@@ -381,6 +382,7 @@ class Controller(QObject):
                         "when": _dt.datetime.fromtimestamp(snap["started"]).astimezone()}
         if result.get("interface"):
             self.current["interface"] = result["interface"]
+        self.current["internet_tunnel"] = result.get("internet_tunnel", False)
         if kept:
             self.current["insight"] = kept
         if self.live_dns_last:
@@ -554,6 +556,7 @@ class Controller(QObject):
             self.current["agent"] = result["agent"]
         if result.get("interface"):
             self.current["interface"] = result["interface"]
+        self.current["internet_tunnel"] = result.get("internet_tunnel", False)
         # The Trace's address beside a Paths run's, when they differ (bbc.com).
         if body.get("paths") and before and not before["route"].get("paths"):
             self.current["trace_resolved"] = before["route"].get("resolved")
@@ -725,7 +728,8 @@ class Controller(QObject):
         c = self.current or {}
         block, paths = c.get("interface"), (c.get("route") or {}).get("paths")
         auto = fresh and self.settings.origin_mode == config.ORIGIN_AUTO
-        self.w.set_notice(netnotes.notice_html(block, paths, origin_auto=auto, fresh=fresh))
+        self.w.set_notice(netnotes.notice_html(block, paths, origin_auto=auto, fresh=fresh,
+                                               internet_tunnel=bool(c.get("internet_tunnel"))))
         self.w.insight.set_interface(netnotes.details_text(block))
 
     def _bypass_notice(self, before: str):
@@ -937,6 +941,7 @@ class Controller(QObject):
                 route.ports = probes.check_ports(resolved["address"], target, settings)
             return {"route": route, "text": text, "stopped": d.stopped_by == "cancel",
                     "interface": netnotes.block_of(d.interface),
+                    "internet_tunnel": netnotes.internet_via_tunnel(),
                     "argv": [d.method, f"{d.flows_used} flows", f"{d.probes_sent} probes", target]}
 
         from routemap_engine import probe as _probe
@@ -1831,7 +1836,8 @@ def progressive_trace(target: str, settings: config.Settings, origin, *, on_line
         on_progress("ports", "done")
     return {"route": route, "text": result.text, "argv": result.argv,
             "timed_out": result.timed_out, "stopped": result.cancelled,
-            "interface": netnotes.block_of(result.interface)}
+            "interface": netnotes.block_of(result.interface),
+            "internet_tunnel": netnotes.internet_via_tunnel()}
 
 
 # ------------------------------------------------------------------ helpers ---

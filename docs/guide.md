@@ -554,7 +554,7 @@ A VPN or SASE client changes what a trace can see. Route Map tells you when it c
 ### What the notices mean
 
 - **"Traffic to this target goes through [adapter]."** The route to this target uses a tunnel adapter. The name is the one your system reports. The map shows the path through it, not the direct internet path.
-- **The origin warning** appears when the origin is on Auto and a tunnel is in use. Route Map does not change the origin for you.
+- **The origin warning** appears when the origin is on Auto and your system's default route, so your internet traffic, goes through a tunnel. A tunnel that carries only some targets does not change your public IP and gets no warning. Route Map does not change the origin for you.
 - **"TCP results are unreliable."** A TCP connection completed or was refused at TTL 2 or less, where a real probe must die at a router. It does not count if the target is on your local subnet, or if an ICMP echo reaches it at the same TTL. The export names the condition that triggered it.
 - **"TCP and ICMP left by different first hops."** Shown only when both protocols got an answer from hop 1 and the answers differ.
 
