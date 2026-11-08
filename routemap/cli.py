@@ -749,8 +749,12 @@ def _smoke_watch_header(out_dir: str) -> str:
     """Watch's header as a compiled binary writes it to a redirected stderr, the
     way ODIN's "(Ctrl+C stops)a" arrived. The prober is scripted: nothing is sent."""
     from routemap_engine import probe
-    if sys.stderr is None or sys.stdout is None:   # the windowed Windows binary has neither
-        return "not run (no console)"
+    try:
+        real = sys.stdout.fileno() == 1 and sys.stderr.fileno() == 2
+    except (AttributeError, OSError, ValueError):   # the windowed Windows binary has neither
+        real = False
+    if not real:                                    # or a test runner holds them
+        return "not run (no process stdout and stderr)"
     saved = probe._probe, probe.available, probe.resolve
     probe._probe = lambda dst, ttl, seq, wait: probe.Reply("192.0.2.1", 1.0, True)
     probe.available = lambda family=4: (True, "")
@@ -759,7 +763,7 @@ def _smoke_watch_header(out_dir: str) -> str:
     sys.stdout.flush()
     sys.stderr.flush()
     kept = os.dup(1), os.dup(2)
-    sink = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    sink = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | getattr(os, "O_BINARY", 0), 0o600)
     try:
         os.dup2(sink, 1)
         os.dup2(sink, 2)
