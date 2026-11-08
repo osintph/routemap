@@ -745,6 +745,40 @@ def cmd_data(args) -> int:
     return 0
 
 
+def _smoke_watch_header(out_dir: str) -> str:
+    """Watch's header as a compiled binary writes it to a redirected stderr, the
+    way ODIN's "(Ctrl+C stops)a" arrived. The prober is scripted: nothing is sent."""
+    from routemap_engine import probe
+    if sys.stderr is None or sys.stdout is None:   # the windowed Windows binary has neither
+        return "not run (no console)"
+    saved = probe._probe, probe.available, probe.resolve
+    probe._probe = lambda dst, ttl, seq, wait: probe.Reply("192.0.2.1", 1.0, True)
+    probe.available = lambda family=4: (True, "")
+    probe.resolve = lambda target, family="auto": "192.0.2.1"
+    path = os.path.join(out_dir, "watch-header.txt")
+    sys.stdout.flush()
+    sys.stderr.flush()
+    kept = os.dup(1), os.dup(2)
+    sink = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    try:
+        os.dup2(sink, 1)
+        os.dup2(sink, 2)
+        main(["--watch", "example.net", "--count", "1", "--offline", "--origin", "14.6,121", "--json"])
+    finally:
+        sys.stdout.flush()
+        sys.stderr.flush()
+        os.dup2(kept[0], 1)
+        os.dup2(kept[1], 2)
+        for fd in (*kept, sink):
+            os.close(fd)
+        probe._probe, probe.available, probe.resolve = saved
+    with open(path, "rb") as handle:
+        text = handle.read().decode("utf-8")
+    header = next(line for line in text.splitlines() if " watch to " in line)
+    assert header.endswith(" or 1 cycles (Ctrl+C stops)"), f"Watch header: {header!r}"
+    return "ok"
+
+
 def smoke_test(out_dir: str) -> int:
     """Open the window offscreen, load the bundled sample, export all three formats.
 
@@ -813,6 +847,7 @@ def smoke_test(out_dir: str) -> int:
     assert b"/Font" in pdf, "the PDF has no fonts: text did not render on this platform"
     window.close()
     from routemap.__about__ import build_commit
+    print(f"watch header: {_smoke_watch_header(out_dir)}")
     summary = (f"{NAME} {VERSION} commit {build_commit()} smoke test ok: {len(route['hops'])} hops, "
                f"{sum(1 for h in route['hops'] if h['lat'] is not None)} placed; "
                f"AS path {ins['as_path_text']}; "
