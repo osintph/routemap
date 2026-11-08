@@ -7,6 +7,8 @@
 # 2. Redirected output is UTF-8 on every platform (beta.2's Windows build
 #    wrote the ANSI code page): a missing file named Zürich.txt makes the
 #    CLI print that name to stderr, which must come out as UTF-8.
+# 3. --list-interfaces reads the real adapter list and shows at least one with
+#    a kind. It sends nothing.
 set -euo pipefail
 BIN="$1"
 TMP="${RUNNER_TEMP:-/tmp}"
@@ -21,3 +23,7 @@ set -e
 cat "$TMP/utf8.err"
 check='import sys; t=open(sys.argv[1],"rb").read().decode("utf-8"); assert "Zürich" in t, t; print("ok: redirected output is UTF-8")'
 python3 -c "$check" "$TMP/utf8.err" || python -c "$check" "$TMP/utf8.err"
+
+"$BIN" --list-interfaces > "$TMP/interfaces.txt"
+check='import re,sys; t=open(sys.argv[1],"rb").read().decode("utf-8"); assert re.search(r"^[- ] .+, (physical|tunnel|unclassified), (up|down)", t, re.M), t; print("ok: --list-interfaces lists an adapter with a kind")'
+python3 -c "$check" "$TMP/interfaces.txt" || python -c "$check" "$TMP/interfaces.txt"
