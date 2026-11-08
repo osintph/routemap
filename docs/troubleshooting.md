@@ -91,7 +91,18 @@ city. Behind a VPN, a corporate proxy or a Tor exit, that is the exit's location
 not yours, and every physics check is then measured from the wrong place. Set
 your real origin in **Settings > Origin** (a city, coordinates, or a point on the
 map). Note that the trace itself also leaves through the VPN, so the first hops
-after your router are the VPN's.
+after your router are the VPN's. See
+[Using Route Map behind a VPN or SASE client](guide.md#using-route-map-behind-a-vpn-or-sase-client).
+
+## "Probes were redirected" or "has no route" after choosing an interface
+
+**Probes were redirected by [adapter]; the selected interface was not used** means
+hop 1 belongs to another adapter: some VPN and SASE clients intercept traffic in
+their driver and ignore which adapter a program asks for. **[adapter] has no route
+to [target]** means the adapter has no usable route, which a connected VPN can
+cause by disabling its default route. Nothing is sent through another adapter in
+that case. Go back to Automatic in Settings > Trace > Probe interface, or trace from
+a remote agent.
 
 ## Most hops say "not placed"
 

@@ -406,6 +406,26 @@ def agent(data) -> dict | None:
             "first_hops_masked": bool(data.get("first_hops_masked"))}
 
 
+INTERFACE_KINDS = ("physical", "tunnel", "unclassified")
+INTERFACE_CHECKS = ("consistent", "redirected", "unconfirmed", "no_route")
+
+
+def interface(data) -> dict | None:
+    """The adapter a trace went through (0.5.0-beta.5): kind, label and the
+    hop-1 check, each checked. A file's local addresses are not kept."""
+    if not isinstance(data, dict) or data.get("kind") not in INTERFACE_KINDS or not isinstance(data.get("label"), str):
+        return None
+    label = text(data["label"], 120)
+    if not label:
+        return None
+    out = {"kind": data["kind"], "label": label, "selected": data.get("selected") is True,
+           "check": data.get("check") if data.get("check") in INTERFACE_CHECKS else None}
+    redirected = text(data.get("redirected_by"), 120) if isinstance(data.get("redirected_by"), str) else None
+    if redirected:
+        out["redirected_by"] = redirected
+    return out
+
+
 def export(document) -> dict:
     """What the app shows from a route export: the rebuilt route, the target, the
     trace text and how it was made. The saved insight is not kept."""
@@ -428,6 +448,7 @@ def export(document) -> dict:
         "session": session(document.get("session")) if "session" in document else None,
         "reverse": reverse(document.get("reverse")) if "reverse" in document else None,
         "agent": agent(document.get("agent")) if "agent" in document else None,
+        "interface": interface(document.get("interface")) if "interface" in document else None,
     }
 
 
@@ -454,4 +475,5 @@ def history_entry(entry) -> dict | None:
             "origin_how": entry.get("origin_how") if entry.get("origin_how") in ORIGIN_HOWS else None,
             "session": session(entry.get("session")) if "session" in entry else None,
             "reverse": reverse(entry.get("reverse")) if "reverse" in entry else None,
-            "agent": agent(entry.get("agent")) if "agent" in entry else None}
+            "agent": agent(entry.get("agent")) if "agent" in entry else None,
+            "interface": interface(entry.get("interface")) if "interface" in entry else None}

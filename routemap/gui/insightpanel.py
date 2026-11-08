@@ -184,7 +184,7 @@ class InsightPanel(QScrollArea):
         self.box.setSpacing(4)
         self.sections: dict[str, tuple[QLabel, QWidget]] = {}
         for key, title in (("diff", "Compared with"), ("path", "AS path"), ("countries", "Countries transited"),
-                           ("anycast", "Destination"), ("loss", "Loss"),
+                           ("anycast", "Destination"), ("loss", "Loss"), ("interface", "Interface"),
                            ("baseline", "Typical latency (RIPE Atlas)"),
                            ("ris", "BGP view (RIPE RIS)"), ("updates", "BGP updates, last 48 h"),
                            ("rtt", "RTT per hop and the physics floor"), ("status", "")):
@@ -247,6 +247,12 @@ class InsightPanel(QScrollArea):
         self.sections["loss"][1].setText(html.escape(text))
         self.sections["loss"][1].setAccessibleName("To the target: " + text)
         self._show("loss", True)
+
+    def set_interface(self, text: str | None) -> None:
+        """The adapter the trace went through, unclassified ones too."""
+        self.sections["interface"][1].setText(html.escape(text or ""))
+        self.sections["interface"][1].setAccessibleName("Interface: " + (text or ""))
+        self._show("interface", bool(text))
 
     def _show(self, key: str, on: bool):
         head, content = self.sections[key]

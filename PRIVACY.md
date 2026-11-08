@@ -59,6 +59,10 @@ and its place. The provider's first hops of an agent trace are hidden unless
 you show them. Every lookup about the hops is made from this computer, as for
 any trace.
 
+**The Paths interception check** (Windows, part of a Paths run) sends two TCP
+connection attempts at each of TTL 1 and 2 and up to two ICMP echoes to the
+target, counted in the same limits.
+
 **Settings > Sources > Online lookups** switches every row above except the
 trace itself, the explicit update check and downloads you start: off, nothing
 new leaves this machine, and hops are placed from the offline data (carrier
@@ -98,6 +102,12 @@ In the config folder (macOS `~/Library/Application Support/routemap/`, Windows
   registration data). `routemap cache clear` and Settings clear it too.
 - `data/`: DB-IP Lite City (when you download or import it) and DB-IP Lite
   ASN (unpacked from the app on first use). No trace data is written there.
+
+**Network adapters.** The adapter list, its addresses and gateways are read
+locally from your operating system. They are never sent anywhere. History and
+exports keep the adapter's kind and name; addresses and gateways go into an
+export only when you tick *Include this computer's interface addresses and
+gateways* in the Export dialog (`--interface-addresses` on the command line).
 
 Comparisons are made from routes already on this machine (the current trace,
 an export you choose, or your own Atlas measurements); nothing is stored for

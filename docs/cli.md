@@ -43,6 +43,9 @@ routemap --version
 | `--resolver ADDR` | also time the lookup through this resolver (an IP address), this run only; repeatable |
 | `--no-dns` | do not time DNS lookups this run (the target is still resolved once) |
 | `--ports [LIST]` | test TCP ports on the target, one connection attempt each: the list given (`443,80,22`) or the one in Settings; at most 32, no ranges. Put it after the target. With `--paths`, the port test is printed after the paths |
+| `-i NAME`, `--interface NAME` | probe out of this network interface, for this run, for Trace, `--paths` and `--watch` (a name from `--list-interfaces`; default: the system route). Not with `--from`. DNS timing and `--ports` keep the system route |
+| `--list-interfaces` | list the network interfaces your system reports now (name, description, kind, state, addresses) and exit; a line starting with `-` cannot be chosen. Sends nothing |
+| `--interface-addresses` | with `--envelope`: also put this computer's interface addresses and gateways in the export. Without it the export carries only the interface's kind and name |
 | `--from AGENT` | run the trace (or `--paths`, `--ports`) on a remote agent from Settings > Agents, over your own ssh, one connection; not with `--watch` or `--reverse` |
 
 With `--watch`, `--json` prints the export (format version 5, with the

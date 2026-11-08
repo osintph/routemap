@@ -27,7 +27,7 @@ def test_cli_reverse_agrees_only_for_its_own_run(monkeypatch, capsys):
     from routemap_engine import OFFLINE, analyse_sync
 
     trace = "traceroute to x (62.115.0.9), 30 hops max\n 1  62.115.0.9  9.0 ms\n"
-    monkeypatch.setattr(service, "run", lambda target, settings, **kw: type("R", (), {
+    monkeypatch.setattr(service, "run", lambda target, settings, **kw: type("R", (), {"interface": None, 
         "text": trace, "argv": ["traceroute", target], "tool": "traceroute", "returncode": 0})())
     monkeypatch.setattr(reverse, "ready", lambda settings: (True, ""))
 

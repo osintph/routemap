@@ -191,6 +191,10 @@ class Settings:
     # Remote agents: servers the user reaches with their own ssh. Name and
     # destination only; keys and host keys stay with the ssh client.
     agents: list = field(default_factory=list)
+    # 0.5.0-beta.5: an adapter to probe out of. "" is Automatic (the system route).
+    probe_interface: str = ""                # Windows' adapter GUID, the OS name elsewhere
+    probe_interface_name: str = ""           # shown when that adapter is not there now
+    bypass_notice_seen: bool = False         # the one-time notice about a physical adapter
 
     def origin(self) -> tuple[float, float, str] | None:
         """The chosen origin, or None when it is to come from the public IP."""
@@ -418,6 +422,11 @@ CONSENT_WHEN = re.compile(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ")
 
 def normalise(settings: Settings) -> Settings:
     """Clamp values a hand-edited file could break."""
+    for name in ("probe_interface", "probe_interface_name"):
+        value = getattr(settings, name)
+        if not isinstance(value, str) or len(value) > 300 or any(ord(c) < 32 for c in value):
+            settings.probe_interface, settings.probe_interface_name = "", ""
+            break
     if settings.projection not in PROJECTIONS:
         settings.projection = "flat"
     if settings.theme not in ("system", "light", "dark"):

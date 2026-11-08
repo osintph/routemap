@@ -15,7 +15,7 @@ import os
 
 from PySide6.QtCore import QSize, Qt, Signal
 from PySide6.QtGui import QAction, QGuiApplication, QKeySequence, QShortcut
-from PySide6.QtWidgets import (QComboBox, QDockWidget, QHBoxLayout, QLabel, QLineEdit, QMainWindow,
+from PySide6.QtWidgets import (QFrame, QComboBox, QDockWidget, QHBoxLayout, QLabel, QLineEdit, QMainWindow,
                                QProgressBar, QPushButton, QSplitter, QStatusBar, QVBoxLayout,
                                QWidget)
 
@@ -101,6 +101,17 @@ class MainWindow(QMainWindow):
         bar.addWidget(self.ports_button)
         bar.addWidget(self.watch_button)
         outer.addLayout(bar)
+
+        # Not a dialog: a result behind a tunnel is still a result.
+        self.notice = QLabel(central)
+        self.notice.setTextFormat(Qt.RichText)
+        self.notice.setWordWrap(True)
+        self.notice.setFrameShape(QFrame.StyledPanel)
+        self.notice.setMargin(6)
+        self.notice.setTextInteractionFlags(Qt.LinksAccessibleByMouse | Qt.LinksAccessibleByKeyboard)
+        self.notice.setAccessibleName("Route notice")
+        self.notice.hide()
+        outer.addWidget(self.notice)
 
         self.splitter = QSplitter(Qt.Horizontal, central)
         self.map = MapPane(self.splitter)
@@ -285,11 +296,12 @@ class MainWindow(QMainWindow):
         self.act_update = QAction("Check for Updates…", self)
         self.act_bug = QAction("Create Bug Report…", self)
         self.act_tour = QAction("Show the Tour", self)
+        self.act_vpn_help = QAction(f"Using {DISPLAY_NAME} behind a VPN or SASE client", self)
         self.act_notices = QAction("Third-Party Notices", self)
         self.act_support = QAction(f"Support {DISPLAY_NAME}", self)
         self.act_about = QAction(f"About {DISPLAY_NAME}", self)
         self.act_about.setMenuRole(QAction.AboutRole)
-        for action in (self.act_tour, self.act_privacy, self.act_notices, self.act_update, self.act_bug,
+        for action in (self.act_tour, self.act_vpn_help, self.act_privacy, self.act_notices, self.act_update, self.act_bug,
                        self.act_support, self.act_about):
             help_menu.addAction(action)
 
@@ -404,9 +416,14 @@ class MainWindow(QMainWindow):
                 "Traced somewhere else? <b>File › Paste Trace</b> or <b>Open Trace</b>.")
             self.trace_button.setEnabled(True)
 
+    def set_notice(self, text: str) -> None:
+        self.notice.setText(text)
+        self.notice.setVisible(bool(text))
+
     def show_tracing(self, target: str, argv: list[str], lines: list[str] | None = None,
                      hop_note: str = "starting"):
         """A trace has started: empty table, live output armed, nothing over the map."""
+        self.set_notice("")
         self.setWindowTitle(f"{target} - {DISPLAY_NAME}")
         self.target.setText(target)
         self.set_running(True)
