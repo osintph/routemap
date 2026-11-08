@@ -14,3 +14,4 @@ nuitka-crash-report.xml
 site/build/
 # Stamped at build time with the commit (packaging/build_nuitka.py).
 routemap/_build.py
+.claude/settings.local.json
