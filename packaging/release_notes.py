@@ -29,7 +29,7 @@ WINDOWS_UNSIGNED = WINDOWS + (
 WINDOWS_SIGNED = WINDOWS + (
     " The installer, its uninstaller and both executables are signed with the "
     "maintainer's Certum code signing certificate.")
-REST = """- **macOS 12+**: open the `.dmg` for your Mac (`macos-arm64` for Apple silicon,
+REST = """- **macOS 14+**: open the `.dmg` for your Mac (`macos-arm64` for Apple silicon,
   `macos-x86_64` for Intel) and drag Route Map to Applications. The app is not
   notarised yet, so Gatekeeper blocks the first start: **right-click** it,
   choose **Open**, then **Open** again (on macOS 15, System Settings > Privacy &

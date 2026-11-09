@@ -122,7 +122,7 @@ Installing
   and run routemap.exe in the "Route Map" folder (routemap-cli.exe beside it
   is the command line). The build is not code-signed yet, so SmartScreen may
   say "Windows protected your PC": choose More info, then Run anyway.
-- macOS 12 or later: open the .dmg for your Mac (macos-arm64 for Apple silicon,
+- macOS 14 or later: open the .dmg for your Mac (macos-arm64 for Apple silicon,
   macos-x86_64 for Intel) and drag Route Map to Applications. The first time,
   right-click it, choose Open, then Open again.
 - Linux x86_64: chmod +x the .AppImage and run it. Tracing needs traceroute

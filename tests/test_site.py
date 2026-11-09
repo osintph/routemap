@@ -204,7 +204,7 @@ def test_structured_data_states_only_what_the_page_shows():
         app = next(o for o in _ld(page) if o["@type"] == "SoftwareApplication")
         apps.append(app)
         assert app["name"] == "Route Map" and app["offers"]["price"] == "0"
-        assert app["operatingSystem"] == "Windows 10, Windows 11, macOS 12 or later, Linux (x86_64)"
+        assert app["operatingSystem"] == "Windows 10, Windows 11, macOS 14 or later, Linux (x86_64)"
         assert app["applicationCategory"] == "UtilitiesApplication"
         assert app["publisher"] == app["author"] == {"@id": "https://getroutemap.app/#osintph"}
         text = _text(page)
