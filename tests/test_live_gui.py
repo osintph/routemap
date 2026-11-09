@@ -5,6 +5,7 @@ so a session runs in a fraction of a second; everything else is the real
 window, controller, placement (offline), history, export and import.
 """
 import json
+import threading
 import time
 
 import pytest
@@ -33,6 +34,10 @@ def network(monkeypatch):
     def fake_probe(dst, ttl, seq, wait):
         if ttl == 1:
             state["cycle"] += 1
+            gate = state.pop("hold", None)
+            if gate is not None:                    # a test holds this cycle open
+                state["held"].set()
+                gate.wait(10)
         if ttl > DEPTH:
             return probe.Reply(None, None)
         if ttl == 3 and state["cycle"] % 3 == 0:
@@ -119,12 +124,21 @@ def _stop(app, w, c):
 def test_p_on_the_table_pauses_and_resumes(app, network):
     w, c = _running_session(app)
     w.table.setFocus()
+    # Pausing stops new cycles, not the one in flight, and a finished cycle's
+    # snapshot reaches the window later, through the event queue. Reading the
+    # count right after the key missed that one (5 == 4, ubuntu py3.11). The
+    # test pauses while it holds a cycle open, so the last cycle is known.
+    gate, network["held"] = threading.Event(), threading.Event()
+    network["hold"] = gate
+    assert _wait(app, network["held"].is_set)
     QTest.keyClick(w.table, Qt.Key_P)
     assert c.watcher.paused and w.live_bar.pause.text() == "Resume"
-    paused_at = c.live_snap["cycles"]
+    paused_at = network["cycle"]
+    gate.set()
+    assert _wait(app, lambda: c.live_snap["cycles"] == paused_at)
     QTest.qWait(200)
     app.processEvents()
-    assert c.live_snap["cycles"] == paused_at
+    assert c.live_snap["cycles"] == paused_at and network["cycle"] == paused_at
     QTest.keyClick(w.table, Qt.Key_P)
     assert not c.watcher.paused and w.live_bar.pause.text() == "Pause"
     assert _wait(app, lambda: c.live_snap["cycles"] > paused_at)
