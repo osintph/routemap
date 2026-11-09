@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format is based
 on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 uses [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Changed
+- Build and test tools: Nuitka 4.3.4, hatchling 1.33.0, setuptools 84.2.1, fonttools 4.68.0 and
+  pytest 9.2.0. Nuitka compiles the shipped binaries. Playwright stays at 1.63
+  for now, because the site's consent tests do not pass on 1.64.
+
 ## [0.5.0-beta.5] - 2026-11-09
 
 Accuracy behind VPN and SASE clients. The engine is routemap-engine 0.9.0, which

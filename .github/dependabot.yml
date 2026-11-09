@@ -18,6 +18,12 @@ updates:
     open-pull-requests-limit: 5
     cooldown:
       default-days: 7
+    ignore:
+      # The consent tests time out clicking a /dl/ link on Playwright 1.64
+      # ("waiting for scheduled navigations to finish"). Remove this once
+      # tests/test_site_consent.py has been fixed for it.
+      - dependency-name: playwright
+        versions: [">=1.64.0, <1.65.0"]
     groups:
       security:
         applies-to: security-updates
