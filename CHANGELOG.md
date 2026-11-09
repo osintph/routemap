@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format is based
 on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 uses [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+- A Watch pause test failed now and then in CI: pausing lets the cycle in flight
+  finish, and the test could count that cycle as a new one. The test now holds a
+  cycle open while it pauses. The app did not change.
+
 ## [0.5.0-beta.5] - 2026-11-09
 
 Accuracy behind VPN and SASE clients. The engine is routemap-engine 0.9.0, which
