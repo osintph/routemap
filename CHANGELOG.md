@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format is based
 on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 uses [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Changed
+- Qt 6.12 LTS (PySide6 6.12.0), which needs **macOS 14 or later**: macOS 13 is no
+  longer supported. The README, guide, known limitations, site, release notes and
+  tester mail say so. Windows and Linux requirements are unchanged.
+
 ## [0.5.0-beta.5] - 2026-11-09
 
 Accuracy behind VPN and SASE clients. The engine is routemap-engine 0.9.0, which

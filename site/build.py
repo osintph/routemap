@@ -64,8 +64,8 @@ PLATFORMS = [
     ("windows", "windows", "Installer", "routemap-{v}-windows-x86_64-setup.exe",
      "Windows 10/11, x86_64; Start menu, uninstaller, upgrades in place"),
     ("windows-zip", "windows", "Zip", "routemap-{v}-windows-x86_64.zip", "no install: extract and run"),
-    ("macos", "macos", "Apple silicon", "routemap-{v}-macos-arm64.dmg", "macOS 12+, dmg"),
-    ("macos-intel", "macos", "Intel", "routemap-{v}-macos-x86_64.dmg", "macOS 12+, dmg"),
+    ("macos", "macos", "Apple silicon", "routemap-{v}-macos-arm64.dmg", "macOS 14+, dmg"),
+    ("macos-intel", "macos", "Intel", "routemap-{v}-macos-x86_64.dmg", "macOS 14+, dmg"),
     ("linux-deb", "linux", "Debian, Ubuntu (.deb)", "routemap-{v}-linux-x86_64.deb", "x86_64, apt; menu entry"),
     ("linux-rpm", "linux", "Fedora, RHEL, openSUSE (.rpm)", "routemap-{v}-linux-x86_64.rpm",
      "x86_64, dnf or zypper; menu entry"),
@@ -364,7 +364,7 @@ def jsonld(*objects: dict) -> str:
 ORG_ID = f"{S['url']}/#osintph"
 APP_ID = f"{S['url']}/#app"
 # The one operatingSystem string, as the download page states it.
-OPERATING_SYSTEMS = "Windows 10, Windows 11, macOS 12 or later, Linux (x86_64)"
+OPERATING_SYSTEMS = "Windows 10, Windows 11, macOS 14 or later, Linux (x86_64)"
 
 
 def organization() -> dict:
