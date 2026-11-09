@@ -15,7 +15,7 @@ Download the latest release from
   **More info**, then **Run anyway**. Without installing: extract
   `routemap-<version>-windows-x86_64.zip` and run `routemap.exe` in the
   `Route Map` folder.
-- **macOS 12+**: open the `.dmg` for your Mac (`macos-arm64` for Apple silicon,
+- **macOS 13+**: open the `.dmg` for your Mac (`macos-arm64` for Apple silicon,
   `macos-x86_64` for Intel) and drag Route Map to Applications. The app is not
   notarised, so the first start is blocked: right-click it, choose **Open**,
   then **Open** again (on macOS 15: System Settings > Privacy & Security >
