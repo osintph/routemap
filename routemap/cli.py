@@ -149,7 +149,8 @@ def _outputs(args, current: dict) -> int:
             argv=current.get("argv"), source=current["source"],
             origin_how=current.get("origin_how"), insight=current.get("insight"),
             comparison=current.get("comparison"), reverse=current.get("reverse"),
-            agent=current.get("agent")) if args.envelope else
+            agent=current.get("agent"), interface=current.get("interface"),
+            include_interface_addresses=getattr(args, "interface_addresses", False)) if args.envelope else
             json.dumps(current["route"], indent=2, ensure_ascii=False) + "\n")
     return 0
 
@@ -216,7 +217,9 @@ def cmd_watch(args) -> int:
     tty = sys.stdout.isatty() and not args.json
     out = sys.stderr if args.json else sys.stdout
     family = "6" if getattr(args, "ipv6", False) else "4" if getattr(args, "ipv4", False) else settings.ip_version
-    options = watch.WatchOptions(interval=interval, duration=duration, max_cycles=args.count, family=family)
+    _chosen_interface(args, settings)
+    options = watch.WatchOptions(interval=interval, duration=duration, max_cycles=args.count, family=family,
+                                 interface=settings.probe_interface or None)
     until = time.strftime("%H:%M:%S", time.localtime(time.time() + duration))
     print(f"{DISPLAY_NAME} watch to {target}, every {interval:g} s, until {until}"
           + (f" or {args.count} cycles" if args.count else "") + " (Ctrl+C stops)", file=out, flush=True)
@@ -256,6 +259,12 @@ def cmd_watch(args) -> int:
         return 2
     snap = live.snapshot(session)
     origin, how = _origin(args, settings)
+    from routemap import netnotes
+    interface = netnotes.block_of(session.interface)
+    auto = how == service.ORIGIN_HOW_IP
+    for note in netnotes.plain_lines(interface, None, origin_auto=auto,
+                                     internet_tunnel=auto and netnotes.internet_via_tunnel()):
+        _err(f"{NAME}: {note}")
     sources_settings = settings
     if args.offline:
         settings.online_lookups = False          # this run only; nothing is saved
@@ -274,7 +283,8 @@ def cmd_watch(args) -> int:
                                                "hoiho_ruleset_date": None}, snap)
         sys.stdout.write(service.export_json(body, target=target, trace_text="",
                                              argv=["icmp", "watch", f"every {interval:g} s", target],
-                                             source="watch", origin_how=how, session=session.to_dict()))
+                                             source="watch", origin_how=how, session=session.to_dict(),
+                                             interface=interface))
     return 0
 
 
@@ -352,6 +362,7 @@ def _discover(target: str, settings, origin, offline: bool, ports=None):
          f"{multipath.MAX_RATE:g} a second)")
     d = multipath.discover(target, family=settings.ip_version,
                            options=multipath.Options(budget=settings.paths_budget), address=resolved["address"],
+                           interface=settings.probe_interface or None,
                            on_progress=lambda p: _err(f"{NAME}: hop {p['ttl']}, {p['paths']} paths so far, "
                                                       f"{p['probes']} probes"))
     sources = service.offline_sources() if offline else service.sources_for(settings)
@@ -359,7 +370,40 @@ def _discover(target: str, settings, origin, offline: bool, ports=None):
     route.resolved, route.dns = resolved, dns
     if ports is not None:
         route.ports = probes.check_ports(resolved["address"], target, settings, ports or None)
-    return route, d.trace_text(), [d.method, f"{d.flows_used} flows", f"{d.probes_sent} probes", target]
+    return route, d.trace_text(), [d.method, f"{d.flows_used} flows", f"{d.probes_sent} probes", target], d.interface
+
+
+def _chosen_interface(args, settings) -> None:
+    """-i for this run only, and the one-time notice about a physical adapter."""
+    from routemap import config, netnotes
+    from routemap_engine import interfaces
+    if getattr(args, "interface", None):
+        settings.probe_interface = args.interface
+    if not settings.probe_interface or settings.bypass_notice_seen:
+        return
+    try:
+        adapters = interfaces.list_adapters()
+    except OSError:
+        return
+    if netnotes.bypass_applies(interfaces.find(adapters, settings.probe_interface), adapters):
+        _err(f"{NAME}: {netnotes.BYPASS_NOTICE}")
+        kept = config.load_settings()         # not this run's -i
+        kept.bypass_notice_seen = True
+        config.save_settings(kept)
+
+
+def cmd_list_interfaces() -> int:
+    """Every adapter the OS reports now. Local only: nothing is sent."""
+    from routemap import netnotes
+    from routemap_engine import interfaces
+    try:
+        adapters = interfaces.list_adapters()
+    except OSError as exc:
+        _err(f"{NAME}: could not read the network adapters ({exc})")
+        return 1
+    for adapter in adapters:
+        print(("  " if adapter.selectable else "- ") + netnotes.adapter_row(adapter))
+    return 0
 
 
 def _resolve(target: str, settings, *, dns: bool = True):
@@ -459,6 +503,7 @@ def cmd_trace(args) -> int:
         _err(f"{NAME}: --reverse publishes your public IP address as the target of a public RIPE Atlas "
              "measurement. Add --publish-my-ip to agree for this run.")
         return 2
+    from routemap_engine.interfaces import InterfaceError
     from routemap_engine.probe import NoAddress
     if args.from_agent:
         out, probe_body, agent = _remote(args, target, settings, "first-hop")
@@ -489,10 +534,11 @@ def cmd_trace(args) -> int:
         sys.stdout.write(_probes_text(body))
         return 0
     origin, how = _origin(args, settings)
+    _chosen_interface(args, settings)
     if args.paths:
         try:
-            route, text, argv = _discover(target, settings, origin, args.offline, ports=args.ports)
-        except NoAddress as exc:
+            route, text, argv, used = _discover(target, settings, origin, args.offline, ports=args.ports)
+        except (NoAddress, InterfaceError) as exc:
             _err(f"{NAME}: {exc}")
             return 2
         source = "paths"
@@ -503,7 +549,7 @@ def cmd_trace(args) -> int:
         except TraceToolMissing as exc:
             _err(f"{NAME}: {exc}")
             return 3
-        except NoAddress as exc:
+        except (NoAddress, InterfaceError) as exc:
             _err(f"{NAME}: {exc}")
             return 2
         if not result.text.strip():
@@ -518,11 +564,18 @@ def cmd_trace(args) -> int:
         if args.ports is not None:
             from routemap import probes
             route.ports = probes.check_ports(resolved["address"], target, settings, args.ports or None)
-        text, argv, source = result.text, result.argv, "local"
+        text, argv, source, used = result.text, result.argv, "local", result.interface
     body = route.to_dict()
     current = {"route": body, "target": target, "trace_text": text, "argv": argv,
                "source": source, "origin_how": how if origin else "first-hop",
                "when": _dt.datetime.now().astimezone()}
+    from routemap import netnotes
+    if used is not None:
+        current["interface"] = netnotes.block_of(used)
+    auto = how == service.ORIGIN_HOW_IP
+    for note in netnotes.plain_lines(current.get("interface"), body.get("paths"), origin_auto=auto,
+                                     internet_tunnel=auto and netnotes.internet_via_tunnel()):
+        _err(f"{NAME}: {note}")
     if args.reverse:
         from routemap import insight
         insight.offline(body, settings)                  # ASNs on the forward hops, for the comparison
@@ -692,6 +745,44 @@ def cmd_data(args) -> int:
     return 0
 
 
+def _smoke_watch_header(out_dir: str) -> str:
+    """Watch's header as a compiled binary writes it to a redirected stderr, the
+    way ODIN's "(Ctrl+C stops)a" arrived. The prober is scripted: nothing is sent."""
+    from routemap_engine import probe
+    try:
+        real = sys.stdout.fileno() == 1 and sys.stderr.fileno() == 2
+    except (AttributeError, OSError, ValueError):   # the windowed Windows binary has neither
+        real = False
+    if not real:                                    # or a test runner holds them
+        return "not run (no process stdout and stderr)"
+    saved = probe._probe, probe.available, probe.resolve
+    probe._probe = lambda dst, ttl, seq, wait: probe.Reply("192.0.2.1", 1.0, True)
+    probe.available = lambda family=4: (True, "")
+    probe.resolve = lambda target, family="auto": "192.0.2.1"
+    path = os.path.join(out_dir, "watch-header.txt")
+    sys.stdout.flush()
+    sys.stderr.flush()
+    kept = os.dup(1), os.dup(2)
+    sink = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | getattr(os, "O_BINARY", 0), 0o600)
+    try:
+        os.dup2(sink, 1)
+        os.dup2(sink, 2)
+        main(["--watch", "example.net", "--count", "1", "--offline", "--origin", "14.6,121", "--json"])
+    finally:
+        sys.stdout.flush()
+        sys.stderr.flush()
+        os.dup2(kept[0], 1)
+        os.dup2(kept[1], 2)
+        for fd in (*kept, sink):
+            os.close(fd)
+        probe._probe, probe.available, probe.resolve = saved
+    with open(path, "rb") as handle:
+        text = handle.read().decode("utf-8")
+    header = next(line for line in text.splitlines() if " watch to " in line)
+    assert header.endswith(" or 1 cycles (Ctrl+C stops)"), f"Watch header: {header!r}"
+    return "ok"
+
+
 def smoke_test(out_dir: str) -> int:
     """Open the window offscreen, load the bundled sample, export all three formats.
 
@@ -760,6 +851,7 @@ def smoke_test(out_dir: str) -> int:
     assert b"/Font" in pdf, "the PDF has no fonts: text did not render on this platform"
     window.close()
     from routemap.__about__ import build_commit
+    print(f"watch header: {_smoke_watch_header(out_dir)}")
     summary = (f"{NAME} {VERSION} commit {build_commit()} smoke test ok: {len(route['hops'])} hops, "
                f"{sum(1 for h in route['hops'] if h['lat'] is not None)} placed; "
                f"AS path {ins['as_path_text']}; "
@@ -903,6 +995,12 @@ def main(argv: list[str] | None = None) -> int:
                              "scanner")
     parser.add_argument("--from", dest="from_agent", metavar="AGENT",
                         help="run on a remote agent from Settings > Agents, over your own ssh (one connection)")
+    parser.add_argument("-i", "--interface", metavar="NAME",
+                        help="probe out of this network interface, for Trace, Paths and Watch "
+                             "(--list-interfaces shows them); default: the system route")
+    parser.add_argument("--list-interfaces", action="store_true", help="list this computer's network interfaces and exit")
+    parser.add_argument("--interface-addresses", action="store_true",
+                        help="with --envelope: include this computer's interface addresses and gateways")
     parser.add_argument("--publish-my-ip", action="store_true",
                         help="with --reverse: agree, for this run, that your public IP address is published "
                              "as the target of a public RIPE Atlas measurement")
@@ -915,6 +1013,10 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("--publish-my-ip goes with --reverse")
     if (args.paths or args.reverse) and args.watch:
         parser.error("--paths and --reverse do not go with --watch")
+    if args.list_interfaces:
+        return cmd_list_interfaces()
+    if args.from_agent and args.interface:
+        parser.error("--from does not go with --interface: an agent probes from its own network")
     if args.from_agent and (args.watch or args.reverse):
         parser.error("--from does not go with --watch or --reverse: Live and reverse traces run from this computer")
     if args.watch:

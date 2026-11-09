@@ -125,6 +125,10 @@
   another country. The server needs routemap-engine for the user you log in as. Its first hops are
   the provider's own routers, so they are hidden by default.
   <a href="/docs/guide/#remote-agents">Remote agents</a>.</p>
+  <p><strong>Behind a VPN or SASE client</strong>, Route Map says when the route goes through a tunnel
+  adapter, warns when the origin is probably the tunnel's exit, checks TCP Paths for a local proxy, and
+  lets you choose the adapter to probe from. See
+  <a href="/docs/guide/#using-route-map-behind-a-vpn-or-sase-client">the guide</a>.</p>
   [[pic agent jpg 1600 1000 |A synthetic trace from a remote agent named fra-vps in Frankfurt to heise.de: the first five hops, the server provider's own routers, listed as hidden with no address, name or place, and the route drawn from Frankfurt (RIPEstat and RIPE Atlas data of 26 Oct 2026)]]
   [[pic statusbar png 3200 44 crop strip|The status bar: origin Manila, PH, set in Settings; the trace tool's settings traceroute -m 30 -q 3 -w 1; and checks for DNS, the trace, PTR, Hoiho and the IP database]]
 
@@ -154,6 +158,7 @@
       <tr><td>One TCP connection attempt per chosen port (at most 32), and for TLS ports a TLS ClientHello with the target's name</td><td>the traced address</td><td>only when you click Ports, or turn on Test these ports with every trace</td></tr>
       <tr><td>One ssh connection, with your own ssh client</td><td>the server you named in Settings › Agents, which sends the probes</td><td>only when you trace from an agent; "From the agent's public IP" makes the server look itself up at RIPEstat, so RIPEstat sees the server's address; "City" makes no lookup</td></tr>
       <tr><td>Your public IP</td><td>RIPEstat</td><td>only while no origin is set in Settings</td></tr>
+      <tr><td>Your adapter list, local addresses and gateways</td><td>nobody: read locally, never sent</td><td>in an export only if you tick the box in the Export dialog</td></tr>
       <tr><td>Target, key, your network's AS</td><td>RIPE Atlas</td><td>only for an Atlas trace, with your own key; public</td></tr>
     </tbody>
   </table></div>

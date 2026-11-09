@@ -185,7 +185,8 @@ async def resolve_origin(settings: config.Settings) -> tuple[float, float, str, 
 def trace_options(settings: config.Settings, tool: str, *, cancel: threading.Event | None = None,
                   on_line: Callable[[str], None] | None = None, address: str | None = None) -> TraceOptions:
     return TraceOptions(tool=tool, flags=settings.flags_for(tool), timeout=settings.timeout_seconds,
-                        cancel=cancel, on_line=on_line, family=settings.ip_version, address=address)
+                        cancel=cancel, on_line=on_line, family=settings.ip_version, address=address,
+                        interface=settings.probe_interface or None)
 
 
 def run(target: str, settings: config.Settings, **kwargs):
@@ -212,8 +213,13 @@ def export_json(route: Route | dict, *, target: str | None, trace_text: str,
                 argv: list[str] | None, source: str, origin_how: str | None,
                 insight: dict | None = None, comparison: dict | None = None,
                 session: dict | None = None, reverse: dict | None = None,
-                agent: dict | None = None) -> str:
-    """The JSON export: the route model plus how the trace was made."""
+                agent: dict | None = None, interface: dict | None = None,
+                include_interface_addresses: bool = False) -> str:
+    """The JSON export: the route model plus how the trace was made.
+    *interface* (0.5.0-beta.5): the adapter used, as kind and label; this
+    computer's addresses and gateways only with *include_interface_addresses*,
+    which is the export box the user ticks. Optional keys in format 5: an older
+    reader ignores them (tests/test_interface_exports.py runs beta.4's reader)."""
     body = route.to_dict() if isinstance(route, Route) else dict(route)
     document = {
         "format": EXPORT_FORMAT,
@@ -239,6 +245,12 @@ def export_json(route: Route | dict, *, target: str | None, trace_text: str,
         # The agent the trace ran on (0.5.0-beta.1): its name and how it was
         # placed. Never its address: the app never has it.
         document["agent"] = {k: agent.get(k) for k in ("name", "place", "first_hops_masked")}
+    if interface:
+        from routemap import netnotes
+        document["interface"] = netnotes.stored(interface)
+        if include_interface_addresses:
+            document["interface"].update(addresses=list(interface.get("addresses") or []),
+                                         gateways=list(interface.get("gateways") or []))
     if comparison:
         document["comparison"] = comparison
     if session:

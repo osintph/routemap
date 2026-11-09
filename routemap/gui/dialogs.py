@@ -41,9 +41,50 @@ def _rule() -> QFrame:
 
 # ----------------------------------------------------------------- settings ---
 
+class InterfaceCombo(QComboBox):
+    """Automatic, then every adapter the OS reports, read again each time the
+    list opens so a VPN that connected a moment ago is there. Down adapters
+    are shown and cannot be picked."""
+
+    def __init__(self, current: str, current_name: str, parent=None):
+        super().__init__(parent)
+        self._name = current_name
+        self.refresh(current)
+
+    def refresh(self, current: str | None = None):
+        from routemap import netnotes
+        from routemap_engine import interfaces
+        wanted = self.currentData() if current is None else current
+        try:
+            adapters = interfaces.list_adapters()
+        except OSError:
+            adapters = []
+        self.clear()
+        self.addItem("Automatic (system route)", "")
+        self._names = {"": ""}
+        for adapter in adapters:
+            self.addItem(netnotes.adapter_row(adapter), adapter.id)
+            self._names[adapter.id] = adapter.name
+            if not adapter.selectable:
+                self.model().item(self.count() - 1).setEnabled(False)
+        if wanted and wanted not in self._names:
+            self.addItem(f"{self._name or wanted} (not on this computer now)", wanted)
+            self._names[wanted] = self._name
+            self.model().item(self.count() - 1).setEnabled(False)
+        self.setCurrentIndex(max(0, self.findData(wanted or "")))
+
+    def chosen_name(self) -> str:
+        return self._names.get(self.currentData() or "", "")
+
+    def showPopup(self):
+        self.refresh()
+        super().showPopup()
+
+
 class SettingsDialog(QDialog):
     """Every setting, read from and written back to a config.Settings."""
 
+    ORIGIN_TAB = 0
     PROBES_TAB = 2
     AGENTS_TAB = 3
     ATLAS_TAB = 6   # index of the RIPE Atlas tab, as added in __init__
@@ -251,6 +292,14 @@ class SettingsDialog(QDialog):
         form.addRow("IP version", self.ip_version)
         form.addRow("", _note("Automatic uses the address your system prefers. Pick IPv6 to trace a "
                               "dual-stack host over IPv6. Applies to traces, Paths and Live."))
+        self.probe_interface = InterfaceCombo(s.probe_interface, s.probe_interface_name, page)
+        self.probe_interface.setAccessibleName("Probe interface")
+        form.addRow("Probe interface", self.probe_interface)
+        form.addRow("", _note(
+            "The adapters your system reports now; the list is read again each time it opens. "
+            "Applies to traces, Paths and Live, not to DNS timing, port tests or agents. Some VPN and SASE "
+            "clients intercept probes in their driver whatever is chosen here: after a run, hop 1 is "
+            "checked against the adapter and the result says so if the probes went elsewhere."))
         form.addRow(_rule())
         from routemap_engine import multipath as _multipath
         self.paths_budget = QSpinBox()
@@ -746,6 +795,8 @@ class SettingsDialog(QDialog):
     def values_into(self, settings: Settings) -> list[str]:
         """Copy the dialog into *settings*. Returns problems that stopped a field."""
         problems = []
+        settings.probe_interface = self.probe_interface.currentData() or ""
+        settings.probe_interface_name = self.probe_interface.chosen_name()
         settings.live_interval = float(self.live_interval.value())
         settings.live_duration_min = int(self.live_duration.value())
         settings.live_keep_history = self.live_keep.isChecked()
@@ -975,6 +1026,10 @@ class ExportDialog(QDialog):
             if key == "png":
                 self.png_dark = QCheckBox("Dark map")
                 grid.addWidget(self.png_dark, 2, 0)
+            if key == "json":
+                self.interface_addresses = QCheckBox("Include this computer's interface addresses and gateways")
+                self.interface_addresses.setChecked(False)
+                grid.addWidget(self.interface_addresses, 2, 0, 1, 2)
             layout.addWidget(box)
         layout.addWidget(_note("Nothing is written anywhere except the file you choose."))
         buttons = QDialogButtonBox(QDialogButtonBox.Cancel)
@@ -1462,6 +1517,9 @@ sees the server's address; "City" makes no lookup. The app never receives the se
 address, and stores no keys.</td></tr>
 <tr><td><b>Update check</b></td><td>only when you choose Help &rsaquo; Check for updates: one
 request to GitHub for the latest release tag.</td></tr>
+<tr><td><b>Paths interception check</b></td><td>on Windows, part of a Paths run: two TCP
+connection attempts at each of TTL 1 and 2 and up to two ICMP echoes, to the target, counted in
+the same limits.</td></tr>
 </table>
 <p><b>Settings &rsaquo; Sources &rsaquo; Online lookups</b> turns all of the above off at once
 except Atlas traces you start, the update check and downloads you choose: hops are then
@@ -1475,6 +1533,10 @@ left it), the Hoiho, IP database and RIPE detail answer caches (clearable), the 
 files and, if it is on, the history of the last 50 traces (clearable). A settings or history
 file the app could not read is set aside there, never written over. Exports go only to the
 file you choose.</p>
+<p><b>Network adapters.</b> The adapter list, its addresses and gateways are read locally from
+your operating system. They are never sent anywhere. A history entry and an export keep the
+adapter's kind and name; addresses and gateways go into an export only when you tick
+<i>Include this computer's interface addresses and gateways</i> in the Export dialog.</p>
 """
 
 
@@ -1507,6 +1569,26 @@ class NoticesDialog(QDialog):
         view.setAccessibleName("Third-party notices")
         view.setOpenExternalLinks(True)
         view.setMarkdown(notices_markdown())
+        layout.addWidget(view)
+        buttons = QDialogButtonBox(QDialogButtonBox.Close)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+
+class HelpDialog(QDialog):
+    """Help > Using behind a VPN or SASE client: the bundled Markdown, drawn
+    plainly in the app's own fonts."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        from routemap.gui.legal import vpn_help_markdown
+        self.setWindowTitle(f"{DISPLAY_NAME} behind a VPN or SASE client")
+        self.resize(720, 600)
+        layout = QVBoxLayout(self)
+        view = QTextBrowser()
+        view.setAccessibleName("Help")
+        view.setOpenExternalLinks(True)
+        view.setMarkdown(vpn_help_markdown())
         layout.addWidget(view)
         buttons = QDialogButtonBox(QDialogButtonBox.Close)
         buttons.rejected.connect(self.reject)

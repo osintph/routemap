@@ -184,7 +184,8 @@ def write_pdf(path: str, route: dict, *, target: str, trace_text: str, tool_labe
               include_trace: bool = True, insight: dict | None = None,
               comparison: dict | None = None, quiet_ms: float = 15.0, hot_ms: float = 60.0,
               origin_cc: str | None = None, session: dict | None = None, reverse: dict | None = None,
-              reverse_cmp: dict | None = None, agent: dict | None = None) -> None:
+              reverse_cmp: dict | None = None, agent: dict | None = None,
+              interface: dict | None = None) -> None:
     when = when or _dt.datetime.now().astimezone()
     writer = QPdfWriter(path)
     writer.setResolution(300)
@@ -240,9 +241,14 @@ def write_pdf(path: str, route: dict, *, target: str, trace_text: str, tool_labe
         ["Sources", "CAIDA Hoiho ruleset " + route["hoiho_ruleset_date"]
          if route.get("hoiho_ruleset_date") else "CAIDA Hoiho (cached answers), carrier site codes, RIPEstat"],
     ]
+    from routemap import netnotes
+    if netnotes.details_text(interface):
+        facts.append(["Interface", netnotes.details_text(interface)])
     flow.table(None, facts, [28, 150], size=8.5)
     for warning in route.get("warnings") or []:
         flow.text(f"Note: {warning}", 8.5, color=QColor("#a35a00"))
+    for line in netnotes.plain_lines(interface, route.get("paths"), fresh=False):
+        flow.text(f"Note: {line}", 8.5, color=QColor("#a35a00"))
     _probes_section(flow, route, f"{agent.get('name')} (agent)" if agent else "this computer")
 
     credit = f"{geometry.ATTRIBUTION} · GeoNames CC BY 4.0" + (

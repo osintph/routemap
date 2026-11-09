@@ -4,6 +4,48 @@ All notable changes to this project are documented here. The format is based
 on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 uses [Semantic Versioning](https://semver.org/).
 
+## [0.5.0-beta.5] - 2026-11-08
+
+Accuracy behind VPN and SASE clients. The engine is routemap-engine 0.9.0, which
+has its own list.
+
+### Added
+- **A notice when the route goes through a tunnel adapter**: "Traffic to this
+  target goes through [adapter]. The map shows the path through it, not the
+  direct internet path." It links to help, remote agents and RIPE Atlas reverse
+  traces. Adapters are read from your system on every run, with the names your
+  system reports; no product names are built in. An adapter the system does not
+  clearly describe is "unclassified", named only in the Interface section of the
+  route summary and in exports, with no notice.
+- **An origin warning** when the origin is on Auto and the system's default
+  route goes through a tunnel adapter, with a link to Settings > Origin. A tunnel
+  that carries only some targets gets no warning. The origin is never changed for you and nothing new
+  is looked up.
+- **Probe interface**, in Settings > Trace and as `-i`/`--interface` with
+  `--list-interfaces`: Automatic (the system route) by default, then every adapter
+  your system reports. It applies to Trace, Paths and Watch. After a run on a
+  chosen interface hop 1 is checked against it, and the result says if the probes
+  were redirected or if it could not tell. If the adapter has no route, the run
+  stops and says so; nothing is sent another way.
+- **A one-time notice** when a physical adapter is chosen while a tunnel is up.
+- **A TCP interception check on Paths over TCP** (Windows). A connection completed
+  or refused at TTL 2 or less marks the TCP results unreliable, unless the target
+  is on a local subnet or an ICMP echo reaches it at the same TTL. The export names
+  the condition. A TCP and ICMP difference at hop 1 is reported only when both
+  answered.
+- **Help > Using Route Map behind a VPN or SASE client**, the same text as the guide.
+
+### Changed
+- JSON exports gain optional `interface` (kind and name) and
+  `route.paths.interception`. The export stays format version 5; 0.5.0-beta.4 reads
+  these files and ignores the new keys (tested with its released reader).
+  This computer's addresses and gateways go in only when you tick the box in the
+  Export dialog, or pass `--interface-addresses`.
+- PDF reports name the interface and carry the notices. PNG exports say when a
+  route went through a tunnel.
+- PRIVACY.md and Help > Privacy state that adapters, addresses and gateways are read
+  locally and never sent.
+
 ## [0.5.0-beta.4] - 2026-10-29
 
 Watch and a change of the system clock. The engine is routemap-engine

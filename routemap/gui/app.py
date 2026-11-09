@@ -18,7 +18,7 @@ from PySide6.QtCore import QByteArray, QObject, Qt, QTimer, QUrl
 from PySide6.QtGui import QDesktopServices, QGuiApplication, QIcon
 from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox
 
-from routemap import agents, bugreport, config, dbip, imported, insight, live, probes, reverse, service, updater
+from routemap import agents, bugreport, config, dbip, imported, insight, live, netnotes, probes, reverse, service, updater
 from routemap.__about__ import (DISPLAY_NAME, NAME, REPO_URL, engine_line, version_line,
                                 CONTACT_EMAIL, WINDOWS_SIGNED, SITE_LINKED, SITE_URL,
                                 VERSION)
@@ -100,6 +100,8 @@ class Controller(QObject):
         w.act_bug.triggered.connect(self.bug_report)
         w.act_tour.triggered.connect(self.show_tour)
         w.act_notices.triggered.connect(lambda: dialogs.NoticesDialog(w).exec())
+        w.act_vpn_help.triggered.connect(lambda: dialogs.HelpDialog(w).exec())
+        w.notice.linkActivated.connect(self._notice_link)
         w.act_about.triggered.connect(self.about)
         # Only when chosen from the menu; the app never asks on its own.
         w.act_support.triggered.connect(lambda: dialogs.SupportDialog(w).exec())
@@ -230,7 +232,7 @@ class Controller(QObject):
         from routemap_engine import watch as _watch
         s = self.settings
         options = _watch.WatchOptions(interval=s.live_interval, duration=s.live_duration_min * 60,
-                                      family=s.ip_version)
+                                      family=s.ip_version, interface=s.probe_interface or None)
         self._end_comparison_quietly()
         self.live_snap, self.live_route, self.live_target = None, None, target
         self.live_dns_ms: list[float] = []          # Settings › Probes › once per Live cycle
@@ -245,7 +247,9 @@ class Controller(QObject):
             holder["w"] = w
             self.watcher = w
             session = w.run()
-            return {"snapshot": live.snapshot(session), "session": session.to_dict()}
+            return {"snapshot": live.snapshot(session), "session": session.to_dict(),
+                    "interface": netnotes.block_of(session.interface),
+                    "internet_tunnel": netnotes.internet_via_tunnel()}
 
         task = Task(job, self)
         task.hop.connect(self._watch_cycle)
@@ -376,6 +380,9 @@ class Controller(QObject):
         self.current = {"route": route, "target": target, "trace_text": "", "argv": argv, "source": "watch",
                         "origin_how": self.origin_how, "session": session,
                         "when": _dt.datetime.fromtimestamp(snap["started"]).astimezone()}
+        if result.get("interface"):
+            self.current["interface"] = result["interface"]
+        self.current["internet_tunnel"] = result.get("internet_tunnel", False)
         if kept:
             self.current["insight"] = kept
         if self.live_dns_last:
@@ -384,10 +391,13 @@ class Controller(QObject):
                             dns=self._live_dns_text())
         self.w.end_watch()
         self.w.statusBar().showMessage(f"Continuous trace ended after {snap['cycles']} cycles.", 8000)
+        self._refresh_notices(fresh=True)
         if self.settings.live_keep_history and snap["cycles"]:
             entry = config.history_entry(route, target=target, trace_text="", argv=argv, source="watch",
                                          session=session)
             entry["origin_how"] = self.origin_how
+            if result.get("interface"):
+                entry["interface"] = netnotes.stored(result["interface"])
             config.add_history(entry, self.settings)
             self.refresh_history()
         self._refresh_compare_actions()
@@ -407,6 +417,7 @@ class Controller(QObject):
         self.w.show_result(current["route"], current["target"], current.get("argv"))
         self.w.set_live_mode(True)
         self._after_result()
+        self._refresh_notices(fresh=False)
         self.w.update_watch(live.merge_hops(current["route"].get("hops") or [], snap["hops"]), snap, running=False,
                             details=self._live_details())
 
@@ -543,6 +554,9 @@ class Controller(QObject):
                         "when": _dt.datetime.now().astimezone()}
         if result.get("agent"):
             self.current["agent"] = result["agent"]
+        if result.get("interface"):
+            self.current["interface"] = result["interface"]
+        self.current["internet_tunnel"] = result.get("internet_tunnel", False)
         # The Trace's address beside a Paths run's, when they differ (bbc.com).
         if body.get("paths") and before and not before["route"].get("paths"):
             self.current["trace_resolved"] = before["route"].get("resolved")
@@ -562,9 +576,12 @@ class Controller(QObject):
         entry["origin_how"] = self.current["origin_how"]
         if result.get("agent"):
             entry["agent"] = result["agent"]
+        if result.get("interface"):
+            entry["interface"] = netnotes.stored(result["interface"])
         self.current["history_when"] = entry["when"]
         config.add_history(entry, self.settings)
         self.refresh_history()
+        self._refresh_notices(fresh=True)
 
     def _failed(self, message: str):
         self.compare_next = None
@@ -623,6 +640,8 @@ class Controller(QObject):
             self.current = {"route": doc["route"], "target": doc["target"] or os.path.basename(path),
                             "trace_text": doc["trace_text"], "argv": doc["argv"], "source": doc["source"],
                             "origin_how": doc["origin_how"], "when": _dt.datetime.now().astimezone()}
+            if doc.get("interface"):
+                self.current["interface"] = doc["interface"]
             if doc.get("session"):
                 self.current["session"] = doc["session"]
                 self.show_session(self.current)
@@ -631,6 +650,7 @@ class Controller(QObject):
             self.w.show_result(doc["route"], self.current["target"], self.current["argv"],
                                trace_text=self.current["trace_text"])
             self._after_result()
+            self._refresh_notices(fresh=False)
             if doc.get("reverse"):
                 self._show_reverse(doc["reverse"])
             return
@@ -684,13 +704,49 @@ class Controller(QObject):
             path += "." + fmt
         try:
             write_export(fmt, path, c, dark_png=dialog.png_dark.isChecked(),
-                         include_trace=dialog.appendix.isChecked(), settings=self.settings)
+                         include_trace=dialog.appendix.isChecked(), settings=self.settings,
+                         include_interface_addresses=dialog.interface_addresses.isChecked())
         except Exception as exc:  # noqa: BLE001
             self.error("Export failed", str(exc))
             return
         self.w.statusBar().showMessage(f"Exported {os.path.basename(path)}", 6000)
 
     # ------------------------------------------------------------ settings ---
+    def _notice_link(self, href: str):
+        if href == netnotes.LINK_HELP:
+            dialogs.HelpDialog(self.w).exec()
+        elif href == netnotes.LINK_ORIGIN:
+            self.open_settings(dialogs.SettingsDialog.ORIGIN_TAB)
+        elif href == netnotes.LINK_AGENTS:
+            self.open_settings(dialogs.SettingsDialog.AGENTS_TAB)
+        elif href == netnotes.LINK_REVERSE:
+            self.reverse_trace()
+
+    def _refresh_notices(self, *, fresh: bool):
+        """The notice bar and the details panel, from the shown result. The
+        origin warning is about the origin in use now, so only for a new run."""
+        c = self.current or {}
+        block, paths = c.get("interface"), (c.get("route") or {}).get("paths")
+        auto = fresh and self.settings.origin_mode == config.ORIGIN_AUTO
+        self.w.set_notice(netnotes.notice_html(block, paths, origin_auto=auto, fresh=fresh,
+                                               internet_tunnel=bool(c.get("internet_tunnel"))))
+        self.w.insight.set_interface(netnotes.details_text(block))
+
+    def _bypass_notice(self, before: str):
+        """Once, ever: a physical adapter chosen while a tunnel is up."""
+        chosen = self.settings.probe_interface
+        if not chosen or chosen == before or self.settings.bypass_notice_seen:
+            return
+        from routemap_engine import interfaces
+        try:
+            adapters = interfaces.list_adapters()
+        except OSError:
+            return
+        if netnotes.bypass_applies(interfaces.find(adapters, chosen), adapters):
+            self.settings.bypass_notice_seen = True
+            config.save_settings(self.settings)
+            QMessageBox.information(self.w, "Probe interface", netnotes.BYPASS_NOTICE)
+
     def open_settings(self, tab: int = 0):
         cache_count = 0
         # Every answer cache: Hoiho hostnames, IP database addresses, RIPE details.
@@ -714,10 +770,12 @@ class Controller(QObject):
         dialog.testAgentRequested.connect(lambda data: self.test_agent(dialog, data))
         if not dialog.exec():
             return
+        interface_before = self.settings.probe_interface
         problems = dialog.values_into(self.settings)
         config.save_settings(self.settings)
         for problem in problems:
             self.error("Settings", problem)
+        self._bypass_notice(interface_before)
         chosen = self.settings.origin()
         if chosen is not None:
             self.origin, self.origin_how = chosen, self.settings.origin_mode
@@ -809,6 +867,8 @@ class Controller(QObject):
                         "when": _dt.datetime.fromtimestamp(e["when"]).astimezone()}
         if e.get("agent"):
             self.current["agent"] = e["agent"]
+        if e.get("interface"):
+            self.current["interface"] = e["interface"]
         if e.get("session"):
             self.current["session"] = e["session"]
             self.show_session(self.current)
@@ -819,6 +879,7 @@ class Controller(QObject):
                            agent=(e.get("agent") or {}).get("name"))
         self._refresh_origin_status()
         self._after_result()
+        self._refresh_notices(fresh=False)
         if e.get("reverse"):
             self._show_reverse(e["reverse"])
 
@@ -867,7 +928,7 @@ class Controller(QObject):
             on_progress("dns", "done")
             d = multipath.discover(target, family=settings.ip_version, cancel=cancel, on_progress=progress,
                                    options=multipath.Options(budget=settings.paths_budget),
-                                   address=resolved["address"])
+                                   address=resolved["address"], interface=settings.probe_interface or None)
             text = d.trace_text()
             for line in text.splitlines():
                 on_line(line)
@@ -879,6 +940,8 @@ class Controller(QObject):
             if settings.ports_with_trace and d.stopped_by != "cancel":
                 route.ports = probes.check_ports(resolved["address"], target, settings)
             return {"route": route, "text": text, "stopped": d.stopped_by == "cancel",
+                    "interface": netnotes.block_of(d.interface),
+                    "internet_tunnel": netnotes.internet_via_tunnel(),
                     "argv": [d.method, f"{d.flows_used} flows", f"{d.probes_sent} probes", target]}
 
         from routemap_engine import probe as _probe
@@ -1772,7 +1835,9 @@ def progressive_trace(target: str, settings: config.Settings, origin, *, on_line
         route.ports = probes.check_ports(resolved["address"], target, settings)
         on_progress("ports", "done")
     return {"route": route, "text": result.text, "argv": result.argv,
-            "timed_out": result.timed_out, "stopped": result.cancelled}
+            "timed_out": result.timed_out, "stopped": result.cancelled,
+            "interface": netnotes.block_of(result.interface),
+            "internet_tunnel": netnotes.internet_via_tunnel()}
 
 
 # ------------------------------------------------------------------ helpers ---
@@ -1794,7 +1859,8 @@ def _no_tool_html() -> str:
 
 
 def write_export(fmt: str, path: str, current: dict, *, dark_png: bool = False,
-                 include_trace: bool = True, settings: config.Settings | None = None) -> None:
+                 include_trace: bool = True, settings: config.Settings | None = None,
+                 include_interface_addresses: bool = False) -> None:
     """Write one export of *current* to *path*. Used by the window and the CLI."""
     route, target = current["route"], current["target"]
     settings = settings or config.Settings()
@@ -1806,7 +1872,8 @@ def write_export(fmt: str, path: str, current: dict, *, dark_png: bool = False,
                                    argv=current.get("argv"), source=current.get("source", LOCAL),
                                    origin_how=current.get("origin_how"), insight=ins, comparison=cmp,
                                    session=current.get("session"), reverse=current.get("reverse"),
-                                   agent=current.get("agent"))
+                                   agent=current.get("agent"), interface=current.get("interface"),
+                                   include_interface_addresses=include_interface_addresses)
         with open(path, "w", encoding="utf-8") as handle:
             handle.write(text)
     elif fmt == "png":
@@ -1816,7 +1883,9 @@ def write_export(fmt: str, path: str, current: dict, *, dark_png: bool = False,
             title=png_title(route, target, current.get("agent")),
             provenance=f"{DISPLAY_NAME} {VERSION} \u00b7 {report.stamp(when)} \u00b7 "
                        f"{label or current.get('source', '')} · {geometry.ATTRIBUTION} · "
-                       "GeoNames CC BY 4.0" + (" · IP Geolocation by DB-IP" if mapview.uses_dbip(route) else ""),
+                       "GeoNames CC BY 4.0" + (" · IP Geolocation by DB-IP" if mapview.uses_dbip(route) else "") +
+                       ((" · through " + current["interface"]["label"])
+                        if (current.get("interface") or {}).get("kind") == netnotes.TUNNEL else ""),
             quiet_ms=settings.rtt_quiet_ms, hot_ms=settings.rtt_hot_ms,
             ghost=(cmp or {}).get("old_route"),
             marks={int(k): v for k, v in ((cmp or {}).get("new_marks") or {}).items()} or None,
@@ -1830,7 +1899,8 @@ def write_export(fmt: str, path: str, current: dict, *, dark_png: bool = False,
                          insight=ins, comparison=cmp, quiet_ms=settings.rtt_quiet_ms,
                          hot_ms=settings.rtt_hot_ms, origin_cc=_origin_cc_of(route),
                          session=current.get("session"), reverse=current.get("reverse"),
-                         reverse_cmp=_reverse_cmp(current), agent=current.get("agent"))
+                         reverse_cmp=_reverse_cmp(current), agent=current.get("agent"),
+                         interface=current.get("interface"))
     else:
         raise ValueError(f"unknown export format {fmt!r}")
 

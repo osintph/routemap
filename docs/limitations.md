@@ -19,6 +19,11 @@
   placed.
 - **Origin from your public IP** is a city-level guess and is wrong behind a
   VPN or proxy; set the origin in Settings.
+- **Behind a VPN or SASE client** a trace shows the path through the tunnel. A
+  driver-level client can ignore the probe interface; hop 1 is checked, but a
+  consistent hop 1 is not proof of a direct path. The TCP interception check
+  runs on Paths over TCP (Windows); it cannot see a proxy further than two hops
+  away. An adapter the system does not clearly describe stays "unclassified".
 - **Repeated hops at one place.** Hops at the same place that are not next to
   each other in the trace get separate markers; at world zoom the labels can
   spread far apart, with thin leader lines back to the real point. Zoom in to

@@ -36,6 +36,12 @@ with connect and TLS times): a reachability check, not a scanner. A **remote
 agent** runs the trace on a server you reach with your own ssh, and shows the
 route from there.
 
+Behind a **VPN or SASE client**, Route Map says when the route goes through a
+tunnel adapter, warns when the origin is probably the tunnel's exit, checks
+TCP Paths for a local proxy answering in the target's place, and has a
+**probe interface** selector built from the adapters your system reports. See
+[the guide](docs/guide.md#using-route-map-behind-a-vpn-or-sase-client).
+
 The trace runs on your machine (or, with an agent, on your server) with the
 system's own `tracert`, `traceroute` or `mtr`, or the built-in prober. Nothing about it is sent anywhere except the lookups listed in
 [PRIVACY.md](PRIVACY.md).

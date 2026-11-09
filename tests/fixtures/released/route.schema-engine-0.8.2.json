@@ -1,0 +1,1065 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/osintph/routemap/blob/main/routemap_engine/route.schema.json",
+  "title": "Route",
+  "description": "One analysed traceroute: Route.to_dict(). Also the body of FalconEye's POST /api/routemap/analyze.",
+  "type": "object",
+  "required": [
+    "parser",
+    "parser_label",
+    "target",
+    "warnings",
+    "hoiho_ruleset_date",
+    "origin",
+    "hops"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "parser": {
+      "enum": [
+        "tracert",
+        "traceroute",
+        "mtr",
+        "hops",
+        "icmp"
+      ]
+    },
+    "parser_label": {
+      "type": "string"
+    },
+    "target": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "What the trace banner said was traced, if anything."
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "hoiho_ruleset_date": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "CAIDA Hoiho ruleset date, when Hoiho answered from the network."
+    },
+    "origin": {
+      "$ref": "#/$defs/origin"
+    },
+    "hops": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/hop"
+      }
+    },
+    "paths": {
+      "description": "Path discovery (0.7.0, routemap_engine.multipath): present only for a route made by analyse_paths. Paths found over ICMP are a lower bound (at_least).",
+      "$ref": "#/$defs/paths"
+    },
+    "resolved": {
+      "$ref": "#/$defs/resolved"
+    },
+    "dns": {
+      "description": "0.8.0: DNS response timing (routemap_engine.dnstime).",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/dns_lookup"
+      }
+    },
+    "ports": {
+      "$ref": "#/$defs/ports"
+    }
+  },
+  "$defs": {
+    "coord_lat": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "minimum": -90,
+      "maximum": 90
+    },
+    "coord_lon": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "minimum": -180,
+      "maximum": 180
+    },
+    "origin": {
+      "type": "object",
+      "required": [
+        "lat",
+        "lon",
+        "label",
+        "source"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "lat": {
+          "$ref": "#/$defs/coord_lat"
+        },
+        "lon": {
+          "$ref": "#/$defs/coord_lon"
+        },
+        "label": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "source": {
+          "enum": [
+            "supplied",
+            "first-hop",
+            "none"
+          ]
+        }
+      }
+    },
+    "candidate": {
+      "type": "object",
+      "required": [
+        "source",
+        "accepted"
+      ],
+      "properties": {
+        "source": {
+          "enum": [
+            "hoiho",
+            "site-code",
+            "ip-db",
+            "anycast",
+            "neighbours"
+          ]
+        },
+        "accepted": {
+          "type": "boolean"
+        },
+        "hostname": {
+          "type": "string"
+        },
+        "address": {
+          "type": "string"
+        },
+        "place": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "lat": {
+          "$ref": "#/$defs/coord_lat"
+        },
+        "lon": {
+          "$ref": "#/$defs/coord_lon"
+        },
+        "distance_km": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "rtt_budget_km": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "why": {
+          "type": "string"
+        },
+        "match_strs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "match_meanings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "carrier": {
+          "type": "string"
+        },
+        "code": {
+          "type": "string"
+        },
+        "source_ref": {
+          "type": "string"
+        },
+        "provider": {
+          "enum": [
+            "ripestat",
+            "dbip"
+          ],
+          "description": "Which IP database tier answered: RIPEstat (online) or DB-IP Lite City (offline)."
+        }
+      },
+      "additionalProperties": false
+    },
+    "hop": {
+      "type": "object",
+      "required": [
+        "hop",
+        "addresses",
+        "address",
+        "hostnames",
+        "hostname",
+        "min_rtt_ms",
+        "avg_rtt_ms",
+        "sent",
+        "lost",
+        "loss_pct",
+        "codes",
+        "source",
+        "lat",
+        "lon",
+        "place",
+        "cc",
+        "distance_km",
+        "rtt_budget_km",
+        "annotations",
+        "reason",
+        "candidates"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "hop": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 255
+        },
+        "addresses": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "address": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "The address that produced the placement, else the first."
+        },
+        "hostnames": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "hostname": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "The hostname that produced the placement, else the first."
+        },
+        "min_rtt_ms": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "avg_rtt_ms": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "sent": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "lost": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "loss_pct": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "codes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "source": {
+          "enum": [
+            "hoiho",
+            "site-code",
+            "ip-db",
+            "anycast",
+            "neighbours",
+            "local",
+            "unresolved"
+          ]
+        },
+        "lat": {
+          "$ref": "#/$defs/coord_lat"
+        },
+        "lon": {
+          "$ref": "#/$defs/coord_lon"
+        },
+        "place": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "cc": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "distance_km": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "rtt_budget_km": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "annotations": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "local / ISP internal",
+              "location impossible for RTT",
+              "likely asymmetric return path",
+              "ICMP rate limiting, not real loss",
+              "destination or path does not answer ICMP",
+              "answered the final TTL 255 probe",
+              "answered the final full-TTL probe"
+            ]
+          }
+        },
+        "annotation_details": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "reason": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Why the hop is unplaced, or how a local hop was handled."
+        },
+        "candidates": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/candidate"
+          }
+        },
+        "match_strs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "match_meanings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "carrier": {
+          "type": "string"
+        },
+        "site_code": {
+          "type": "string"
+        },
+        "source_ref": {
+          "type": "string"
+        },
+        "precision": {
+          "enum": [
+            "country"
+          ],
+          "description": "Present only when the hop is placed to country level: the coordinates are a country centroid, not a city."
+        },
+        "ip_provider": {
+          "enum": [
+            "ripestat",
+            "dbip"
+          ],
+          "description": "Which IP database tier answered: RIPEstat (online) or DB-IP Lite City (offline)."
+        },
+        "asn": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Autonomous system number of the hop's address."
+        },
+        "as_org": {
+          "type": "string",
+          "description": "The AS's organisation name."
+        },
+        "as_network": {
+          "type": "string",
+          "description": "The database range containing the address (not necessarily the routed prefix)."
+        },
+        "asn_source": {
+          "enum": [
+            "dbip",
+            "ripestat"
+          ],
+          "description": "Where the ASN came from."
+        },
+        "ixp": {
+          "type": "string",
+          "description": "Internet exchange the hop's address belongs to."
+        },
+        "masked": {
+          "type": "boolean",
+          "description": "0.8.0: an agent trace's first hop in the server provider's network, shown without address, name or place."
+        }
+      }
+    },
+    "path_hop": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "hop",
+        "address",
+        "lat",
+        "lon",
+        "source"
+      ],
+      "properties": {
+        "hop": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "address": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "hostname": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "lat": {
+          "$ref": "#/$defs/coord_lat"
+        },
+        "lon": {
+          "$ref": "#/$defs/coord_lon"
+        },
+        "place": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "cc": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "source": {
+          "enum": [
+            "hoiho",
+            "site-code",
+            "ip-db",
+            "anycast",
+            "neighbours",
+            "local",
+            "unresolved"
+          ]
+        },
+        "min_rtt_ms": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "avg_rtt_ms": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "ip_provider": {
+          "enum": [
+            "ripestat",
+            "dbip"
+          ],
+          "description": "Which IP database tier answered: RIPEstat (online) or DB-IP Lite City (offline)."
+        },
+        "precision": {
+          "enum": [
+            "country"
+          ],
+          "description": "Present only when the hop is placed to country level: the coordinates are a country centroid, not a city."
+        },
+        "masked": {
+          "type": "boolean"
+        }
+      }
+    },
+    "path": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "flows",
+        "hops",
+        "rtt_ms",
+        "reached",
+        "sent",
+        "lost",
+        "loss_pct",
+        "rtt_to_target_ms"
+      ],
+      "properties": {
+        "id": {
+          "enum": [
+            "A",
+            "B",
+            "C",
+            "D",
+            "E",
+            "F",
+            "G",
+            "H",
+            "I",
+            "J",
+            "K",
+            "L",
+            "M",
+            "N",
+            "O",
+            "P"
+          ]
+        },
+        "flows": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 63
+          },
+          "maxItems": 64
+        },
+        "hops": {
+          "type": "array",
+          "items": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "maxItems": 31
+        },
+        "rtt_ms": {
+          "type": "array",
+          "items": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "maxItems": 31
+        },
+        "reached": {
+          "type": "boolean"
+        },
+        "sent": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "lost": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "loss_pct": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "rtt_to_target_ms": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "located": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/path_hop"
+          },
+          "maxItems": 31
+        },
+        "reached_by": {
+          "enum": [
+            "discovery",
+            "full_ttl",
+            null
+          ],
+          "description": "0.8.0: how the target answered: during discovery, or only to the full-TTL attempts after a silent stretch."
+        },
+        "silent": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "minItems": 2,
+          "maxItems": 2,
+          "description": "0.8.0: first and last TTL of the silent stretch before a full-TTL answer."
+        }
+      }
+    },
+    "paths": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "method",
+        "at_least",
+        "af",
+        "paths",
+        "per_packet_hops",
+        "probes_sent",
+        "flows",
+        "paths_capped",
+        "stopped_by",
+        "seconds"
+      ],
+      "properties": {
+        "method": {
+          "enum": [
+            "icmp-paris",
+            "tcp-paris"
+          ]
+        },
+        "at_least": {
+          "enum": [
+            true
+          ]
+        },
+        "af": {
+          "enum": [
+            4,
+            6
+          ]
+        },
+        "paths": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/path"
+          },
+          "maxItems": 16
+        },
+        "per_packet_hops": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "probes_sent": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1500
+        },
+        "flows": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 64
+        },
+        "paths_capped": {
+          "type": "boolean"
+        },
+        "stopped_by": {
+          "enum": [
+            "complete",
+            "budget",
+            "cancel",
+            "deadline",
+            "gap",
+            "max_hops",
+            "local_error"
+          ]
+        },
+        "seconds": {
+          "type": "number",
+          "minimum": 0
+        },
+        "port": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535
+        },
+        "local_failures": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "local_failure_reasons": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "maxProperties": 16,
+          "description": "0.8.1: probes that never left this computer, by error name and code (\"WSAEACCES 10013\": 3); no address or port."
+        },
+        "flows_restarted": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "0.8.1: flows probed again from TTL 1 on a new source port, after their kept port was refused (TCP, Windows)."
+        },
+        "budget": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "discovery_probes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "stop_text": {
+          "type": "string",
+          "description": "0.8.0: why the discovery ended, in words."
+        },
+        "max_hops": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 30
+        },
+        "silent_stop": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "minItems": 2,
+          "maxItems": 2,
+          "description": "0.8.0: first and last TTL of the silent hops that ended the discovery."
+        },
+        "final_hop": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1,
+          "maximum": 31,
+          "description": "0.8.0: the hop number of a full-TTL answer after silent hops (the hop after the last one sent)."
+        },
+        "tcp_silent_from": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1,
+          "description": "0.8.0, TCP runs: the first TTL of the stretch that ended the discovery, silent to TCP while one ICMP echo there was answered."
+        },
+        "icmp_checks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "ttl",
+              "address"
+            ],
+            "properties": {
+              "ttl": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "address": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          }
+        },
+        "resolved": {
+          "$ref": "#/$defs/resolved"
+        },
+        "per_packet": {
+          "type": "array",
+          "description": "0.8.0: each per-packet hop's routers, each placed on its own.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "hop",
+              "located"
+            ],
+            "properties": {
+              "hop": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "located": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/path_hop"
+                }
+              }
+            }
+          }
+        },
+        "ping_interval": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "description": "0.8.0: seconds between rounds of target attempts, at least."
+        },
+        "tcp_silent_by": {
+          "enum": [
+            "router",
+            "target",
+            null
+          ],
+          "description": "0.8.0: who answered the ICMP check where TCP went silent: a router (the network does not answer TCP probes) or the target itself (something in front of it answers for its TCP service)."
+        }
+      }
+    },
+    "resolved": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "address",
+        "family"
+      ],
+      "description": "0.8.0: the address the trace was sent to, resolved once, and the name it was resolved from.",
+      "properties": {
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "address": {
+          "type": "string"
+        },
+        "family": {
+          "enum": [
+            4,
+            6
+          ]
+        },
+        "by": {
+          "type": "string"
+        }
+      }
+    },
+    "dns_lookup": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "resolver",
+        "type",
+        "ms",
+        "addresses"
+      ],
+      "properties": {
+        "resolver": {
+          "type": "string"
+        },
+        "type": {
+          "enum": [
+            "A",
+            "AAAA"
+          ]
+        },
+        "ms": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "addresses": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "rcode": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "aa": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "cached": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "ttl": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "error": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "tcp": {
+          "type": "boolean"
+        }
+      }
+    },
+    "ports": {
+      "description": "0.8.0: TCP port tests to the traced address (routemap_engine.ports).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "address",
+        "results"
+      ],
+      "properties": {
+        "address": {
+          "type": "string"
+        },
+        "cap": {
+          "type": "integer"
+        },
+        "parallel": {
+          "type": "integer"
+        },
+        "wait": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "seconds": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "results": {
+          "type": "array",
+          "maxItems": 32,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "port",
+              "state"
+            ],
+            "properties": {
+              "port": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 65535
+              },
+              "state": {
+                "enum": [
+                  "open",
+                  "closed",
+                  "filtered",
+                  "error"
+                ]
+              },
+              "reason": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "connect_ms": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "minimum": 0
+              },
+              "tls_ms": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "minimum": 0
+              },
+              "tls_version": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "tls_error": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "waited": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "minimum": 0
+              }
+            }
+          }
+        },
+        "wait_used": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "description": "0.8.0: the longest a filtered port was waited for; less than wait where the system gave up first (Windows, about 1 s)."
+        }
+      }
+    }
+  }
+}

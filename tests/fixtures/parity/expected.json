@@ -67,6 +67,7 @@
   "baseline": true,
   "countries": true,
   "diff": false,
+  "interface": false,
   "loss": true,
   "path": true,
   "ris": true,
