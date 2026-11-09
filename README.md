@@ -54,8 +54,8 @@ Download the latest release from
 | Platform | File | First run |
 |---|---|---|
 | Windows 10/11 | `routemap-<version>-windows-x86_64.zip` | Extract it and run `routemap.exe` in the `Route Map` folder. Not code-signed yet: SmartScreen may say "Windows protected your PC"; choose **More info**, then **Run anyway**. |
-| macOS 12+ (Apple silicon) | `routemap-<version>-macos-arm64.dmg` | Drag Route Map to Applications. Not notarised, so Gatekeeper blocks the first start: right-click it, **Open**, then **Open** again (macOS 15: System Settings > Privacy & Security > **Open Anyway**). |
-| macOS 12+ (Intel) | `routemap-<version>-macos-x86_64.dmg` | As above. |
+| macOS 13+ (Apple silicon) | `routemap-<version>-macos-arm64.dmg` | Drag Route Map to Applications. Not notarised, so Gatekeeper blocks the first start: right-click it, **Open**, then **Open** again (macOS 15: System Settings > Privacy & Security > **Open Anyway**). |
+| macOS 13+ (Intel) | `routemap-<version>-macos-x86_64.dmg` | As above. |
 | Linux x86_64 | `.AppImage` or `.tar.gz` | `chmod +x` the AppImage and run it. Tracing needs `traceroute` (`sudo apt install traceroute`). |
 
 **Not on PyPI.** Route Map is not on PyPI: `pip install routemap` installs an

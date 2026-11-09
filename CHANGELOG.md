@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format is based
 on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 uses [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Changed
+- The documented minimum macOS version is now 13, in the README, guide, known
+  limitations, site and release notes. It said 12, but the Qt build the app
+  ships on needs macOS 13.
+
 ## [0.5.0-beta.5] - 2026-11-09
 
 Accuracy behind VPN and SASE clients. The engine is routemap-engine 0.9.0, which

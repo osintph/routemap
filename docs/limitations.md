@@ -3,7 +3,7 @@
 - **Unsigned builds.** Windows builds are not code-signed until signing with
   the maintainer's Certum certificate is set up, and macOS builds are not notarised, so both
   systems warn on first start.
-- **Platforms.** Windows x86_64, macOS 12+ (Apple silicon and Intel) and Linux
+- **Platforms.** Windows x86_64, macOS 13+ (Apple silicon and Intel) and Linux
   x86_64. No Windows on ARM or Linux ARM builds yet.
 - **IP database placements are hints.** The fallback database places a
   backbone address where its operator registered the prefix, which can be a
